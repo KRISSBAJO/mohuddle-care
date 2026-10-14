@@ -100,6 +100,29 @@ const ROLES = [
 ] as const;
 
 /* Which login roles receive a kind of notification. Sent as one role per line, like other lists. */
+/* Pick any of a fixed set of options. Saved as one value per line, like a list. */
+export function ChoicePicker({ name, initial, choices }: { name: string; initial: string[]; choices: [string, string][] }) {
+  const [chosen, setChosen] = useState(initial);
+  return (
+    <div>
+      <input type="hidden" name={name} value={chosen.join("\n")} />
+      <div className="flex flex-wrap gap-2">
+        {choices.map(([value, text]) => (
+          <label key={value} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-brand has-[:checked]:bg-sky/50">
+            <input
+              type="checkbox"
+              checked={chosen.includes(value)}
+              onChange={event => setChosen(event.target.checked ? [...chosen, value] : chosen.filter(item => item !== value))}
+              className="h-4 w-4 accent-[#1b6fa8]"
+            />
+            {text}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RolePicker({ name, initial }: { name: string; initial: string[] }) {
   const [roles, setRoles] = useState(initial);
   return (

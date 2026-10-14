@@ -21,6 +21,7 @@ import {
 import { AppointmentList } from "@/components/appointments/AppointmentParts";
 import { Avatar, Badge, Empty, Panel } from "@/components/app/ui";
 import { OwedShifts } from "@/components/logs/OwedShifts";
+import { ClockCard } from "@/components/clock/ClockCard";
 import { followUpState } from "@/lib/appointments";
 import { cn } from "@/lib/cn";
 import { compactRange } from "@/lib/schedule";
@@ -30,6 +31,7 @@ import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { listAppointments } from "@/server/queries/appointments";
 import { todayOverview } from "@/server/queries/dashboard";
+import { getSettings } from "@/server/settings";
 import { notesOwed, owedTotals } from "@/server/queries/notes-owed";
 
 const TABS = [
@@ -56,7 +58,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const user = await requireUser();
   const { denied, tab: tabParam } = await searchParams;
   const manager = canManage(user);
-  const now = await requestTime();
+  const [now, settings] = await Promise.all([requestTime(), getSettings()]);
   const since = new Date(now - 36 * 3_600_000);
   const [o, myOwed, allOwed, toDocument, upcoming, followUps] = await Promise.all([
     todayOverview(),
@@ -163,6 +165,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <Link href="/app/incidents/new" className="btn-ghost btn-sm"><AlertTriangle className="h-4 w-4" /> Incident</Link>
         </nav>
       </header>
+
+      {user.staffId && <ClockCard staffId={user.staffId} now={now} settings={settings} />}
 
       {denied && <p className="mb-5 rounded-xl bg-accent-soft px-4 py-3 text-sm font-medium text-[#8a5a10]">That page is for coordinators and administrators.</p>}
 

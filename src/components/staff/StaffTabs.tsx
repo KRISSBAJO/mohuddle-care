@@ -16,6 +16,8 @@ import type { SessionUser } from "@/server/auth";
 import { requestTime } from "@/server/clock";
 import type { staffDetail } from "@/server/queries/hub";
 import { homesWorked, notesWrittenBy, staffSummary, staffWeeks } from "@/server/queries/staff-profile";
+import { rowMinutes, staffTime } from "@/server/queries/timeclock";
+import { flagLabel, formatMinutes } from "@/lib/timeclock";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof staffDetail>>>;
 type Summary = Awaited<ReturnType<typeof staffSummary>>;
@@ -404,6 +406,62 @@ export function StaffAccountTab({ detail, user, manager, self, manageable }: { d
                 <ConfirmAction action={setStaffActive.bind(null, member.id, true)} label="Mark as returned" />
               </>
             )}
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/* ---------- Time ---------- */
+
+export async function StaffTimeTab({ id, manager }: { id: string; manager: boolean }) {
+  const now = await requestTime();
+  const time = await staffTime(id, now);
+  const open = time.rows.find(row => !row.clockOutAt);
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="card p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Now</p>
+          <p className={cn("mt-1 font-display text-xl font-bold", open ? "text-sage" : "text-mute")}>{open ? "On the clock" : "Off"}</p>
+          <p className="text-xs text-mute">{open ? `Since ${fmt.time(open.clockInAt)} at ${open.home ?? "work"}` : "Not clocked in"}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Worked this week</p>
+          <p className="mt-1 font-display text-xl font-bold">{formatMinutes(time.weekMinutes)}</p>
+          <p className="text-xs text-mute">From Monday, less meal breaks</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Late, 3 weeks</p>
+          <p className={cn("mt-1 font-display text-xl font-bold", time.lateCount ? "text-[#8a5a10]" : "text-sage")}>{time.lateCount}</p>
+          <p className="text-xs text-mute">Clock-ins past the grace period</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">To review</p>
+          <p className={cn("mt-1 font-display text-xl font-bold", time.flagged ? "text-flag" : "text-sage")}>{time.flagged}</p>
+          <p className="text-xs text-mute">Flagged punches not yet looked at</p>
+        </div>
+      </div>
+      <Panel title="Punches, last three weeks" action={manager ? <Link href={`/app/time?tab=punches&staff=${id}`} className="text-xs font-semibold text-brand">All punches</Link> : undefined}>
+        {time.rows.length === 0 ? (
+          <Empty>No punches yet. Staff clock in from My time clock on their phone.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead><tr><th>Day</th><th>Home</th><th>In – out</th><th className="text-right">Worked</th><th>Flags</th></tr></thead>
+              <tbody>
+                {time.rows.map(row => (
+                  <tr key={row.id}>
+                    <td className="whitespace-nowrap font-semibold">{manager ? <Link href={`/app/time/${row.id}`} className="hover:text-brand">{fmt.day(row.clockInAt)}</Link> : fmt.day(row.clockInAt)}</td>
+                    <td className="text-mute">{row.home ?? "—"}</td>
+                    <td className="whitespace-nowrap">{fmt.time(row.clockInAt)} – {row.clockOutAt ? fmt.time(row.clockOutAt) : <Badge tone="good">On now</Badge>}</td>
+                    <td className="text-right tabular-nums">{formatMinutes(rowMinutes(row, now))}</td>
+                    <td><span className="flex flex-wrap gap-1">{row.flags.map(flag => <Badge key={flag} tone={["late", "edited", "corrected"].includes(flag) ? "neutral" : "warn"}>{flagLabel(flag)}</Badge>)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Panel>

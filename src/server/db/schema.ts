@@ -69,6 +69,11 @@ export const homes = pgTable("homes", {
   openedOn: date("opened_on"),
   // Practical notes for staff: parking, how to get in, quiet hours. Never door codes or passwords.
   notes: text("notes").notNull().default(""),
+  // Where the home is, for checking staff are there when they clock in and out.
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  // Handover ticks for this home, on top of the agency-wide list in Settings.
+  handoverChecks: jsonb("handover_checks").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   createdAt: createdAt(),
 });
 
@@ -765,4 +770,148 @@ export const personInsurance = pgTable(
     createdAt: createdAt(),
   },
   table => [index("person_insurance_person").on(table.individualId)],
+);
+
+
+/* ---------- Time clock ---------- */
+
+export type LocationState = "ok" | "outside" | "unavailable" | "home_not_set" | "not_checked";
+
+/*
+ * One stretch of work: clock in to clock out. The times staff punched are kept as they were; a manager
+ * correction changes the row but the before and after are kept in time_entry_changes.
+ */
+export const timeEntries = pgTable(
+  "time_entries",
+  {
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    shiftId: uuid("shift_id").references(() => shifts.id, { onDelete: "set null" }),
+    clockInAt: timestamp("clock_in_at", { withTimezone: true }).notNull(),
+    clockOutAt: timestamp("clock_out_at", { withTimezone: true }),
+    // Who ended it: the staff member, or a manager closing a forgotten clock-out.
+    closedBy: text("closed_by").$type<"staff" | "manager">(),
+    inLatitude: real("in_latitude"),
+    inLongitude: real("in_longitude"),
+    inAccuracy: integer("in_accuracy"),
+    inDistance: integer("in_distance"),
+    inLocation: text("in_location").$type<LocationState>().notNull().default("not_checked"),
+    outLatitude: real("out_latitude"),
+    outLongitude: real("out_longitude"),
+    outAccuracy: integer("out_accuracy"),
+    outDistance: integer("out_distance"),
+    outLocation: text("out_location").$type<LocationState>().notNull().default("not_checked"),
+    // Why they clocked in without a shift, away from the home, or without a location.
+    inNote: text("in_note").notNull().default(""),
+    unscheduled: boolean("unscheduled").notNull().default(false),
+    lateMinutes: integer("late_minutes").notNull().default(0),
+    overstayReason: text("overstay_reason").notNull().default(""),
+    // The statements ticked at clock in, as worded then.
+    statements: jsonb("statements").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    attestedName: text("attested_name").notNull().default(""),
+    // What was still undone at clock out, such as notes or doses, as they read then.
+    warnings: jsonb("warnings").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    // Reasons a manager should look: away from the home, unscheduled, late, forgot to clock out, edited.
+    flags: jsonb("flags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    userAgent: text("user_agent").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [index("time_entries_staff").on(table.staffId, table.clockInAt), index("time_entries_home").on(table.homeId, table.clockInAt), index("time_entries_shift").on(table.shiftId)],
+);
+
+/* Breaks within a stretch of work. Meal breaks are unpaid; rest breaks are paid. */
+export const timeBreaks = pgTable(
+  "time_breaks",
+  {
+    id: id(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => timeEntries.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"meal" | "rest">().notNull().default("meal"),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }),
+  },
+  table => [index("time_breaks_entry").on(table.entryId)],
+);
+
+/* What the outgoing staff member hands over at clock out: a note, a line per person, and the ticks. */
+export const handovers = pgTable(
+  "handovers",
+  {
+    id: id(),
+    homeId: uuid("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    entryId: uuid("entry_id").references(() => timeEntries.id, { onDelete: "set null" }),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    note: text("note").notNull(),
+    people: jsonb("people").$type<{ individualId: string; name: string; note: string }[]>().notNull().default(sql`'[]'::jsonb`),
+    checks: jsonb("checks").$type<{ label: string; done: boolean; comment: string }[]>().notNull().default(sql`'[]'::jsonb`),
+    incident: text("incident").$type<"none" | "reported" | "not_reported">().notNull().default("none"),
+    createdAt: createdAt(),
+  },
+  table => [index("handovers_home").on(table.homeId, table.createdAt)],
+);
+
+/* Who read a handover, and when: the incoming staff acknowledge it before they clock in. */
+export const handoverReads = pgTable(
+  "handover_reads",
+  {
+    id: id(),
+    handoverId: uuid("handover_id")
+      .notNull()
+      .references(() => handovers.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    entryId: uuid("entry_id").references(() => timeEntries.id, { onDelete: "set null" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex("handover_read_once").on(table.handoverId, table.staffId)],
+);
+
+/* Every manager change to a time entry, with the values before and after and the reason. */
+export const timeEntryChanges = pgTable(
+  "time_entry_changes",
+  {
+    id: id(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => timeEntries.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    before: jsonb("before").$type<Record<string, string | null>>().notNull().default(sql`'{}'::jsonb`),
+    after: jsonb("after").$type<Record<string, string | null>>().notNull().default(sql`'{}'::jsonb`),
+    reason: text("reason").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [index("time_entry_changes_entry").on(table.entryId)],
+);
+
+/* A staff member asking for a fix: a missed punch, a wrong time, or a whole shift not clocked. */
+export const timeCorrections = pgTable(
+  "time_corrections",
+  {
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    entryId: uuid("entry_id").references(() => timeEntries.id, { onDelete: "set null" }),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    clockInAt: timestamp("clock_in_at", { withTimezone: true }).notNull(),
+    clockOutAt: timestamp("clock_out_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull(),
+    status: text("status").$type<"pending" | "approved" | "declined">().notNull().default("pending"),
+    decidedBy: uuid("decided_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [index("time_corrections_staff").on(table.staffId), index("time_corrections_status").on(table.status)],
 );

@@ -2,7 +2,8 @@ import "server-only";
 import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
 import { dateKey, fmt } from "@/lib/format";
 import { db, schema } from "@/server/db";
-import { homeManagerOf, notify, recipients } from "@/server/notify";
+import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
+import { liveBoard } from "@/server/queries/timeclock";
 import { notesOwed } from "@/server/queries/notes-owed";
 import { getSettings } from "@/server/settings";
 
@@ -263,6 +264,46 @@ export async function sweepNotifications(force = false) {
         href: "/app/my-documents",
         tone: "bad",
         dedupeKey: `document:request-overdue:${request.id}`,
+      });
+    }
+
+    // Time clock: shifts with nobody clocked in, and people still clocked in long after their shift.
+    const board = await liveBoard(now, settings);
+    const timeRoles = settings.notify_roles_time as Role[];
+    for (const shift of board.noShows.filter(item => item.endsAt.getTime() > now)) {
+      sent += await notify(await recipients({ roles: timeRoles, staffIds: [await managerOf(shift.homeId)] }), {
+        kind: "time:no-show",
+        title: `No-show: ${shift.staff} has not clocked in at ${shift.home}`,
+        body: `${shift.pattern ?? "Their shift"} started ${fmt.time(shift.startsAt)}. Call them, or find cover.`,
+        href: "/app/time",
+        tone: "bad",
+        dedupeKey: `time:no-show:${shift.id}`,
+      });
+      sent += await notify(await recipients({ staffIds: [shift.staffId] }), {
+        kind: "time:no-show",
+        title: "You have not clocked in",
+        body: `${shift.pattern ?? "Your shift"} at ${shift.home} started ${fmt.time(shift.startsAt)}. Clock in now, or call your manager.`,
+        href: "/app/clock/in",
+        tone: "bad",
+        dedupeKey: `time:no-show-self:${shift.id}`,
+      });
+    }
+    for (const row of board.forgotten) {
+      sent += await notify(await recipients({ staffIds: [row.staffId] }), {
+        kind: "time:forgot",
+        title: "You are still clocked in",
+        body: `Since ${fmt.dateTime(row.clockInAt)} at ${row.home ?? "work"}. Clock out now, or ask for a correction if you already left.`,
+        href: "/app/clock",
+        tone: "bad",
+        dedupeKey: `time:forgot-self:${row.id}`,
+      });
+      sent += await notify(await recipients({ roles: timeRoles, staffIds: [await managerOf(row.homeId)] }), {
+        kind: "time:forgot",
+        title: `${row.staff} may have forgotten to clock out`,
+        body: `Clocked in ${fmt.dateTime(row.clockInAt)} at ${row.home ?? "no home"}${row.shiftEnd ? `; the shift ended ${fmt.time(row.shiftEnd)}` : ""}. Close it with the right time.`,
+        href: `/app/time/${row.id}`,
+        tone: "warn",
+        dedupeKey: `time:forgot:${row.id}`,
       });
     }
   } finally {

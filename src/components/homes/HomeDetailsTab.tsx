@@ -12,12 +12,15 @@ import { activePatterns } from "@/server/queries/patterns";
 import { configAbove, requirementsAt } from "@/server/queries/note-requirements";
 import { NoteRequirementsEditor } from "@/components/logs/NoteRequirementsEditor";
 import { SearchSelect } from "@/components/app/SearchSelect";
+import { HomeLocationFields } from "@/components/clock/HomeLocationFields";
+import { saveHomeClock } from "@/server/actions/timeclock";
+import { getSettings } from "@/server/settings";
 
 type Staff = typeof schema.staff.$inferSelect;
 
 /* Coordinators only: the home's details, its manager and budget, and closing it. */
 export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff: Staff[] }) {
-  const [detail, patterns, noteRows, agencyNote] = await Promise.all([homeDetail(homeId), activePatterns(), requirementsAt("home", homeId), configAbove(null)]);
+  const [detail, patterns, noteRows, agencyNote, settings] = await Promise.all([homeDetail(homeId), activePatterns(), requirementsAt("home", homeId), configAbove(null), getSettings()]);
   if (!detail) return null;
   const { home, residents } = detail;
 
@@ -40,6 +43,18 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
               </Field>
               <Field label="Monthly budget (USD)" htmlFor="home-budget" hint="Leave empty for no budget.">
                 <input id="home-budget" name="monthlyBudget" inputMode="decimal" className="field" defaultValue={home.monthlyBudgetCents !== null ? (home.monthlyBudgetCents / 100).toFixed(2) : ""} placeholder="2400.00" />
+              </Field>
+            </ActionForm>
+          </div>
+        </Panel>
+
+        <Panel title="Time clock">
+          <div className="p-5">
+            <p className="mb-4 text-xs text-mute">Staff must be within {settings.clock_geofence_meters} m of this point to clock in or out without giving a reason. Leave both empty to skip the distance check here.</p>
+            <ActionForm action={saveHomeClock.bind(null, home.id)} submitLabel="Save time clock">
+              <HomeLocationFields latitude={home.latitude} longitude={home.longitude} address={[home.address, home.city, home.zip].filter(Boolean).join(", ")} />
+              <Field label="Extra handover ticks for this home" htmlFor="home-handover" hint={`One per line. Added to the ${settings.handover_checks.length} ticks every home has.`}>
+                <textarea id="home-handover" name="handoverChecks" rows={3} className="field" defaultValue={home.handoverChecks.join("\n")} placeholder={"Hoyer lift charged\nSharps box checked"} />
               </Field>
             </ActionForm>
           </div>

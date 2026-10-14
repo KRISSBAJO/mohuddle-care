@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, CalendarDays, ClipboardList, FolderOpen, Home, KeyRound, LayoutDashboard, Mail, Pencil, Phone } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarDays, ClipboardList, FolderOpen, Home, KeyRound, LayoutDashboard, Mail, Pencil, Phone, Timer } from "lucide-react";
 import { Avatar, Badge } from "@/components/app/ui";
 import { StaffDocumentsSection } from "@/components/docs/DocumentSections";
-import { StaffAccountTab, StaffCredentialsTab, StaffNotesTab, StaffOverviewTab, StaffScheduleTab } from "@/components/staff/StaffTabs";
+import { StaffAccountTab, StaffCredentialsTab, StaffNotesTab, StaffOverviewTab, StaffScheduleTab, StaffTimeTab } from "@/components/staff/StaffTabs";
 import { mayManageLogin } from "@/lib/account-policy";
 import { cn } from "@/lib/cn";
 import { dateKey, daysBetween, fmt, initials, label } from "@/lib/format";
@@ -19,6 +19,7 @@ export const metadata = { title: "Staff member" };
 const TABS = [
   ["overview", "Overview", LayoutDashboard],
   ["schedule", "Schedule", CalendarDays],
+  ["time", "Time", Timer],
   ["notes", "Daily notes", ClipboardList],
   ["credentials", "Credentials", BadgeCheck],
   ["documents", "Documents", FolderOpen],
@@ -50,7 +51,7 @@ export default async function StaffMemberPage({ params, searchParams }: { params
   const manageable = manager && !self && (!login || mayManageLogin(user, login));
   const today = dateKey();
   const base = `/app/staff/${id}`;
-  const visible = TABS.filter(([value]) => value !== "documents" || manager);
+  const visible = TABS.filter(([value]) => (value !== "documents" && value !== "time") || manager || (value === "time" && self));
   const tab: StaffTab = visible.some(([value]) => value === query.tab) ? (query.tab as StaffTab) : "overview";
   const href = (next: StaffTab) => (next === "overview" ? base : `${base}?tab=${next}`);
 
@@ -159,6 +160,7 @@ export default async function StaffMemberPage({ params, searchParams }: { params
       </nav>
 
       {tab === "overview" && <StaffOverviewTab detail={detail} summary={summary} base={base} warningDays={settings.credential_warning_days} />}
+      {tab === "time" && <StaffTimeTab id={id} manager={manager} />}
       {tab === "schedule" && <StaffScheduleTab id={id} overtime={settings.overtime_weekly_hours} />}
       {tab === "notes" && <StaffNotesTab detail={detail} summary={summary} myStaffId={user.staffId} />}
       {tab === "credentials" && <StaffCredentialsTab detail={detail} manager={manager} warningDays={settings.credential_warning_days} credentialTypes={settings.credential_types} />}

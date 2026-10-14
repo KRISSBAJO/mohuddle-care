@@ -16,8 +16,10 @@ import {
   LogOut,
   Menu,
   Pill,
+  Radio,
   Settings,
   Stethoscope,
+  Timer,
   UserRound,
   Users,
   X,
@@ -27,7 +29,7 @@ import { Logo } from "@/components/marketing/Logo";
 
 type Item = { href: string; label: string; icon: typeof Home; exact?: boolean; manager?: boolean };
 
-/* The menu in groups, so 15 links read as five short lists. */
+/* The menu in groups, so 17 links read as five short lists. */
 const groups: { title: string; items: Item[] }[] = [
   { title: "", items: [{ href: "/app", label: "Today", icon: LayoutDashboard, exact: true }] },
   {
@@ -43,6 +45,8 @@ const groups: { title: string; items: Item[] }[] = [
   {
     title: "Operations",
     items: [
+      { href: "/app/clock", label: "My time clock", icon: Timer },
+      { href: "/app/time", label: "Time & attendance", icon: Radio, manager: true },
       { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
       { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
       { href: "/app/homes", label: "Homes", icon: Home },

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
-import { ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
+import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
+import { ChoicePicker, ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
@@ -9,7 +9,7 @@ import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
 
 export const metadata = { title: "Settings" };
 
-type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean };
+type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean; choices?: [string, string][] };
 type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?: [string, string]; items: Item[] };
 
 /* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
@@ -37,6 +37,26 @@ const GROUPS: Group[] = [
     icon: Pill,
     intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
     items: [{ key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 }],
+  },
+  {
+    id: "time",
+    title: "Time clock",
+    icon: Timer,
+    intro: "Clocking in and out: where staff must be, what they confirm, and what the handover must cover.",
+    items: [
+      { key: "clock_in_requirements", title: "To clock in", help: "Location: on their phone, near the home. Handover: read and acknowledge the last handover at the home. Statements: tick each statement below.", choices: [["location", "Be at the home"], ["handover", "Read the last handover"], ["statements", "Tick the statements"]] },
+      { key: "clock_out_blocking", title: "Must be done before clock-out", help: "Anything not chosen still shows as a warning and is flagged for a manager.", choices: [["handover", "Handover note"], ["checks", "Handover ticks"], ["incident", "Incident reported"], ["notes", "Daily notes written"], ["doses", "Doses recorded"]] },
+      { key: "clock_early_minutes", title: "Clock in early by up to", help: "Earlier than this, the shift cannot be clocked in to yet.", unit: "minutes", min: 0, max: 120 },
+      { key: "clock_late_grace_minutes", title: "Still on time within", help: "After this they are marked late.", unit: "minutes", min: 0, max: 60 },
+      { key: "clock_geofence_meters", title: "Distance from the home", help: "Phones further away than this must give a reason, and the punch is flagged. Each home's location is set on its details.", unit: "meters", min: 25, max: 5000 },
+      { key: "clock_overstay_minutes", title: "Staying late needs a reason after", help: "Clocking out later than this past the shift end asks why.", unit: "minutes", min: 0, max: 240 },
+      { key: "clock_no_show_minutes", title: "No-show after", help: "The manager is told when a shift has no clock-in this long after it starts.", unit: "minutes", min: 5, max: 240 },
+      { key: "clock_forgot_hours", title: "Forgotten clock-out after", help: "Staff and managers are told. A manager closes it with the right time.", unit: "hours", min: 1, max: 24 },
+      { key: "handover_min_chars", title: "Shortest handover note", help: "0 turns the length check off.", unit: "characters", min: 0, max: 1000 },
+      { key: "handover_checks", title: "Handover ticks", help: "Staff tick each one, or explain why not. Homes can add their own on their details." },
+      { key: "clock_in_statements", title: "Statements at clock in", help: "Staff tick each one before they can clock in." },
+      { key: "notify_roles_time", title: "Told about time", help: "No-shows, forgotten clock-outs, punches away from the home and correction requests.", roles: true },
+    ],
   },
   {
     id: "appointments",
@@ -185,7 +205,9 @@ export default async function SettingsPage() {
                         <label htmlFor={item.key} className="text-sm font-semibold">{item.title}</label>
                         {item.help && <p className="text-xs text-mute">{item.help}</p>}
                       </div>
-                      {item.roles ? (
+                      {item.choices ? (
+                        <ChoicePicker name={item.key} initial={value as string[]} choices={item.choices} />
+                      ) : item.roles ? (
                         <RolePicker name={item.key} initial={value as string[]} />
                       ) : def.kind === "list" ? (
                         <ListEditor name={item.key} initial={value as string[]} />
