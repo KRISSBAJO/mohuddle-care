@@ -35,7 +35,7 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
   const [settings, now] = await Promise.all([getSettings(), requestTime()]);
   const [open, history, context] = await Promise.all([openEntry(user.staffId), staffTime(user.staffId, now), clockInContext(user.staffId, now, settings)]);
   const mealTaken = open ? open.breaks.filter(item => item.kind === "meal" && item.endAt).reduce((sum, item) => sum + (item.endAt!.getTime() - item.startAt.getTime()) / 60_000, 0) : 0;
-  const { shift, upcoming } = context;
+  const { shift, upcoming, later } = context;
   const startBreakMeal = startBreak.bind(null, "meal");
   const startBreakRest = startBreak.bind(null, "rest");
 
@@ -51,7 +51,9 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
             <div>
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-sage">
                 <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-sage" /></span>
-                {open.openBreak ? `On a ${open.openBreak.kind} break since ${fmt.time(open.openBreak.startAt)}` : "On the clock"}
+                {open.openBreak
+                  ? `On a ${open.openBreak.kind} break since ${fmt.time(open.openBreak.startAt)} · ends ${fmt.time(new Date(open.openBreak.startAt.getTime() + (open.openBreak.kind === "meal" ? settings.break_meal_minutes : settings.break_rest_minutes) * 60_000))}`
+                  : "On the clock"}
               </p>
               <p className="mt-2 font-display text-3xl font-bold">
                 <LiveWorked since={open.entry.clockInAt.toISOString()} mealMinutes={mealTaken} openMealSince={open.openBreak?.kind === "meal" ? open.openBreak.startAt.toISOString() : null} />
@@ -75,7 +77,12 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
                   <p className="text-sm text-mute">{fmt.dateTime(upcoming.startsAt)}. You can clock in {settings.clock_early_minutes} minutes before.</p>
                 </>
               ) : (
-                <p className="mt-2 text-lg font-semibold">No shift coming up in the next day and a half.</p>
+                <>
+                  <p className="mt-2 text-lg font-semibold">You have no shift today.</p>
+                  <p className="text-sm text-mute">
+                    {later ? `Your next shift: ${later.pattern ?? "shift"} at ${later.home}, ${fmt.weekday(dateKey(later.startsAt))} ${fmt.dateTime(later.startsAt)}.` : "There are no shifts on your schedule yet. Your manager adds them."}
+                  </p>
+                </>
               )}
             </div>
           )}

@@ -6,18 +6,19 @@ import { Logo } from "@/components/marketing/Logo";
 import { LoginForm } from "@/components/app/LoginForm";
 import { getSessionUser } from "@/server/auth";
 
-export const metadata: Metadata = { title: "Sign in to Mohuddle" };
+export const metadata: Metadata = { title: { absolute: "Sign in to Mohuddle" } };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
   const user = await getSessionUser();
   if (user) redirect("/app");
-  const { next } = await searchParams;
+  const { next, reason } = await searchParams;
+  const notice = reason === "idle" ? "You were signed out after a while without using the app. Sign in again to carry on." : reason === "shared" ? "You clocked out on a shared device, so you were signed out." : "";
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
       <section className="hidden bg-ink p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/mohuddle" className="flex items-center gap-2.5">
           <Logo className="h-9 w-9" />
-          <span className="font-display text-xl font-bold">Milestone</span>
+          <span className="font-display text-xl font-bold">Mohuddle</span>
         </Link>
         <div>
           <p className="eyebrow text-accent">Mohuddle</p>
@@ -32,10 +33,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </section>
       <section className="flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
-          <Link href="/" className="mb-8 flex items-center gap-2.5 lg:hidden">
+          <Link href="/mohuddle" className="mb-8 flex items-center gap-2.5 lg:hidden">
             <Logo className="h-9 w-9" />
-            <span className="font-display text-xl font-bold">Milestone</span>
+            <span className="font-display text-xl font-bold">Mohuddle</span>
           </Link>
+          {notice && <p className="mb-6 rounded-xl bg-sky px-4 py-3 text-sm text-brand-deep" role="status">{notice}</p>}
           <h2 className="text-3xl font-bold">Sign in</h2>
           <p className="mt-2 text-sm text-mute">Use the email and password the office gave you.</p>
           <LoginForm next={next} />

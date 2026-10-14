@@ -116,8 +116,29 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // When the session was last used, for signing out idle devices; and whether the device is shared.
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  shared: boolean("shared").notNull().default(false),
   createdAt: createdAt(),
 });
+
+/* Phones and browsers that asked for notifications. One row per device; dead ones are removed when a push fails. */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    device: text("device").notNull().default(""),
+    createdAt: createdAt(),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+  },
+  table => [index("push_subscriptions_user").on(table.userId)],
+);
 
 /* One-time links for first sign-in and password resets. Only a hash of the token is stored. */
 export const loginTokens = pgTable("login_tokens", {

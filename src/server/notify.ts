@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray, ne, or } from "drizzle-orm";
 import { db, schema } from "@/server/db";
+import { pushTo } from "@/server/push";
 
 export type Role = "admin" | "coordinator" | "nurse" | "dsp";
 export type Tone = "info" | "warn" | "bad" | "good";
@@ -43,7 +44,14 @@ export async function notify(userIds: string[], message: Message) {
       })),
     )
     .onConflictDoNothing()
-    .returning({ id: schema.notifications.id });
+    .returning({ id: schema.notifications.id, userId: schema.notifications.userId });
+  // New messages also go to the phones of the people told. A repeat (same dedupe key) goes nowhere.
+  if (rows.length) {
+    await pushTo(
+      rows.map(row => row.userId),
+      { title: message.title, body: message.body, href: message.href, tone: message.tone, tag: message.dedupeKey },
+    ).catch(error => console.error("Push failed", error));
+  }
   return rows.length;
 }
 

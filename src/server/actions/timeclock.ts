@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { formatMinutes, handoverProblems, lateMinutes, locationVerdict, nameMatches } from "@/lib/timeclock";
-import { canManage } from "@/server/auth";
+import { canManage, destroySession } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
@@ -303,6 +303,11 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
   }
   revalidatePath("/app/clock");
   revalidatePath("/app/time");
+  // A shared device, such as a home's tablet, is handed back signed out.
+  if (user.shared && (await getSettings()).shared_device_signout === "on") {
+    await destroySession();
+    redirect("/login?reason=shared");
+  }
   redirect("/app/clock?done=out");
 }
 

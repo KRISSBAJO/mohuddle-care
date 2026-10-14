@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { markAllRead } from "@/server/actions/notifications";
+import { PushControl } from "./PushControl";
 
 export type BellItem = { id: string; title: string; body: string; tone: "info" | "warn" | "bad" | "good"; createdAt: string; read: boolean };
 
@@ -20,7 +21,7 @@ function ago(iso: string, now: number) {
 }
 
 /* The bell in the top bar: unread count, and the latest messages in a dropdown that sits over the page. */
-export function NotificationBell({ unread, items, now }: { unread: number; items: BellItem[]; now: number }) {
+export function NotificationBell({ unread, items, now, pushKey }: { unread: number; items: BellItem[]; now: number; pushKey: string }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const box = useRef<HTMLDivElement>(null);
@@ -80,6 +81,7 @@ export function NotificationBell({ unread, items, now }: { unread: number; items
               ))}
             </ul>
           )}
+          <PushControl publicKey={pushKey} />
           <Link href="/app/notifications" onClick={() => setOpen(false)} className="block border-t border-line px-4 py-2.5 text-center text-xs font-semibold text-brand hover:bg-panel/60">
             See all notifications
           </Link>

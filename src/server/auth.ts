@@ -1,14 +1,16 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 import { db, schema } from "./db";
 import { env } from "./env";
+import { getSettings } from "./settings";
 
-const SESSION_DAYS = 14;
+// The last-used time is written at most this often, so ordinary page loads do not each write to the database.
+const TOUCH_EVERY_MS = 60_000;
 
 export const hashPassword = (password: string) =>
   hash(password, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
@@ -16,10 +18,14 @@ export const verifyPassword = (passwordHash: string, password: string) => verify
 
 const tokenHash = (token: string) => createHash("sha256").update(token + env.SESSION_SECRET).digest("hex");
 
-export async function createSession(userId: string) {
+/* Starts a session. It ends after the agency's maximum length; a shared device also ends at clock-out. */
+export async function createSession(userId: string, shared = false) {
+  const settings = await getSettings();
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  await db.insert(schema.sessions).values({ tokenHash: tokenHash(token), userId, expiresAt });
+  const expiresAt = new Date(Date.now() + settings.session_max_hours * 3_600_000);
+  await db.insert(schema.sessions).values({ tokenHash: tokenHash(token), userId, expiresAt, shared });
+  // Old sessions are cleared now and then, so the table does not grow forever.
+  await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -43,6 +49,8 @@ export type SessionUser = {
   name: string;
   role: "admin" | "coordinator" | "nurse" | "dsp";
   staffId: string | null;
+  /* This device was marked shared at sign-in, such as a home's tablet. */
+  shared?: boolean;
 };
 
 /* Reads the signed-in user once per request. Returns null when there is no valid session. */
@@ -59,14 +67,26 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
       staffId: schema.users.staffId,
       active: schema.users.active,
       expiresAt: schema.sessions.expiresAt,
+      lastSeenAt: schema.sessions.lastSeenAt,
+      shared: schema.sessions.shared,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
     .where(eq(schema.sessions.tokenHash, tokenHash(token)))
     .limit(1);
   const row = rows[0];
-  if (!row || !row.active || row.expiresAt.getTime() < Date.now()) return null;
-  return { id: row.id, email: row.email, name: row.name, role: row.role, staffId: row.staffId };
+  const now = Date.now();
+  if (!row || !row.active || row.expiresAt.getTime() < now) return null;
+  // Signed out after a spell of not using the app. The browser warns first; this catches closed tabs.
+  const { session_idle_minutes } = await getSettings();
+  if (now - row.lastSeenAt.getTime() > session_idle_minutes * 60_000) {
+    await db.delete(schema.sessions).where(eq(schema.sessions.tokenHash, tokenHash(token)));
+    return null;
+  }
+  if (now - row.lastSeenAt.getTime() > TOUCH_EVERY_MS) {
+    await db.update(schema.sessions).set({ lastSeenAt: new Date(now) }).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), lt(schema.sessions.lastSeenAt, new Date(now - TOUCH_EVERY_MS))));
+  }
+  return { id: row.id, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared };
 });
 
 export const canManage = (user: SessionUser) => user.role === "admin" || user.role === "coordinator";

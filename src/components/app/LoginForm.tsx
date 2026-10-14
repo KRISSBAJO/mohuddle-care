@@ -16,6 +16,10 @@ export function LoginForm({ next }: { next?: string }) {
         <label htmlFor="password" className="label">Password</label>
         <input id="password" name="password" type="password" autoComplete="current-password" required className="field" />
       </div>
+      <label className="flex items-start gap-2.5 text-sm text-mute">
+        <input type="checkbox" name="shared" className="mt-0.5 h-4 w-4 accent-brand" />
+        <span>This is a shared device, such as a home&apos;s tablet. Sign me out when I clock out.</span>
+      </label>
       {state.error && <p className="text-sm font-medium text-flag" role="alert">{state.error}</p>}
       <button type="submit" disabled={pending} className="btn-primary mt-2 disabled:opacity-60">
         {pending ? "Signing in…" : "Sign in"}

@@ -94,7 +94,18 @@ export async function clockInContext(staffId: string, now: number, settings: Set
     .where(eq(schema.homes.active, true))
     .orderBy(asc(schema.homes.name));
   const handovers = await unreadHandovers(staffId, homes.map(home => home.id), now);
-  return { shift, upcoming, homes, handovers };
+  // Nothing in the next day and a half: the next shift on the schedule at all, so the clock can say when.
+  const [later] = shift || upcoming
+    ? []
+    : await db
+        .select({ startsAt: schema.shifts.startsAt, home: schema.homes.name, pattern: schema.shiftPatterns.name })
+        .from(schema.shifts)
+        .innerJoin(schema.homes, eq(schema.homes.id, schema.shifts.homeId))
+        .leftJoin(schema.shiftPatterns, eq(schema.shiftPatterns.id, schema.shifts.patternId))
+        .where(and(eq(schema.shifts.staffId, staffId), ne(schema.shifts.status, "missed"), gte(schema.shifts.startsAt, new Date(now))))
+        .orderBy(asc(schema.shifts.startsAt))
+        .limit(1);
+  return { shift, upcoming, later: later ?? null, homes, handovers };
 }
 
 /* What is still undone for the people at this home since clock in: notes and doses. */

@@ -6,16 +6,18 @@ import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { liveBoard } from "@/server/queries/timeclock";
 import { unsignedSheets, workweekMinutes } from "@/server/queries/payroll";
 import { notesOwed } from "@/server/queries/notes-owed";
+import { shiftReminders } from "@/server/shift-reminders";
 import { getSettings } from "@/server/settings";
 
 const state = globalThis as unknown as { milestoneSweepAt?: number; milestoneSweepRunning?: boolean };
-const EVERY_MS = 2 * 60_000;
+// Every minute, so a "starts in 15 minutes" reminder is never more than a minute late.
+const EVERY_MS = 60_000;
 
 /*
  * Sends the reminders that depend on time passing: upcoming appointments, visits not yet documented,
  * follow-ups not booked, overdue daily notes and incident filing deadlines. Every message has a
- * dedupe key, so running this often never sends the same reminder twice. It runs at most every two
- * minutes, after a page in the Hub is served.
+ * dedupe key, so running this often never sends the same reminder twice. It runs at most once a
+ * minute, from the background tick in src/instrumentation.ts and after a page in the Hub is served.
  */
 export async function sweepNotifications(force = false) {
   const now = Date.now();
@@ -287,6 +289,9 @@ export async function sweepNotifications(force = false) {
         dedupeKey: `document:request-overdue:${request.id}`,
       });
     }
+
+    // Staff's own shift and break reminders.
+    sent += await shiftReminders(now, settings);
 
     // Time clock: shifts with nobody clocked in, and people still clocked in long after their shift.
     const board = await liveBoard(now, settings);

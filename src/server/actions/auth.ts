@@ -12,12 +12,13 @@ const credentials = z.object({
   email: z.email().max(200),
   password: z.string().min(1).max(200),
   next: z.string().max(500).default("/app"),
+  shared: z.literal("on").optional(),
 });
 
 export async function signIn(_previous: FormState, formData: FormData): Promise<FormState> {
   const parsed = credentials.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: "Enter your email address and password." };
-  const { email, password, next } = parsed.data;
+  const { email, password, next, shared } = parsed.data;
   const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase())).limit(1);
   // Verify against a fixed hash when the user is unknown so timing does not reveal which emails exist.
   // A login that has not finished setup has no password yet and cannot sign in.
@@ -25,13 +26,19 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
     ? await verifyPassword(user.passwordHash, password)
     : (await verifyPassword(DUMMY_HASH, password), false);
   if (!ok || !user?.active) return { error: "That email and password do not match." };
-  await createSession(user.id);
+  await createSession(user.id, shared === "on");
   redirect(next.startsWith("/app") ? next : "/app");
 }
 
 export async function signOut() {
   await destroySession();
   redirect("/login");
+}
+
+/* Called by the browser when it has been idle for the agency's time limit. */
+export async function signOutIdle() {
+  await destroySession();
+  redirect("/login?reason=idle");
 }
 
 const DUMMY_HASH =
