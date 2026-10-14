@@ -363,7 +363,7 @@ export function Scheduler(props: Props) {
                 <p className="text-[13px] font-bold leading-tight">{home.name}</p>
                 <p className="mt-0.5 text-[11px] text-mute">{label("homeType", home.type)}</p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel" title={`${pct}% of required shifts staffed`}>
-                  <div className={cn("h-full rounded-full", pct === 100 ? "bg-sage" : pct >= 80 ? "bg-accent" : "bg-flag")} style={{ width: `${pct}%` }} />
+                  <div className={cn("h-full rounded-full", !need ? "bg-transparent" : pct === 100 ? "bg-sage" : pct >= 80 ? "bg-accent" : "bg-flag")} style={{ width: `${pct}%` }} />
                 </div>
                 <p className="mt-1 text-[10px] font-semibold text-mute">{need ? `${pct}% staffed` : "No set staffing"}</p>
               </div>
