@@ -48,6 +48,10 @@ export const homes = pgTable("homes", {
   capacity: integer("capacity").notNull().default(4),
   phone: text("phone").notNull().default(""),
   active: boolean("active").notNull().default(true),
+  // Which shifts must always have someone on, and which weekdays the home runs (1 = Monday ... 7 = Sunday).
+  // The schedule reports a coverage gap only for these.
+  staffedKinds: jsonb("staffed_kinds").$type<("day" | "evening" | "overnight")[]>().notNull().default(sql`'["day","evening","overnight"]'::jsonb`),
+  openDays: jsonb("open_days").$type<number[]>().notNull().default(sql`'[1,2,3,4,5,6,7]'::jsonb`),
   createdAt: createdAt(),
 });
 

@@ -340,3 +340,11 @@
 .hub-dialog::backdrop { background: #0b223966; backdrop-filter: blur(2px); }
 .hub-dialog[open] { animation: rise .25s var(--ease-soft) both; }
 @media (prefers-reduced-motion: reduce) { .hub-dialog[open] { animation: none; } }
+
+/* Printing: just the page content, no navigation or controls. */
+@media print {
+  .hub-sidebar, .hub-topbar, .no-print, header.sticky { display: none !important; }
+  .hub-main { padding: 0 !important; }
+  body { background: white; }
+  .card { box-shadow: none !important; }
+}

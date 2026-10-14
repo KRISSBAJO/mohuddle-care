@@ -46,7 +46,22 @@ export const homeSchema = z.object({
   city: z.string().trim().min(1).max(80).default("Nashville"),
   capacity: z.coerce.number().int().min(1).max(20),
   phone: optional(40),
+  staffedKinds: z.array(z.enum(["day", "evening", "overnight"])).max(3).optional(),
+  openDays: z.array(z.coerce.number().int().min(1).max(7)).max(7).optional(),
 });
+
+/* Home forms send checkboxes, which arrive as repeated fields. Only forms showing them change them. */
+export function homeFormValues(formData: FormData) {
+  const values: Record<string, unknown> = Object.fromEntries(formData.entries());
+  if (formData.get("staffingFields")) {
+    values.staffedKinds = formData.getAll("staffedKinds").map(String);
+    values.openDays = [...new Set(formData.getAll("openDays").map(Number))].sort();
+  } else {
+    delete values.staffedKinds;
+    delete values.openDays;
+  }
+  return values;
+}
 
 export const staffSchema = z.object({
   firstName: z.string().trim().min(1).max(80),

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/app/ActionForm";
+import { HomeStaffingFields } from "@/components/app/HomeStaffingFields";
 import { Avatar, Badge, Empty, Field, PageHeader, Panel } from "@/components/app/ui";
 import { initials, label, labels } from "@/lib/format";
 import { createHome } from "@/server/actions/hub";
@@ -70,6 +71,7 @@ export default async function HomesPage({ searchParams }: { searchParams: Promis
                 <Field label="Capacity" htmlFor="home-capacity"><input id="home-capacity" name="capacity" type="number" min={1} max={20} className="field" defaultValue={4} /></Field>
                 <Field label="House phone" htmlFor="home-phone"><input id="home-phone" name="phone" type="tel" className="field" /></Field>
               </div>
+              <HomeStaffingFields prefix="new-home" />
             </ActionForm>
           </div>
         </Panel>

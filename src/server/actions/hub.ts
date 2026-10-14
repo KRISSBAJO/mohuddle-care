@@ -6,10 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { assertShiftUpdate } from "@/lib/shift-policy";
 import { zonedTime } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
-import { firstError, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
+import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
 
 const localDateTime = z
@@ -224,77 +223,11 @@ export async function completeTask(id: string) {
   revalidatePath("/app");
 }
 
-/* ---------- Schedule ---------- */
-
-const shiftSchema = z.object({
-  homeId: uuid,
-  staffId: optionalUuid,
-  day: z.iso.date(),
-  kind: z.enum(schema.shiftKind.enumValues),
-  note: optional(300),
-});
-
-const shiftHours: Record<"day" | "evening" | "overnight", [string, string, number]> = {
-  day: ["07:00", "15:00", 0],
-  evening: ["15:00", "23:00", 0],
-  overnight: ["23:00", "07:00", 1],
-};
-
-export async function createShift(_p: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireManager();
-  const parsed = shiftSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return firstError(parsed.error);
-  const { day, kind, staffId, homeId, note } = parsed.data;
-  const [start, end, endOffset] = shiftHours[kind];
-  const { zonedTime, addDays } = await import("@/lib/format");
-  await db.insert(schema.shifts).values({
-    homeId,
-    staffId,
-    kind,
-    note,
-    startsAt: zonedTime(day, start),
-    endsAt: zonedTime(addDays(day, endOffset), end),
-    status: staffId ? "scheduled" : "open",
-  });
-  await audit(user.id, "create", "shift");
-  revalidatePath("/app/schedule");
-  revalidatePath("/app");
-  return {};
-}
-
-export async function assignShift(shiftId: string, formData: FormData) {
-  const user = await requireManager();
-  const staffId = String(formData.get("staffId") ?? "");
-  const valid = optionalUuid.safeParse(staffId);
-  if (!valid.success) return;
-  await db
-    .update(schema.shifts)
-    .set({ staffId: valid.data, status: valid.data ? "scheduled" : "open" })
-    .where(eq(schema.shifts.id, shiftId));
-  await audit(user.id, "assign", "shift", shiftId);
-  revalidatePath("/app/schedule");
-  revalidatePath("/app");
-}
-
-export async function setShiftStatus(shiftId: string, status: "confirmed" | "completed" | "missed") {
-  const user = await requireUser();
-  const valid = z.enum(["confirmed", "completed", "missed"]).safeParse(status);
-  if (!uuid.safeParse(shiftId).success || !valid.success) throw new Error("Invalid shift update.");
-  await db.transaction(async tx => {
-    const [shift] = await tx.select().from(schema.shifts).where(eq(schema.shifts.id, shiftId)).for("update");
-    assertShiftUpdate(user, shift, valid.data);
-    await tx.update(schema.shifts).set({ status: valid.data }).where(eq(schema.shifts.id, shiftId));
-    await tx.insert(schema.auditLog).values({ userId: user.id, action: `shift:${valid.data}`, entity: "shift", entityId: shiftId });
-  });
-  revalidatePath("/app/schedule");
-  revalidatePath("/app");
-}
-
 /* ---------- Homes and staff ---------- */
 
 export async function createHome(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
-  const parsed = homeSchema.safeParse(Object.fromEntries(formData.entries()));
+  const parsed = homeSchema.safeParse(homeFormValues(formData));
   if (!parsed.success) return firstError(parsed.error);
   await db.insert(schema.homes).values(parsed.data);
   await audit(user.id, "create", "home");

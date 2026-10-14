@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { HomeStaffingFields } from "@/components/app/HomeStaffingFields";
 import { Badge, Field, PageHeader, Panel } from "@/components/app/ui";
 import { label, labels } from "@/lib/format";
 import { setHomeActive, updateHome } from "@/server/actions/editing";
@@ -46,6 +47,7 @@ export default async function EditHomePage({ params }: { params: Promise<{ id: s
               </Field>
               <Field label="House phone" htmlFor="home-phone"><input id="home-phone" name="phone" type="tel" className="field" defaultValue={home.phone} /></Field>
             </div>
+            <HomeStaffingFields staffedKinds={home.staffedKinds} openDays={home.openDays} prefix="edit-home" />
           </ActionForm>
         </div>
       </Panel>

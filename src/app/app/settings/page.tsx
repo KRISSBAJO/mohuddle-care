@@ -23,6 +23,10 @@ export default async function SettingsPage() {
                 <Field key={key} label={def.label} htmlFor={key}>
                   <textarea id={key} name={key} rows={5} className="field" defaultValue={(value as string[]).join("\n")} />
                 </Field>
+              ) : def.kind === "text" ? (
+                <Field key={key} label={def.label} htmlFor={key}>
+                  <input id={key} name={key} className="field max-w-xs font-mono" defaultValue={String(value)} />
+                </Field>
               ) : (
                 <Field key={key} label={def.label} htmlFor={key}>
                   <input id={key} name={key} type="number" className="field max-w-xs" defaultValue={String(value)} />
