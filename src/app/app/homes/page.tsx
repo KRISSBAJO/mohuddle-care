@@ -5,16 +5,19 @@ import { initials, label, labels } from "@/lib/format";
 import { createHome } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
-import { homesWithOccupancy } from "@/server/queries/hub";
+import { homesWithOccupancy, listClosedHomes } from "@/server/queries/hub";
 
 export const metadata = { title: "Homes" };
 
-export default async function HomesPage() {
+export default async function HomesPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   const user = await requireUser();
-  const homes = await homesWithOccupancy();
+  const { saved } = await searchParams;
+  const [homes, closed] = await Promise.all([homesWithOccupancy(), listClosedHomes()]);
+  const manager = canManage(user);
   return (
     <>
       <PageHeader eyebrow="Homes" title={`${homes.length} homes and settings`} description="Group homes, family model homes, supported living and the day program." />
+      {saved && <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Home saved.</p>}
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {homes.length === 0 && <Panel><Empty>No homes yet.</Empty></Panel>}
         {homes.map(home => (
@@ -35,12 +38,27 @@ export default async function HomesPage() {
                 ))}
                 {home.residents.length === 0 && <li className="text-sm text-mute">No one placed here yet.</li>}
               </ul>
-              {home.phone && <p className="mt-4 text-xs text-mute">House phone {home.phone}</p>}
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-xs text-mute">{home.phone ? `House phone ${home.phone}` : ""}</p>
+                {manager && <Link href={`/app/homes/${home.id}`} className="text-xs font-semibold text-brand">Edit or close</Link>}
+              </div>
             </div>
           </Panel>
         ))}
       </div>
-      {canManage(user) && (
+      {closed.length > 0 && (
+        <details className="mt-6">
+          <summary className="cursor-pointer text-xs font-semibold text-mute">Closed homes ({closed.length})</summary>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {closed.map(home => (
+              <li key={home.id}>
+                {manager ? <Link href={`/app/homes/${home.id}`} className="chip bg-panel text-mute hover:text-ink">{home.name}</Link> : <span className="chip bg-panel text-mute">{home.name}</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {manager && (
         <Panel title="Add a home" className="mt-6 max-w-2xl">
           <div className="p-5">
             <ActionForm action={createHome} submitLabel="Add home">

@@ -23,6 +23,17 @@ async function main() {
     const routes = ["/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];
     if (people[0]) routes.push(`/app/individuals/${people[0].id}`, `/app/individuals/${people[0].id}/edit`);
     if (incidents[0]) routes.push(`/app/incidents/${incidents[0].id}`);
+    routes.push("/app/account");
+    const { rows: staff } = await pool.query("select id from staff where active limit 1");
+    const { rows: homes } = await pool.query("select id from homes where active limit 1");
+    const { rows: meds } = await pool.query("select id, individual_id from medications where active limit 1");
+    if (staff[0]) routes.push(`/app/staff/${staff[0].id}`);
+    if (homes[0]) routes.push(`/app/homes/${homes[0].id}`);
+    if (meds[0]) routes.push(`/app/individuals/${meds[0].individual_id}/medications/${meds[0].id}`);
+    const deadLink = await fetch(new URL("/setup-password/not-a-real-link-token-000000", url));
+    assert.equal(deadLink.status, 200);
+    assert.ok((await deadLink.text()).includes("This link no longer works"), "An unknown setup link must be refused");
+    console.log("PASS unknown setup link is refused");
     for (const route of routes) {
       const response = await fetch(new URL(route, url), { headers: { Cookie: `${SESSION_COOKIE}=${token}` }, redirect: "manual" });
       const html = await response.text();

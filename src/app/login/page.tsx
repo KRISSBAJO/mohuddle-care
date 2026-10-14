@@ -39,6 +39,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <h2 className="text-3xl font-bold">Sign in</h2>
           <p className="mt-2 text-sm text-mute">Use the email and password the office gave you.</p>
           <LoginForm next={next} />
+          <p className="mt-6 text-xs text-mute">
+            New, or forgot your password? Your coordinator can give you a one-time link to set it.
+          </p>
         </div>
       </section>
     </main>

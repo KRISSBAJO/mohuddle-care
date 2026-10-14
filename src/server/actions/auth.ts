@@ -20,7 +20,10 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   const { email, password, next } = parsed.data;
   const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase())).limit(1);
   // Verify against a fixed hash when the user is unknown so timing does not reveal which emails exist.
-  const ok = user ? await verifyPassword(user.passwordHash, password) : (await verifyPassword(DUMMY_HASH, password), false);
+  // A login that has not finished setup has no password yet and cannot sign in.
+  const ok = user?.passwordHash
+    ? await verifyPassword(user.passwordHash, password)
+    : (await verifyPassword(DUMMY_HASH, password), false);
   if (!ok || !user?.active) return { error: "That email and password do not match." };
   await createSession(user.id);
   redirect(next.startsWith("/app") ? next : "/app");

@@ -9,12 +9,9 @@ import { requireManager, requireUser } from "@/server/guard";
 import { assertShiftUpdate } from "@/lib/shift-policy";
 import { zonedTime } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
+import { firstError, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
 
-const optional = (max = 2000) => z.string().trim().max(max).default("");
-const uuid = z.uuid();
-const optionalUuid = z.union([z.literal(""), z.uuid()]).transform(value => value || null);
-const optionalDate = z.union([z.literal(""), z.iso.date()]).transform(value => value || null);
 const localDateTime = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Enter a date and time.")
@@ -24,11 +21,6 @@ function zonedTimeFromInput(value: string): Date {
   // datetime-local gives Central wall-clock time. Convert it to an instant.
   const [day, time] = value.split("T");
   return zonedTime(day, time);
-}
-
-function firstError(error: z.ZodError): FormState {
-  const issue = error.issues[0];
-  return { error: issue ? `${String(issue.path[0] ?? "Form")}: ${issue.message}` : "Please check the form." };
 }
 
 async function audit(userId: string, action: string, entity: string, entityId = "") {
@@ -131,24 +123,12 @@ export async function createDailyLog(_p: FormState, formData: FormData): Promise
 
 /* ---------- Medications ---------- */
 
-const medicationSchema = z.object({
-  individualId: uuid,
-  name: z.string().trim().min(2, "Medication name is required.").max(120),
-  dose: z.string().trim().min(1, "Dose is required.").max(80),
-  route: z.string().trim().min(1).max(40).default("oral"),
-  times: z
-    .string()
-    .transform(value => value.split(/[,\s]+/).map(part => part.trim()).filter(Boolean))
-    .pipe(z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, for example 08:00")).min(1, "Add at least one time.")),
-  prescriber: optional(120),
-  instructions: optional(1000),
-});
-
 export async function addMedication(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
   const parsed = medicationSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
-  await db.insert(schema.medications).values(parsed.data);
+  // Doses start from now: a medication added at 3pm does not create a "late" 8am dose today.
+  await db.insert(schema.medications).values({ ...parsed.data, startedAt: new Date() });
   await audit(user.id, "create", "medication", parsed.data.individualId);
   revalidatePath(`/app/individuals/${parsed.data.individualId}`);
   revalidatePath("/app/medications");
@@ -310,15 +290,6 @@ export async function setShiftStatus(shiftId: string, status: "confirmed" | "com
 
 /* ---------- Homes and staff ---------- */
 
-const homeSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  type: z.enum(schema.homeType.enumValues),
-  address: optional(200),
-  city: z.string().trim().min(1).max(80).default("Nashville"),
-  capacity: z.coerce.number().int().min(1).max(20),
-  phone: optional(40),
-});
-
 export async function createHome(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
   const parsed = homeSchema.safeParse(Object.fromEntries(formData.entries()));
@@ -328,16 +299,6 @@ export async function createHome(_p: FormState, formData: FormData): Promise<For
   revalidatePath("/app/homes");
   return {};
 }
-
-const staffSchema = z.object({
-  firstName: z.string().trim().min(1).max(80),
-  lastName: z.string().trim().min(1).max(80),
-  role: z.enum(schema.staffRole.enumValues),
-  email: z.email().max(200).transform(value => value.toLowerCase()),
-  phone: optional(40),
-  homeId: optionalUuid,
-  hiredAt: optionalDate,
-});
 
 export async function createStaff(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();

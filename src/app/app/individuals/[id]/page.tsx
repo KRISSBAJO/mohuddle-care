@@ -17,7 +17,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
   const { saved } = await searchParams;
   const detail = await individualDetail(id);
   if (!detail) notFound();
-  const { person, home, goals, meds, logs, incidents } = detail;
+  const { person, home, goals, meds, stoppedMeds, logs, incidents } = detail;
   const years = age(person.dob);
   const manager = canManage(user);
 
@@ -36,6 +36,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
         }
       />
       {saved === "log" && <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Daily log saved. Thank you.</p>}
+      {saved === "medication" && <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Medication updated. The medication record follows from now on.</p>}
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
@@ -132,12 +133,29 @@ export default async function IndividualPage({ params, searchParams }: { params:
             {meds.length === 0 ? <Empty>No active medications.</Empty> : (
               <ul className="divide-y divide-line/60">
                 {meds.map(med => (
-                  <li key={med.id} className="px-5 py-3 text-sm">
-                    <p className="font-semibold">{med.name} <span className="font-normal text-mute">{med.dose}, {med.route}</span></p>
-                    <p className="text-xs text-mute">{med.times.join(", ")}{med.instructions && ` · ${med.instructions}`}</p>
+                  <li key={med.id} className="flex items-start justify-between gap-3 px-5 py-3 text-sm">
+                    <div>
+                      <p className="font-semibold">{med.name} <span className="font-normal text-mute">{med.dose}, {med.route}</span></p>
+                      <p className="text-xs text-mute">{med.times.join(", ")}{med.instructions && ` · ${med.instructions}`}</p>
+                      {med.prescriber && <p className="text-xs text-dim">{med.prescriber}{med.startedAt ? ` · since ${fmt.day(med.startedAt)}` : ""}</p>}
+                    </div>
+                    {manager && <Link href={`/app/individuals/${id}/medications/${med.id}`} className="shrink-0 text-xs font-semibold text-brand">Change or stop</Link>}
                   </li>
                 ))}
               </ul>
+            )}
+            {stoppedMeds.length > 0 && (
+              <details className="border-t border-line">
+                <summary className="cursor-pointer px-5 py-3 text-xs font-semibold text-mute">Stopped and earlier orders ({stoppedMeds.length})</summary>
+                <ul className="divide-y divide-line/60 pb-2">
+                  {stoppedMeds.map(med => (
+                    <li key={med.id} className="px-5 py-2.5 text-xs text-mute">
+                      <p><span className="font-semibold text-ink">{med.name}</span> {med.dose}, {med.times.join(", ")}</p>
+                      <p>{med.stoppedAt ? `Stopped ${fmt.dateTime(med.stoppedAt)}` : "Stopped"}{med.stopReason && ` · ${med.stopReason}`}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
             {manager && (
               <details className="border-t border-line">

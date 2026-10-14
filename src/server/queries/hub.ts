@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 
@@ -32,6 +32,12 @@ export async function individualDetail(id: string) {
   const [home] = person.homeId ? await db.select().from(schema.homes).where(eq(schema.homes.id, person.homeId)).limit(1) : [];
   const goals = await db.select().from(schema.planGoals).where(eq(schema.planGoals.individualId, id)).orderBy(asc(schema.planGoals.status), asc(schema.planGoals.targetDate));
   const meds = await db.select().from(schema.medications).where(and(eq(schema.medications.individualId, id), eq(schema.medications.active, true))).orderBy(asc(schema.medications.name));
+  const stoppedMeds = await db
+    .select()
+    .from(schema.medications)
+    .where(and(eq(schema.medications.individualId, id), eq(schema.medications.active, false)))
+    .orderBy(desc(schema.medications.stoppedAt))
+    .limit(20);
   const logs = await db
     .select({
       id: schema.dailyLogs.id,
@@ -54,7 +60,7 @@ export async function individualDetail(id: string) {
     .where(eq(schema.incidents.individualId, id))
     .orderBy(desc(schema.incidents.occurredAt))
     .limit(10);
-  return { person, home: home ?? null, goals, meds, logs, incidents };
+  return { person, home: home ?? null, goals, meds, stoppedMeds, logs, incidents };
 }
 
 export function listDailyLogs(day?: string) {
@@ -84,12 +90,20 @@ export function listDailyLogs(day?: string) {
 /* Makes sure every active medication has a due record for each of its times today, then returns the day's MAR. */
 export async function ensureMedicationRecords(day = dateKey()) {
   const meds = await db
-    .select({ id: schema.medications.id, individualId: schema.medications.individualId, times: schema.medications.times })
+    .select({
+      id: schema.medications.id,
+      individualId: schema.medications.individualId,
+      times: schema.medications.times,
+      startedAt: schema.medications.startedAt,
+    })
     .from(schema.medications)
     .innerJoin(schema.individuals, eq(schema.individuals.id, schema.medications.individualId))
     .where(and(eq(schema.medications.active, true), eq(schema.individuals.active, true)));
+  // A medication only has doses from the moment it started. Older rows have no start and keep every dose.
   const rows = meds.flatMap(med =>
-    med.times.map(time => ({ medicationId: med.id, individualId: med.individualId, scheduledFor: zonedTime(day, time) })),
+    med.times
+      .map(time => ({ medicationId: med.id, individualId: med.individualId, scheduledFor: zonedTime(day, time) }))
+      .filter(dose => !med.startedAt || dose.scheduledFor.getTime() >= med.startedAt.getTime()),
   );
   if (rows.length) await db.insert(schema.medAdministrations).values(rows).onConflictDoNothing();
 }
@@ -218,10 +232,17 @@ export async function staffWithCredentials() {
     : [];
   const homes = await listHomes();
   const homeName = new Map(homes.map(home => [home.id, home.name]));
+  const logins = people.length
+    ? await db
+        .select({ staffId: schema.users.staffId, role: schema.users.role, active: schema.users.active, hasPassword: sql<boolean>`${schema.users.passwordHash} is not null` })
+        .from(schema.users)
+        .where(inArray(schema.users.staffId, people.map(person => person.id)))
+    : [];
   return people.map(person => ({
     ...person,
     home: person.homeId ? homeName.get(person.homeId) ?? null : null,
     credentials: creds.filter(cred => cred.staffId === person.id),
+    login: logins.find(login => login.staffId === person.id) ?? null,
   }));
 }
 
@@ -235,3 +256,74 @@ export async function homesWithOccupancy() {
 }
 
 export const listEnquiries = () => db.select().from(schema.enquiries).orderBy(asc(schema.enquiries.handled), desc(schema.enquiries.createdAt)).limit(200);
+
+export const listFormerStaff = () =>
+  db.select().from(schema.staff).where(eq(schema.staff.active, false)).orderBy(asc(schema.staff.firstName), asc(schema.staff.lastName));
+
+export async function staffDetail(id: string) {
+  const [member] = await db.select().from(schema.staff).where(eq(schema.staff.id, id)).limit(1);
+  if (!member) return null;
+  const [home] = member.homeId ? await db.select().from(schema.homes).where(eq(schema.homes.id, member.homeId)).limit(1) : [];
+  const credentials = await db.select().from(schema.credentials).where(eq(schema.credentials.staffId, id)).orderBy(asc(schema.credentials.expiresAt));
+  const [login] = await db
+    .select({
+      id: schema.users.id,
+      email: schema.users.email,
+      role: schema.users.role,
+      active: schema.users.active,
+      hasPassword: sql<boolean>`${schema.users.passwordHash} is not null`,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.staffId, id))
+    .limit(1);
+  const [pendingLink] = login
+    ? await db
+        .select({ expiresAt: schema.loginTokens.expiresAt, purpose: schema.loginTokens.purpose })
+        .from(schema.loginTokens)
+        .where(and(eq(schema.loginTokens.userId, login.id), isNull(schema.loginTokens.usedAt), gte(schema.loginTokens.expiresAt, new Date())))
+        .orderBy(desc(schema.loginTokens.createdAt))
+        .limit(1)
+    : [];
+  const now = new Date();
+  const [upcoming] = await db
+    .select({ n: count() })
+    .from(schema.shifts)
+    .where(and(eq(schema.shifts.staffId, id), gte(schema.shifts.startsAt, now), inArray(schema.shifts.status, ["scheduled", "confirmed"])));
+  const [openTasks] = await db.select({ n: count() }).from(schema.tasks).where(and(eq(schema.tasks.assignedTo, id), eq(schema.tasks.status, "open")));
+  return {
+    member,
+    home: home ?? null,
+    credentials,
+    login: login ?? null,
+    pendingLink: pendingLink ?? null,
+    upcomingShifts: upcoming.n,
+    openTasks: openTasks.n,
+  };
+}
+
+export async function homeDetail(id: string) {
+  const [home] = await db.select().from(schema.homes).where(eq(schema.homes.id, id)).limit(1);
+  if (!home) return null;
+  const residents = await db
+    .select({ id: schema.individuals.id, first: schema.individuals.firstName, last: schema.individuals.lastName })
+    .from(schema.individuals)
+    .where(and(eq(schema.individuals.homeId, id), eq(schema.individuals.active, true)));
+  const [upcoming] = await db
+    .select({ n: count() })
+    .from(schema.shifts)
+    .where(and(eq(schema.shifts.homeId, id), gte(schema.shifts.startsAt, new Date()), inArray(schema.shifts.status, ["open", "scheduled", "confirmed"])));
+  const [based] = await db.select({ n: count() }).from(schema.staff).where(and(eq(schema.staff.homeId, id), eq(schema.staff.active, true)));
+  return { home, residents, upcomingShifts: upcoming.n, staffBased: based.n };
+}
+
+export const listClosedHomes = () => db.select().from(schema.homes).where(eq(schema.homes.active, false)).orderBy(asc(schema.homes.name));
+
+export async function medicationDetail(id: string) {
+  const rows = await db
+    .select({ med: schema.medications, first: schema.individuals.firstName, last: schema.individuals.lastName })
+    .from(schema.medications)
+    .innerJoin(schema.individuals, eq(schema.individuals.id, schema.medications.individualId))
+    .where(eq(schema.medications.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}

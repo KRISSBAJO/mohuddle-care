@@ -38,6 +38,18 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(1).max(10),
     fallback: 1,
   },
+  login_link_valid_hours: {
+    label: "Setup and password-reset links stay valid for this many hours",
+    kind: "number",
+    schema: z.coerce.number().int().min(1).max(168),
+    fallback: 72,
+  },
+  password_min_length: {
+    label: "Minimum password length for staff logins (8 to 64)",
+    kind: "number",
+    schema: z.coerce.number().int().min(8).max(64),
+    fallback: 10,
+  },
   required_daily_checks: {
     label: "Required checks on every daily log (one per line)",
     kind: "list",

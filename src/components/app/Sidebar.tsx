@@ -66,8 +66,8 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
 
   const account = (
     <div className="mt-auto border-t border-white/10 pt-4">
-      <p className="truncate text-sm font-semibold text-white">{user.name}</p>
-      <p className="text-xs capitalize text-white/50">{user.role}</p>
+      <Link href="/app/account" onClick={() => setOpen(false)} className="block truncate text-sm font-semibold text-white hover:underline">{user.name}</Link>
+      <p className="text-xs capitalize text-white/50">{user.role} · <Link href="/app/account" onClick={() => setOpen(false)} className="hover:text-white">My account</Link></p>
       <form action={signOut} className="mt-3">
         <button type="submit" className="flex items-center gap-2 text-xs font-medium text-white/60 hover:text-white">
           <LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Sign out

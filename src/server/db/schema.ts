@@ -69,7 +69,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   role: userRole("role").notNull().default("dsp"),
-  passwordHash: text("password_hash").notNull(),
+  // Null until the person opens their setup link and chooses a password.
+  passwordHash: text("password_hash"),
   staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
@@ -81,6 +82,19 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
+/* One-time links for first sign-in and password resets. Only a hash of the token is stored. */
+export const loginTokens = pgTable("login_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -169,6 +183,11 @@ export const medications = pgTable("medications", {
   prescriber: text("prescriber").notNull().default(""),
   instructions: text("instructions").notNull().default(""),
   active: boolean("active").notNull().default(true),
+  // Doses are only generated from startedAt onwards. A change stops this row and starts a new one,
+  // so past administration records keep the dose that was actually given.
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  stopReason: text("stop_reason").notNull().default(""),
 });
 
 export const medAdministrations = pgTable(

@@ -23,6 +23,30 @@ developmental disabilities.
 Roles: `admin` and `coordinator` manage everything; `nurse` and `dsp` write logs, record
 medications, report incidents and confirm their own shifts.
 
+## Staff logins
+
+There is no self sign-up. A coordinator or administrator opens a staff member's page and
+chooses **Create login and get link**. The Hub shows a one-time link once; hand it to the
+person privately. They open it, choose a password and are signed in. The same page gives a
+password reset link, changes access and turns a login off. Links last for the hours set in
+Settings, and only a hash of each link is stored.
+
+Coordinators manage direct support and nurse logins. Only administrators grant or manage
+coordinator and administrator access. Nobody can turn off or change their own login. Everyone
+can change their own password under **My account**.
+
+Email delivery is not built yet, which is why links are copied by hand.
+
+## Editing and history
+
+- **Staff:** edit details, record or remove credentials, and mark someone as left. Leaving
+  turns their login off and opens their upcoming shifts and tasks for others.
+- **Homes:** edit details and capacity, close a home once nobody lives there, and reopen it.
+  Closing removes its upcoming shifts. Past records stay.
+- **Medications:** a change never edits the old order. It stops it with a reason and starts a
+  new one, so past medication records keep the dose that was actually given. Stopping
+  removes upcoming doses only.
+
 ## Stack
 
 Next.js 16 (App Router, server actions), React 19, Tailwind 4, Drizzle ORM on PostgreSQL 16,

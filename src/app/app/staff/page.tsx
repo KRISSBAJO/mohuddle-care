@@ -1,10 +1,11 @@
+import Link from "next/link";
 import { ActionForm } from "@/components/app/ActionForm";
 import { Avatar, Badge, Empty, Field, PageHeader, Panel } from "@/components/app/ui";
 import { dateKey, daysBetween, fmt, initials, label, labels } from "@/lib/format";
 import { addCredential, createStaff } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
-import { listHomes, staffWithCredentials } from "@/server/queries/hub";
+import { listFormerStaff, listHomes, staffWithCredentials } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "Staff" };
@@ -12,27 +13,38 @@ export const metadata = { title: "Staff" };
 export default async function StaffPage() {
   const user = await requireUser();
   const manager = canManage(user);
-  const [people, homes, settings] = await Promise.all([staffWithCredentials(), listHomes(), getSettings()]);
+  const [people, homes, settings, former] = await Promise.all([staffWithCredentials(), listHomes(), getSettings(), listFormerStaff()]);
   const today = dateKey();
 
   return (
     <>
-      <PageHeader eyebrow="Staff" title={`${people.length} team members`} description={`Credentials turn amber ${settings.credential_warning_days} days before they expire and red once they have.`} />
+      <PageHeader eyebrow="Staff" title={`${people.length} team members`} description={`Open a name to edit details, manage their Hub login or record credentials. Credentials turn amber ${settings.credential_warning_days} days before they expire.`} />
       <Panel>
         {people.length === 0 ? <Empty>No staff yet.</Empty> : (
           <table className="table">
-            <thead><tr><th>Name</th><th>Role</th><th>Home</th><th>Credentials</th></tr></thead>
+            <thead><tr><th>Name</th><th>Role</th><th>Home</th><th>Hub login</th><th>Credentials</th></tr></thead>
             <tbody>
               {people.map(person => (
                 <tr key={person.id}>
                   <td>
                     <div className="flex items-center gap-3">
                       <Avatar initials={initials(person.firstName, person.lastName)} size="sm" />
-                      <div><p className="font-semibold">{person.firstName} {person.lastName}</p><p className="text-xs text-mute">{person.email}{person.phone && ` · ${person.phone}`}</p></div>
+                      <div><Link href={`/app/staff/${person.id}`} className="font-semibold hover:text-brand">{person.firstName} {person.lastName}</Link><p className="text-xs text-mute">{person.email}{person.phone && ` · ${person.phone}`}</p></div>
                     </div>
                   </td>
                   <td>{label("staffRole", person.role)}</td>
                   <td className="text-mute">{person.home ?? "—"}</td>
+                  <td>
+                    {!person.login ? (
+                      <span className="text-xs text-dim">None</span>
+                    ) : !person.login.active ? (
+                      <Badge tone="neutral">Off</Badge>
+                    ) : !person.login.hasPassword ? (
+                      <Badge tone="warn">Invited</Badge>
+                    ) : (
+                      <Badge tone="good" className="capitalize">{person.login.role}</Badge>
+                    )}
+                  </td>
                   <td>
                     <div className="flex flex-wrap gap-1.5">
                       {person.credentials.length === 0 && <span className="text-xs text-dim">None recorded</span>}
@@ -49,6 +61,19 @@ export default async function StaffPage() {
           </table>
         )}
       </Panel>
+
+      {former.length > 0 && (
+        <details className="mt-6">
+          <summary className="cursor-pointer text-xs font-semibold text-mute">Former staff ({former.length})</summary>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {former.map(person => (
+              <li key={person.id}>
+                <Link href={`/app/staff/${person.id}`} className="chip bg-panel text-mute hover:text-ink">{person.firstName} {person.lastName}</Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {manager && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

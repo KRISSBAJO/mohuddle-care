@@ -47,7 +47,7 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table audit_log, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   const [hillcrest, maple, riverside, dayProgram] = await db
     .insert(schema.homes)
