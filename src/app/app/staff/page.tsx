@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, KeyRound, Search, Users } from "lucide-react";
+import { AlertTriangle, BadgeCheck, KeyRound, Search, UserPlus, Users } from "lucide-react";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
-import { ModalForm } from "@/components/app/ModalForm";
-import { StaffFields } from "@/components/app/StaffFields";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { daysBetween, fmt, initials, label, labels } from "@/lib/format";
-import { createStaff } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
 import { listHomes } from "@/server/queries/hub";
@@ -52,15 +49,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         description="Search, sort and open anyone to manage their details, Mohuddle login and credentials."
         action={
           manager ? (
-            <ModalForm
-              action={createStaff}
-              title="Add a staff member"
-              description="You can create their Mohuddle login and record credentials on the next page."
-              triggerLabel="Add staff member"
-              submitLabel="Add and open"
-            >
-              <StaffFields homes={homes} prefix="new-staff" />
-            </ModalForm>
+<Link href="/app/staff/new" className="btn-brand"><UserPlus className="h-4 w-4" /> Add staff member</Link>
           ) : undefined
         }
       />

@@ -120,8 +120,7 @@ export async function updateStaff(id: string, _previous: FormState, formData: Fo
   });
   revalidatePath("/app/staff");
   revalidatePath(`/app/staff/${id}`);
-  // No redirect: the edit pop-up closes itself and the page shows the new details.
-  return {};
+  redirect(`/app/staff/${id}?saved=details`);
 }
 
 /*

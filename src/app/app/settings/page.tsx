@@ -111,6 +111,7 @@ const GROUPS: Group[] = [
     intro: "Credential tracking and how staff sign in.",
     items: [
       { key: "credential_types", title: "Credentials tracked", help: "The types offered when adding a credential to a staff member." },
+      { key: "employment_types", title: "Employment types", help: "Full time, part time, PRN and so on, offered on each staff record." },
       { key: "credential_warning_days", title: "Warn before a credential expires", help: "Expiring credentials show on the Today page and the schedule this far ahead.", unit: "days", min: 1, max: 365 },
       { key: "login_link_valid_hours", title: "Setup and reset links last", help: "How long a one-time sign-in link works.", unit: "hours", min: 1, max: 168 },
       { key: "password_min_length", title: "Shortest password", help: "For staff choosing a password (8 to 64).", unit: "characters", min: 8, max: 64 },

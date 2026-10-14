@@ -81,6 +81,12 @@ export const staff = pgTable("staff", {
   phone: text("phone").notNull().default(""),
   homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
   hiredAt: date("hired_at"),
+  // HR basics: payroll number, how they are employed, where they live and who to call for them.
+  employeeNumber: text("employee_number").notNull().default(""),
+  employmentType: text("employment_type").notNull().default(""),
+  address: text("address").notNull().default(""),
+  emergencyContact: text("emergency_contact").notNull().default(""),
+  emergencyPhone: text("emergency_phone").notNull().default(""),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 });

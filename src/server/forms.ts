@@ -89,4 +89,9 @@ export const staffSchema = z.object({
   phone: optional(40),
   homeId: optionalUuid,
   hiredAt: optionalDate,
+  employeeNumber: optional(40),
+  employmentType: optional(60),
+  address: optional(200),
+  emergencyContact: optional(120),
+  emergencyPhone: optional(40),
 });

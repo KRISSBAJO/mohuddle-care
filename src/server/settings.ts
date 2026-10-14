@@ -236,6 +236,12 @@ export const settingDefs = {
     schema: z.array(z.string().min(1)).min(1),
     fallback: ["Repairs", "Safety", "Supplies", "Vehicle", "Utilities", "Neighbours", "Phones and IT", "Other"],
   },
+  employment_types: {
+    label: "Ways staff are employed (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Full time", "Part time", "PRN / as needed", "Contractor"],
+  },
   credential_types: {
     label: "Credential types tracked for staff (one per line)",
     kind: "list",

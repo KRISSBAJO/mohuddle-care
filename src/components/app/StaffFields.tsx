@@ -5,8 +5,8 @@ import type { schema } from "@/server/db";
 type Member = typeof schema.staff.$inferSelect;
 type Home = { id: string; name: string };
 
-/* The staff form fields, shared by the add and edit pop-ups. */
-export function StaffFields({ homes, member, prefix, loginEmail }: { homes: Home[]; member?: Member; prefix: string; loginEmail?: boolean }) {
+/* The staff form fields, shared by the add and edit pages. */
+export function StaffFields({ homes, member, prefix, loginEmail, employmentTypes = [] }: { homes: Home[]; member?: Member; prefix: string; loginEmail?: boolean; employmentTypes?: string[] }) {
   const id = (name: string) => `${prefix}-${name}`;
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -35,6 +35,26 @@ export function StaffFields({ homes, member, prefix, loginEmail }: { homes: Home
       </Field>
       <Field label="Hired" htmlFor={id("hired")}>
         <input id={id("hired")} name="hiredAt" type="date" className="field" defaultValue={member?.hiredAt ?? ""} />
+      </Field>
+      <Field label="Employment" htmlFor={id("employment")}>
+        <select id={id("employment")} name="employmentType" className="field" defaultValue={member?.employmentType ?? ""}>
+          <option value="">Not set</option>
+          {[...new Set([...(member?.employmentType ? [member.employmentType] : []), ...employmentTypes])].map(type => <option key={type}>{type}</option>)}
+        </select>
+      </Field>
+      <Field label="Employee number" htmlFor={id("number")} hint="As used by payroll.">
+        <input id={id("number")} name="employeeNumber" maxLength={40} autoComplete="off" className="field" defaultValue={member?.employeeNumber} />
+      </Field>
+      <div className="sm:col-span-2">
+        <Field label="Home address" htmlFor={id("address")}>
+          <input id={id("address")} name="address" maxLength={200} autoComplete="off" className="field" defaultValue={member?.address} />
+        </Field>
+      </div>
+      <Field label="Emergency contact" htmlFor={id("emergency")}>
+        <input id={id("emergency")} name="emergencyContact" maxLength={120} autoComplete="off" className="field" defaultValue={member?.emergencyContact} />
+      </Field>
+      <Field label="Emergency phone" htmlFor={id("emergency-phone")}>
+        <input id={id("emergency-phone")} name="emergencyPhone" type="tel" maxLength={40} autoComplete="off" className="field" defaultValue={member?.emergencyPhone} />
       </Field>
     </div>
   );
