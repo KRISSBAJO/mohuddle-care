@@ -66,12 +66,14 @@ export function ClockInForm({
   const chosenHome = useShift ? shift!.homeId : homeId;
   const home = homes.find(item => item.id === chosenHome) ?? null;
   const verdict = locationVerdict(home, location.position, radius, needLocation);
-  const awayOrUnknown = needLocation && Boolean(home) && (verdict.state === "outside" || (location.status !== "asking" && verdict.state === "unavailable"));
+  const away = needLocation && Boolean(home) && verdict.state === "outside";
+  const unknown = needLocation && Boolean(home) && location.status !== "asking" && verdict.state === "unavailable";
   const toRead = needHandover ? handovers.filter(item => item.homeId === chosenHome) : [];
-  const reasonNeeded = !useShift || awayOrUnknown;
+  const reasonNeeded = !useShift || away;
+  const reasonShown = reasonNeeded || unknown;
 
   const shiftDone = useShift || Boolean(homeId);
-  const locationDone = !needLocation || verdict.state === "ok" || verdict.state === "home_not_set" || (awayOrUnknown && reason.trim().length >= 5);
+  const locationDone = !needLocation || verdict.state === "ok" || verdict.state === "home_not_set" || unknown || (away && reason.trim().length >= 5);
   const handoverDone = toRead.every(item => read.includes(item.id));
   const statementsDone = !needStatements || statements.every(statement => ticked.includes(statement));
   const reasonDone = !reasonNeeded || reason.trim().length >= 5;
@@ -144,7 +146,10 @@ export function ClockInForm({
             ) : verdict.state === "outside" ? (
               <span className="flex items-center gap-2 font-semibold text-flag"><AlertTriangle className="h-4 w-4" /> About {verdict.distance} m from {home.name}. Staff must be within {radius} m.</span>
             ) : (
-              <span className="flex items-center gap-2 font-semibold text-flag"><AlertTriangle className="h-4 w-4" /> {location.message || "Location not available."}</span>
+              <span className="flex flex-col gap-1">
+                <span className="flex items-center gap-2 font-semibold text-[#8a5a10]"><AlertTriangle className="h-4 w-4" /> We could not read your location.</span>
+                <span className="text-xs text-mute">You can still clock in. It is recorded as an exception and your home manager is told. {location.message}</span>
+              </span>
             )}
             {location.status !== "asking" && (
               <button type="button" onClick={location.retry} className="btn-ghost btn-sm"><RefreshCw className="h-3.5 w-3.5" /> Try again</button>
@@ -154,10 +159,12 @@ export function ClockInForm({
         </Step>
       )}
 
-      {reasonNeeded && (
+      {reasonShown && (
         <section className="card border-l-4 border-l-accent p-5">
-          <label htmlFor="clock-reason" className="label">{!useShift ? "Why are you working without a scheduled shift?" : "Why are you not at the home?"}</label>
-          <textarea id="clock-reason" rows={3} maxLength={500} className="field" value={reason} onChange={event => setReason(event.target.value)} placeholder={!useShift ? "Called in to cover for Sam, who is sick" : "Picking Tasha up from her day program first"} />
+          <label htmlFor="clock-reason" className="label">
+            {!useShift ? "Why are you working without a scheduled shift?" : away ? "Why are you not at the home?" : "Anything your manager should know about your location? (optional)"}
+          </label>
+          <textarea id="clock-reason" rows={3} maxLength={500} className="field" value={reason} onChange={event => setReason(event.target.value)} placeholder={!useShift ? "Called in to cover for Sam, who is sick" : away ? "Picking Tasha up from her day program first" : "My phone has location switched off"} />
           <p className="mt-1 text-xs text-mute">A manager sees this with your punch.</p>
         </section>
       )}

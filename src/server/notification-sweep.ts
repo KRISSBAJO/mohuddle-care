@@ -4,6 +4,7 @@ import { dateKey, fmt } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { liveBoard } from "@/server/queries/timeclock";
+import { unsignedSheets, workweekMinutes } from "@/server/queries/payroll";
 import { notesOwed } from "@/server/queries/notes-owed";
 import { getSettings } from "@/server/settings";
 
@@ -304,6 +305,42 @@ export async function sweepNotifications(force = false) {
         href: `/app/time/${row.id}`,
         tone: "warn",
         dedupeKey: `time:forgot:${row.id}`,
+      });
+    }
+
+    // Pay: timesheets ready to sign, a finished period waiting to be locked, and overtime getting close.
+    const unsigned = await unsignedSheets(settings, today);
+    const range = `${fmt.day(unsigned.period.start)} to ${fmt.day(unsigned.period.end)}`;
+    for (const staffId of unsigned.staffIds) {
+      sent += await notify(await recipients({ staffIds: [staffId] }), {
+        kind: "timesheet:sign",
+        title: "Your timesheet is ready to sign",
+        body: `Check your hours for ${range} and sign them for payroll.`,
+        href: `/app/clock/timesheets/${unsigned.period.start}`,
+        tone: "info",
+        dedupeKey: `timesheet:sign:${unsigned.period.start}:${staffId}`,
+      });
+    }
+    if (unsigned.hasTime && unsigned.period.end < today) {
+      sent += await notify(await recipients({ roles: timeRoles }), {
+        kind: "timesheet:period",
+        title: `Pay period ${range} has ended`,
+        body: "Approve the timesheets, lock the period, then download the payroll file.",
+        href: `/app/time?tab=timesheets&period=${unsigned.period.start}`,
+        tone: "info",
+        dedupeKey: `timesheet:period:${unsigned.period.start}`,
+      });
+    }
+    const weekHours = await workweekMinutes(settings, today);
+    for (const row of weekHours.filter(item => item.minutes >= settings.overtime_warning_hours * 60)) {
+      const worked = Math.floor(row.minutes / 60);
+      sent += await notify(await recipients({ roles: timeRoles, staffIds: [row.staffId] }), {
+        kind: "time:overtime",
+        title: worked >= settings.overtime_after_hours ? `Overtime: ${worked} hours worked this week` : `Close to overtime: ${worked} hours worked this week`,
+        body: `Overtime starts after ${settings.overtime_after_hours} hours in the workweek that began ${fmt.day(row.start)}.`,
+        href: `/app/staff/${row.staffId}?tab=time`,
+        tone: "warn",
+        dedupeKey: `time:overtime:${row.staffId}:${row.start}:${worked >= settings.overtime_after_hours ? "over" : "near"}`,
       });
     }
   } finally {

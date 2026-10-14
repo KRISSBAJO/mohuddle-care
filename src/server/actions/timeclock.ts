@@ -5,15 +5,24 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addDays, zonedTime } from "@/lib/format";
+import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { formatMinutes, handoverProblems, lateMinutes, locationVerdict, nameMatches } from "@/lib/timeclock";
 import { canManage } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { clockInContext, clockOutContext, isUuid, openEntry, unreadHandovers } from "@/server/queries/timeclock";
+import { lockedOn } from "@/server/queries/payroll";
 import { getSettings } from "@/server/settings";
 import type { FormState } from "./auth";
+
+const LOCKED = "That pay period is locked and has gone to payroll. Add an adjustment to the current period instead.";
+
+/* True when any of these moments falls in a locked pay period. */
+async function touchesLocked(...moments: (Date | null | undefined)[]) {
+  for (const at of moments) if (at && (await lockedOn(dateKey(at)))) return true;
+  return false;
+}
 
 const position = z
   .object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), accuracy: z.number().min(0).max(100_000).optional() })
@@ -82,10 +91,12 @@ export async function clockIn(_previous: FormState, formData: FormData): Promise
   const home = context.homes.find(item => item.id === homeId)!;
   const needs = settings.clock_in_requirements;
   const verdict = locationVerdict(home, input.position, settings.clock_geofence_meters, needs.includes("location"));
-  if (verdict.state === "outside" || verdict.state === "unavailable") {
-    if (input.reason.length < 5) return { error: verdict.state === "outside" ? `You are about ${verdict.distance} meters from ${home.name}. Say why, or move closer and try again.` : "Your location could not be read. Say why, or allow location and try again." };
-    flags.push(verdict.state === "outside" ? "away_in" : "no_location_in");
+  if (verdict.state === "outside") {
+    if (input.reason.length < 5) return { error: `You are about ${verdict.distance} meters from ${home.name}. Say why, or move closer and try again.` };
+    flags.push("away_in");
   }
+  // No location (blocked, switched off or no signal) never stops a clock-in. It is recorded as an exception and managers are told.
+  if (verdict.state === "unavailable") flags.push("no_location_in");
 
   if (needs.includes("statements")) {
     const missing = settings.clock_in_statements.filter(statement => !input.statements.includes(statement));
@@ -127,8 +138,8 @@ export async function clockIn(_previous: FormState, formData: FormData): Promise
   if (serious.length) {
     await tellManagers(homeId, user.id, {
       kind: "time",
-      title: `${user.name} clocked in ${flags.includes("unscheduled") ? "without a scheduled shift" : "away from the home"} at ${home.name}`,
-      body: input.reason,
+      title: `${user.name} clocked in ${flags.includes("unscheduled") ? "without a scheduled shift" : flags.includes("away_in") ? "away from the home" : "without a location"} at ${home.name}`,
+      body: [serious.map(flag => ({ unscheduled: "No scheduled shift", away_in: "Away from the home", no_location_in: "Location could not be read" })[flag] ?? flag).join(" · "), input.reason].filter(Boolean).join(". "),
       href: `/app/time/${entryId}`,
       tone: "warn",
       dedupeKey: `time:in:${entryId}`,
@@ -218,9 +229,7 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
 
   const needs = settings.clock_in_requirements;
   const verdict = locationVerdict({ latitude: open.homeLatitude, longitude: open.homeLongitude }, input.position, settings.clock_geofence_meters, needs.includes("location") && Boolean(open.entry.homeId));
-  if ((verdict.state === "outside" || verdict.state === "unavailable") && input.reason.length < 5) {
-    return { error: verdict.state === "outside" ? `You are about ${verdict.distance} meters from the home. Say why, or move closer and try again.` : "Your location could not be read. Say why, or allow location and try again." };
-  }
+  if (verdict.state === "outside" && input.reason.length < 5) return { error: `You are about ${verdict.distance} meters from the home. Say why, or move closer and try again.` };
 
   const flags = [...open.entry.flags];
   if (verdict.state === "outside") flags.push("away_out");
@@ -277,7 +286,7 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
   if (flags.some(flag => ["away_out", "no_location_out"].includes(flag)) || input.incident === "not_reported") {
     await tellManagers(open.entry.homeId, user.id, {
       kind: "time",
-      title: input.incident === "not_reported" ? `${user.name} clocked out with an incident not yet reported` : `${user.name} clocked out away from ${open.home ?? "the home"}`,
+      title: input.incident === "not_reported" ? `${user.name} clocked out with an incident not yet reported` : verdict.state === "outside" ? `${user.name} clocked out away from ${open.home ?? "the home"}` : `${user.name} clocked out without a location at ${open.home ?? "the home"}`,
       body: input.reason || undefined,
       href: `/app/time/${open.entry.id}`,
       tone: input.incident === "not_reported" ? "bad" : "warn",
@@ -320,6 +329,7 @@ export async function requestCorrection(_previous: FormState, formData: FormData
   const { inAt, outAt } = span(day, start, end);
   if (outAt.getTime() > Date.now()) return { error: "The end time is in the future." };
   if (outAt.getTime() - inAt.getTime() > 24 * 3_600_000) return { error: "One request covers at most 24 hours." };
+  if (await touchesLocked(inAt)) return { error: "That pay period is locked and has gone to payroll. Ask your manager to add an adjustment to your current timesheet." };
   let home = homeId || null;
   if (entryId) {
     const [entry] = await db.select({ staffId: schema.timeEntries.staffId, homeId: schema.timeEntries.homeId }).from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
@@ -371,6 +381,7 @@ export async function fixEntryTimes(entryId: string, _previous: FormState, formD
   if (clockOutAt <= clockInAt) return { error: "The clock-out must be after the clock-in." };
   if (clockOutAt.getTime() > Date.now()) return { error: "The clock-out cannot be in the future." };
   if (clockOutAt.getTime() - clockInAt.getTime() > 24 * 3_600_000) return { error: "A punch cannot be longer than 24 hours. Split it into two." };
+  if (await touchesLocked(entry.clockInAt, clockInAt)) return { error: LOCKED };
   const closing = !entry.clockOutAt;
   await db.transaction(async tx => {
     await tx.update(schema.timeBreaks).set({ endAt: clockOutAt }).where(and(eq(schema.timeBreaks.entryId, entry.id), isNull(schema.timeBreaks.endAt)));
@@ -424,6 +435,7 @@ export async function decideCorrection(correctionId: string, approve: boolean, _
   if (!request || request.status !== "pending") return { error: "This request has already been decided." };
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   if (!approve && note.length < 5) return { error: "Say why it is declined. The staff member sees this." };
+  if (approve && (await touchesLocked(request.clockInAt))) return { error: `${LOCKED} Then decline this request with a note saying so.` };
   await db.transaction(async tx => {
     if (approve) {
       if (request.entryId) {

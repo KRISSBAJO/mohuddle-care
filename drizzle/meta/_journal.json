@@ -127,6 +127,13 @@
       "when": 1792004241769,
       "tag": "0017_watery_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792007188515,
+      "tag": "0018_talented_shotgun",
+      "breakpoints": true
     }
   ]
 }

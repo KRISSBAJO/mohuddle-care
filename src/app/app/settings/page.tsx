@@ -9,7 +9,7 @@ import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
 
 export const metadata = { title: "Settings" };
 
-type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean; choices?: [string, string][] };
+type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean; choices?: [string, string][]; options?: [string, string][]; date?: boolean };
 type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?: [string, string]; items: Item[] };
 
 /* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
@@ -44,7 +44,7 @@ const GROUPS: Group[] = [
     icon: Timer,
     intro: "Clocking in and out: where staff must be, what they confirm, and what the handover must cover.",
     items: [
-      { key: "clock_in_requirements", title: "To clock in", help: "Location: on their phone, near the home. Handover: read and acknowledge the last handover at the home. Statements: tick each statement below.", choices: [["location", "Be at the home"], ["handover", "Read the last handover"], ["statements", "Tick the statements"]] },
+      { key: "clock_in_requirements", title: "To clock in", help: "Location: on their phone, near the home. If a phone cannot share its location they can still clock in; it is flagged and the home manager is told. Handover: read and acknowledge the last handover at the home. Statements: tick each statement below.", choices: [["location", "Be at the home"], ["handover", "Read the last handover"], ["statements", "Tick the statements"]] },
       { key: "clock_out_blocking", title: "Must be done before clock-out", help: "Anything not chosen still shows as a warning and is flagged for a manager.", choices: [["handover", "Handover note"], ["checks", "Handover ticks"], ["incident", "Incident reported"], ["notes", "Daily notes written"], ["doses", "Doses recorded"]] },
       { key: "clock_early_minutes", title: "Clock in early by up to", help: "Earlier than this, the shift cannot be clocked in to yet.", unit: "minutes", min: 0, max: 120 },
       { key: "clock_late_grace_minutes", title: "Still on time within", help: "After this they are marked late.", unit: "minutes", min: 0, max: 60 },
@@ -56,6 +56,23 @@ const GROUPS: Group[] = [
       { key: "handover_checks", title: "Handover ticks", help: "Staff tick each one, or explain why not. Homes can add their own on their details." },
       { key: "clock_in_statements", title: "Statements at clock in", help: "Staff tick each one before they can clock in." },
       { key: "notify_roles_time", title: "Told about time", help: "No-shows, forgotten clock-outs, punches away from the home and correction requests.", roles: true },
+    ],
+  },
+  {
+    id: "pay",
+    title: "Pay periods",
+    icon: Wallet,
+    intro: "How hours become timesheets: the pay period, overtime, rounding, holidays and the payroll export. Mohuddle counts hours; pay is worked out by your payroll provider.",
+    link: ["/app/time?tab=timesheets", "Timesheets"],
+    items: [
+      { key: "pay_period_type", title: "Pay period", help: "Changing this only affects periods not yet started. Locked periods stay as they were.", options: [["weekly", "Every week"], ["biweekly", "Every two weeks"], ["semimonthly", "Twice a month (1st–15th, 16th–end)"], ["monthly", "Every month"]] },
+      { key: "pay_period_anchor", title: "A period start date", help: "For weekly or every-two-weeks pay: the first day of any one pay period. Other periods count from it.", date: true },
+      { key: "workweek_starts_on", title: "Workweek starts", help: "Overtime is counted per workweek, a fixed 7 days. 1 is Monday, 7 is Sunday.", unit: "day of week", min: 1, max: 7 },
+      { key: "overtime_after_hours", title: "Overtime after", help: "Federal law pays overtime after 40 hours in a workweek. Tennessee has no daily overtime.", unit: "hours a week", min: 1, max: 80 },
+      { key: "overtime_warning_hours", title: "Warn about overtime at", help: "Staff and the people told about time are warned once a week when someone reaches this.", unit: "hours", min: 1, max: 80 },
+      { key: "time_rounding_minutes", title: "Rounding", help: "Each punch is rounded to the nearest step, up or down, so it evens out. The real times are always kept.", options: [["0", "No rounding"], ["5", "Nearest 5 minutes"], ["6", "Nearest 6 minutes (tenth of an hour)"], ["15", "Nearest 15 minutes"]] },
+      { key: "paid_holidays", title: "Holidays", help: "One per line, starting with the date. Hours worked on these days are shown separately for holiday pay." },
+      { key: "payroll_export_columns", title: "Payroll export columns", help: "In order. Allowed: employee_number, first_name, last_name, email, period_start, period_end, regular_hours, overtime_hours, total_hours, holiday_hours, adjustment_hours, status." },
     ],
   },
   {
@@ -211,6 +228,12 @@ export default async function SettingsPage() {
                         <RolePicker name={item.key} initial={value as string[]} />
                       ) : def.kind === "list" ? (
                         <ListEditor name={item.key} initial={value as string[]} />
+                      ) : item.options ? (
+                        <select id={item.key} name={item.key} className="field" defaultValue={String(value)}>
+                          {item.options.map(([optionValue, text]) => <option key={optionValue} value={optionValue}>{text}</option>)}
+                        </select>
+                      ) : item.date ? (
+                        <input id={item.key} name={item.key} type="date" required className="field" defaultValue={String(value)} />
                       ) : def.kind === "text" ? (
                         <input id={item.key} name={item.key} className="field font-mono" defaultValue={String(value)} />
                       ) : (

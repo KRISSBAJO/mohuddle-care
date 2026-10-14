@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock, History, LogIn, LogOut, MapPin, TimerReset } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock, FileSpreadsheet, History, LogIn, LogOut, MapPin, TimerReset } from "lucide-react";
 import { BreakButtons, LiveWorked } from "@/components/clock/ClockControls";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
@@ -97,7 +97,7 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
         )}
       </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="card p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">This week</p>
           <p className="mt-1 font-display text-2xl font-bold">{formatMinutes(history.weekMinutes)}</p>
@@ -108,7 +108,11 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
           <p className={cn("mt-1 font-display text-2xl font-bold", history.lateCount ? "text-[#8a5a10]" : "text-sage")}>{history.lateCount}</p>
           <p className="text-xs text-mute">Past {settings.clock_late_grace_minutes} minutes</p>
         </div>
-        <Link href="/app/clock/correction" className="card col-span-2 block p-4 transition hover:-translate-y-0.5 sm:col-span-1">
+        <Link href="/app/clock/timesheets" className="card block p-4 transition hover:-translate-y-0.5">
+          <p className="flex items-center gap-2 text-sm font-semibold text-brand"><FileSpreadsheet className="h-4 w-4" /> My timesheets</p>
+          <p className="mt-1 text-xs text-mute">Hours and overtime for each pay period. Sign them when the period ends.</p>
+        </Link>
+        <Link href="/app/clock/correction" className="card block p-4 transition hover:-translate-y-0.5">
           <p className="flex items-center gap-2 text-sm font-semibold text-brand"><TimerReset className="h-4 w-4" /> Fix a punch</p>
           <p className="mt-1 text-xs text-mute">Forgot to clock in or out, or a time is wrong? Ask your manager to correct it.</p>
         </Link>

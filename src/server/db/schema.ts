@@ -915,3 +915,71 @@ export const timeCorrections = pgTable(
   },
   table => [index("time_corrections_staff").on(table.staffId), index("time_corrections_status").on(table.status)],
 );
+
+/* ---------- Pay periods and timesheets ---------- */
+
+/* A pay period once someone has looked at it. Locked periods cannot change; fixes go in as adjustments. */
+export const payPeriods = pgTable(
+  "pay_periods",
+  {
+    id: id(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: text("status").$type<"open" | "locked">().notNull().default("open"),
+    lockedBy: uuid("locked_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    exportedAt: timestamp("exported_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("pay_period_start").on(table.startDate)],
+);
+
+export type SheetSnapshot = { regular: number; overtime: number; total: number; holiday: number; adjustments: number; punches: number };
+
+/* One person's hours for one pay period: they sign it, a manager approves it, then the period is locked. */
+export const timesheets = pgTable(
+  "timesheets",
+  {
+    id: id(),
+    periodId: uuid("period_id")
+      .notNull()
+      .references(() => payPeriods.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    status: text("status").$type<"open" | "signed" | "approved">().notNull().default("open"),
+    signedName: text("signed_name").notNull().default(""),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    approvedBy: uuid("approved_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    // Set when a manager sends it back to be checked again.
+    returnNote: text("return_note").notNull().default(""),
+    approvalNote: text("approval_note").notNull().default(""),
+    // The totals as they stood when signed and when approved, in minutes.
+    signedTotals: jsonb("signed_totals").$type<SheetSnapshot | null>(),
+    approvedTotals: jsonb("approved_totals").$type<SheetSnapshot | null>(),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("timesheet_once").on(table.periodId, table.staffId), index("timesheets_staff").on(table.staffId)],
+);
+
+/* Extra or fewer minutes on a timesheet, such as a fix for a locked period, with the reason. */
+export const timeAdjustments = pgTable(
+  "time_adjustments",
+  {
+    id: id(),
+    periodId: uuid("period_id")
+      .notNull()
+      .references(() => payPeriods.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    minutes: integer("minutes").notNull(),
+    overtime: boolean("overtime").notNull().default(false),
+    relatesTo: date("relates_to"),
+    reason: text("reason").notNull(),
+    createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("time_adjustments_sheet").on(table.periodId, table.staffId)],
+);

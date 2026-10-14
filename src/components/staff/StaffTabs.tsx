@@ -17,6 +17,8 @@ import { requestTime } from "@/server/clock";
 import type { staffDetail } from "@/server/queries/hub";
 import { homesWorked, notesWrittenBy, staffSummary, staffWeeks } from "@/server/queries/staff-profile";
 import { rowMinutes, staffTime } from "@/server/queries/timeclock";
+import { periodOn } from "@/server/queries/payroll";
+import { getSettings } from "@/server/settings";
 import { flagLabel, formatMinutes } from "@/lib/timeclock";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof staffDetail>>>;
@@ -417,8 +419,9 @@ export function StaffAccountTab({ detail, user, manager, self, manageable }: { d
 
 export async function StaffTimeTab({ id, manager }: { id: string; manager: boolean }) {
   const now = await requestTime();
-  const time = await staffTime(id, now);
+  const [time, settings] = await Promise.all([staffTime(id, now), getSettings()]);
   const open = time.rows.find(row => !row.clockOutAt);
+  const period = await periodOn(dateKey(new Date(now)), settings);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -443,6 +446,12 @@ export async function StaffTimeTab({ id, manager }: { id: string; manager: boole
           <p className="text-xs text-mute">Flagged punches not yet looked at</p>
         </div>
       </div>
+      {manager && (
+        <p className="text-sm">
+          <Link href={`/app/time/sheets/${period.start}/${id}`} className="font-semibold text-brand">Timesheet for this pay period</Link>
+          <span className="text-mute"> · {fmt.day(period.start)} – {fmt.day(period.end)}</span>
+        </p>
+      )}
       <Panel title="Punches, last three weeks" action={manager ? <Link href={`/app/time?tab=punches&staff=${id}`} className="text-xs font-semibold text-brand">All punches</Link> : undefined}>
         {time.rows.length === 0 ? (
           <Empty>No punches yet. Staff clock in from My time clock on their phone.</Empty>

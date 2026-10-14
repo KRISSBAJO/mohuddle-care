@@ -10,6 +10,7 @@ import { flagLabel, formatMinutes, workedMinutes } from "@/lib/timeclock";
 import { fixEntryTimes, reviewEntry } from "@/server/actions/timeclock";
 import { requestTime } from "@/server/clock";
 import { requireManager } from "@/server/guard";
+import { lockedOn } from "@/server/queries/payroll";
 import { entryDetail, isUuid } from "@/server/queries/timeclock";
 
 export const metadata = { title: "Punch" };
@@ -39,6 +40,7 @@ export default async function TimeEntryPage({ params }: { params: Promise<{ id: 
   const [detail, now] = await Promise.all([entryDetail(id), requestTime()]);
   if (!detail) notFound();
   const { entry } = detail;
+  const locked = await lockedOn(dateKey(entry.clockInAt));
   const worked = workedMinutes(entry.clockInAt, entry.clockOutAt, detail.breaks, now);
   const open = !entry.clockOutAt;
   const reference = entry.clockOutAt ?? new Date(now);
@@ -138,6 +140,13 @@ export default async function TimeEntryPage({ params }: { params: Promise<{ id: 
         </div>
 
         <aside className="space-y-6">
+          {locked ? (
+            <Panel title="Locked for payroll">
+              <p className="p-5 text-sm text-mute">
+                This punch is in the pay period {fmt.day(locked.start)} – {fmt.day(locked.end)}, which is locked. To fix the hours, add an adjustment to {detail.staffFirst}&apos;s timesheet in the current period.
+              </p>
+            </Panel>
+          ) : (
           <Panel title={open ? "Close this clock-out" : "Change the times"}>
             <div className="p-5">
               <p className="mb-4 text-xs text-mute">{open ? "For a forgotten clock-out. Use the time you know they left. They are told." : "The original times are kept in the history below. They are told."}</p>
@@ -156,6 +165,7 @@ export default async function TimeEntryPage({ params }: { params: Promise<{ id: 
               </ActionForm>
             </div>
           </Panel>
+          )}
 
           {entry.flags.length > 0 && !entry.reviewedAt && (
             <Panel title="Mark as reviewed">

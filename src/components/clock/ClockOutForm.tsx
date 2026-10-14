@@ -68,7 +68,8 @@ export function ClockOutForm({
   const [signed, setSigned] = useState("");
   const location = usePosition(needLocation && hasHome);
   const verdict = locationVerdict(homePoint, location.position, radius, needLocation && hasHome);
-  const away = needLocation && hasHome && location.status !== "asking" && (verdict.state === "outside" || verdict.state === "unavailable");
+  const away = needLocation && hasHome && location.status !== "asking" && verdict.state === "outside";
+  const unknown = needLocation && hasHome && location.status !== "asking" && verdict.state === "unavailable";
 
   const notesMissing = people.filter(person => !person.noteWritten);
   const dosesMissing = people.flatMap(person => person.dosesDue.map(dose => ({ ...dose, person })));
@@ -221,11 +222,27 @@ export function ClockOutForm({
             ) : verdict.state === "home_not_set" ? (
               <span className="text-mute">Location recorded. This home has no map location yet.</span>
             ) : (
-              <span className="flex items-center gap-2 font-semibold text-flag"><AlertTriangle className="h-4 w-4" /> {verdict.state === "outside" ? `About ${verdict.distance} m from ${home}` : location.message || "Location not available"}</span>
+              verdict.state === "outside" ? (
+                <span className="flex items-center gap-2 font-semibold text-flag"><AlertTriangle className="h-4 w-4" /> About {verdict.distance} m from {home}</span>
+              ) : (
+                <span className="flex flex-col gap-1">
+                  <span className="flex items-center gap-2 font-semibold text-[#8a5a10]"><AlertTriangle className="h-4 w-4" /> We could not read your location.</span>
+                  <span className="text-xs text-mute">You can still clock out. It is recorded as an exception and your home manager is told.</span>
+                </span>
+              )
             )}
             {location.status !== "asking" && <button type="button" onClick={location.retry} className="btn-ghost btn-sm"><RefreshCw className="h-3.5 w-3.5" /> Try again</button>}
           </div>
-          {away && <input aria-label="Why you are not at the home" maxLength={500} className="field mt-3" value={reason} onChange={event => setReason(event.target.value)} placeholder="Why you are clocking out away from the home" />}
+          {(away || unknown) && (
+            <input
+              aria-label={away ? "Why you are not at the home" : "Anything your manager should know about your location"}
+              maxLength={500}
+              className="field mt-3"
+              value={reason}
+              onChange={event => setReason(event.target.value)}
+              placeholder={away ? "Why you are clocking out away from the home" : "Optional: for example, my phone's location is switched off"}
+            />
+          )}
         </Section>
       )}
 

@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, Coffee, History, MapPinOff, Phone, Radio, ScrollText, TimerReset, UserX } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Coffee, FileSpreadsheet, History, MapPinOff, Phone, Radio, ScrollText, TimerReset, UserX } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
 import { listHref, Pagination } from "@/components/app/ListControls";
 import { SearchSelect } from "@/components/app/SearchSelect";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { HandoverCard } from "@/components/clock/HandoverCard";
+import { TimesheetsView } from "@/components/clock/TimesheetsView";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt } from "@/lib/format";
 import { flagLabel, formatMinutes } from "@/lib/timeclock";
@@ -23,6 +24,7 @@ const TABS = [
   ["review", "To review", AlertTriangle],
   ["punches", "All punches", History],
   ["handovers", "Handovers", ScrollText],
+  ["timesheets", "Timesheets", FileSpreadsheet],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 type Search = Record<string, string | undefined>;
@@ -38,7 +40,7 @@ function Flags({ flags }: { flags: string[] }) {
 }
 
 export default async function TimePage({ searchParams }: { searchParams: Promise<Search> }) {
-  await requireManager();
+  const user = await requireManager();
   const query = await searchParams;
   const tab: Tab = TABS.some(([value]) => value === query.tab) ? (query.tab as Tab) : "live";
   const [settings, now] = await Promise.all([getSettings(), requestTime()]);
@@ -47,7 +49,11 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <PageHeader eyebrow="Time & attendance" title="Who is working" description="Live from staff clocking in and out on their phones, against the schedule." />
+      <PageHeader
+        eyebrow="Time & attendance"
+        title={{ live: "Who is working", review: "Time to review", punches: "All punches", handovers: "Handovers", timesheets: "Timesheets and payroll" }[tab]}
+        description={tab === "timesheets" ? "Each pay period: check hours, approve timesheets, lock the period, then download the payroll file." : "Live from staff clocking in and out on their phones, against the schedule."}
+      />
       <nav className="mb-6 flex w-full gap-1 overflow-x-auto rounded-xl bg-panel p-1 sm:w-fit" aria-label="Time views">
         {TABS.map(([value, text, Icon]) => (
           <Link
@@ -65,6 +71,7 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
       {tab === "review" && <ReviewView board={board} now={now} />}
       {tab === "punches" && <PunchesView query={query} now={now} />}
       {tab === "handovers" && <HandoversView query={query} />}
+      {tab === "timesheets" && <TimesheetsView requested={query.period} settings={settings} now={now} admin={user.role === "admin"} />}
     </>
   );
 }
