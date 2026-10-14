@@ -138,6 +138,8 @@ export async function clockOutContext(open: NonNullable<Awaited<ReturnType<typeo
     dosesMissing: doses.length,
     checklist: handoverChecklist(settings.handover_checks, open.homeChecks ?? []),
     overstay: overstayMinutes(open.shiftEnd, now, settings.clock_overstay_minutes),
+    // Minutes before the shift end, when more than the allowance; otherwise 0.
+    leftEarly: open.shiftEnd && open.shiftEnd.getTime() - now > settings.clock_early_leave_minutes * 60_000 ? Math.ceil((open.shiftEnd.getTime() - now) / 60_000) : 0,
     worked: workedMinutes(entry.clockInAt, null, open.breaks, now),
   };
 }

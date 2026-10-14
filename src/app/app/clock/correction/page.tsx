@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
+import { Select } from "@/components/app/Select";
 import { Field, PageHeader } from "@/components/app/ui";
 import { dateKey, fmt } from "@/lib/format";
 import { requestCorrection } from "@/server/actions/timeclock";
@@ -58,10 +59,7 @@ export default async function CorrectionPage({ searchParams }: { searchParams: P
           </>
         ) : (
           <Field label="Home" htmlFor="fix-home">
-            <select id="fix-home" name="homeId" required className="field" defaultValue="">
-              <option value="" disabled>Choose</option>
-              {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-            </select>
+            <Select id="fix-home" name="homeId" required searchable defaultValue="" options={homes.map(home => ({ value: home.id, label: home.name }))} />
           </Field>
         )}
         <div className="grid gap-4 sm:grid-cols-3">

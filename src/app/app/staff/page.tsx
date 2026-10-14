@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, BadgeCheck, KeyRound, Search, UserPlus, Users } from "lucide-react";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { daysBetween, fmt, initials, label, labels } from "@/lib/format";
 import { canManage } from "@/server/auth";
@@ -70,24 +71,11 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
             <input name="q" defaultValue={query.q} maxLength={120} placeholder="Search name, email or phone" aria-label="Search staff" className="field pl-10" />
           </div>
-          <select name="role" defaultValue={query.role} aria-label="Filter by job" className="field lg:w-auto">
-            <option value="">All jobs</option>
-            {Object.entries(labels.staffRole).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="home" defaultValue={query.home} aria-label="Filter by home" className="field lg:w-auto">
-            <option value="">All homes</option>
-            <option value="none">Floating or office</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
-          <select name="login" data-default="any" defaultValue={query.login} aria-label="Filter by Mohuddle login" className="field lg:w-auto">
-            {Object.entries(staffLoginFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="cred" data-default="any" defaultValue={query.cred} aria-label="Filter by credentials" className="field lg:w-auto">
-            {Object.entries(staffCredFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="status" data-default="current" defaultValue={query.status} aria-label="Filter by status" className="field lg:w-auto">
-            {Object.entries(staffStatusFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
+          <Select name="role" defaultValue={query.role} aria-label="Filter by job" className="lg:w-auto" emptyLabel="All jobs" options={Object.entries(labels.staffRole).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="home" defaultValue={query.home} aria-label="Filter by home" className="lg:w-auto" emptyLabel="All homes" searchable options={[{ value: "none", label: "Floating or office" }, ...homes.map(home => ({ value: home.id, label: home.name }))]} />
+          <Select name="login" dataDefault="any" defaultValue={query.login} aria-label="Filter by Mohuddle login" className="lg:w-auto" options={Object.entries(staffLoginFilters).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="cred" dataDefault="any" defaultValue={query.cred} aria-label="Filter by credentials" className="lg:w-auto" options={Object.entries(staffCredFilters).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="status" dataDefault="current" defaultValue={query.status} aria-label="Filter by status" className="lg:w-auto" options={Object.entries(staffStatusFilters).map(([value, text]) => ({ value, label: text }))} />
           <div className="flex gap-2">
             <button type="submit" className="btn-primary btn-sm">Search</button>
             {filtered && <Link href={hrefWith(defaults, { sort: query.sort, dir: query.dir, per: query.per })} className="btn-ghost btn-sm">Clear</Link>}

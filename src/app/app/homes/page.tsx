@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, CalendarX2, ClipboardCheck, LayoutGrid, List, Pill, Plus, Receipt, Search, Users, Wrench } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
@@ -160,20 +161,11 @@ export default async function HomesPage({ searchParams }: { searchParams: Promis
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
             <input name="q" defaultValue={query.q} maxLength={120} placeholder="Search home, address or manager" aria-label="Search homes" className="field pl-10" />
           </div>
-          <select name="type" defaultValue={query.type} aria-label="Filter by type" className="field lg:w-auto">
-            <option value="">All types</option>
-            {Object.entries(labels.homeType).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="attention" data-default="any" defaultValue={query.attention} aria-label="Filter by what needs attention" className="field lg:w-auto">
-            {Object.entries(homeAttention).map(([value, text]) => <option key={value} value={value}>{value === "any" ? "Needs attention: anything" : text}</option>)}
-          </select>
-          <select name="status" data-default="active" defaultValue={query.status} aria-label="Open or closed" className="field lg:w-auto">
-            {Object.entries(homeStatusFilters).map(([value, text]) => <option key={value} value={value}>{text}{value === "closed" && summary.closed ? ` (${summary.closed})` : ""}</option>)}
-          </select>
+          <Select name="type" defaultValue={query.type} aria-label="Filter by type" className="lg:w-auto" emptyLabel="All types" options={Object.entries(labels.homeType).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="attention" dataDefault="any" defaultValue={query.attention} aria-label="Filter by what needs attention" className="lg:w-auto" options={Object.entries(homeAttention).map(([value, text]) => ({ value, label: value === "any" ? "Needs attention: anything" : text }))} />
+          <Select name="status" dataDefault="active" defaultValue={query.status} aria-label="Open or closed" className="lg:w-auto" options={Object.entries(homeStatusFilters).map(([value, text]) => ({ value, label: `${text}${value === "closed" && summary.closed ? ` (${summary.closed})` : ""}` }))} />
           {query.view === "cards" && (
-            <select name="sort" defaultValue={query.sort} aria-label="Sort homes" className="field lg:w-auto" data-default="name">
-              {Object.entries(homeSorts).map(([value, text]) => <option key={value} value={value}>Sort: {text}</option>)}
-            </select>
+            <Select name="sort" defaultValue={query.sort} aria-label="Sort homes" className="lg:w-auto" dataDefault="name" options={Object.entries(homeSorts).map(([value, text]) => ({ value, label: `Sort: ${text}` }))} />
           )}
           <div className="flex gap-2">
             <button type="submit" className="btn-primary btn-sm">Search</button>

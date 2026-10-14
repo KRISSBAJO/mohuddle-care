@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/app/ActionForm";
+import { Select } from "@/components/app/Select";
 import { Field } from "@/components/app/ui";
 import { labels } from "@/lib/format";
 import type { FormState } from "@/server/actions/auth";
@@ -25,15 +26,10 @@ export function IndividualFields({ homes, person, prefix = "person", lists }: { 
         <Field label="Date of birth" htmlFor={id("dob")}><input id={id("dob")} name="dob" type="date" className="field" defaultValue={person?.dob ?? ""} /></Field>
         <Field label="Support started" htmlFor={id("admitted")}><input id={id("admitted")} name="admittedAt" type="date" className="field" defaultValue={person?.admittedAt ?? ""} /></Field>
         <Field label="Service" htmlFor={id("service")}>
-          <select id={id("service")} name="serviceType" className="field" defaultValue={person?.serviceType ?? "supported_living"}>
-            {Object.entries(labels.serviceType).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
+          <Select id={id("service")} name="serviceType" defaultValue={person?.serviceType ?? "supported_living"} options={Object.entries(labels.serviceType).map(([value, text]) => ({ value, label: text }))} />
         </Field>
         <Field label="Home" htmlFor={id("home")}>
-          <select id={id("home")} name="homeId" className="field" defaultValue={person?.homeId ?? ""}>
-            <option value="">Not in one of our homes</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
+          <Select id={id("home")} name="homeId" searchable defaultValue={person?.homeId ?? ""} emptyLabel="Not in one of our homes" options={homes.map(home => ({ value: home.id, label: home.name }))} />
         </Field>
         <Field label="Guardian or family contact" htmlFor={id("guardian")}><input id={id("guardian")} name="guardianName" maxLength={120} className="field" defaultValue={person?.guardianName} /></Field>
         <Field label="Guardian phone" htmlFor={id("guardian-phone")}><input id={id("guardian-phone")} name="guardianPhone" type="tel" maxLength={40} className="field" defaultValue={person?.guardianPhone} /></Field>

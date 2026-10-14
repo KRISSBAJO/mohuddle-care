@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ClipboardList, Pill, Search, UserPlus, Users } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { age, fmt, initials, label, labels } from "@/lib/format";
@@ -69,21 +70,10 @@ export default async function IndividualsPage({ searchParams }: { searchParams: 
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
             <input name="q" defaultValue={query.q} maxLength={120} placeholder="Search name, home or guardian" aria-label="Search people" className="field pl-10" />
           </div>
-          <select name="service" defaultValue={query.service} aria-label="Filter by service" className="field lg:w-auto">
-            <option value="">All services</option>
-            {Object.entries(labels.serviceType).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="home" defaultValue={query.home} aria-label="Filter by home" className="field lg:w-auto">
-            <option value="">All homes</option>
-            <option value="none">Not in one of our homes</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
-          <select name="attention" data-default="any" defaultValue={query.attention} aria-label="Filter by what needs attention" className="field lg:w-auto">
-            {Object.entries(peopleAttentionFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="status" data-default="current" defaultValue={query.status} aria-label="Filter by status" className="field lg:w-auto">
-            {Object.entries(peopleStatusFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
+          <Select name="service" defaultValue={query.service} aria-label="Filter by service" className="lg:w-auto" emptyLabel="All services" options={Object.entries(labels.serviceType).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="home" defaultValue={query.home} aria-label="Filter by home" className="lg:w-auto" emptyLabel="All homes" searchable options={[{ value: "none", label: "Not in one of our homes" }, ...homes.map(home => ({ value: home.id, label: home.name }))]} />
+          <Select name="attention" dataDefault="any" defaultValue={query.attention} aria-label="Filter by what needs attention" className="lg:w-auto" options={Object.entries(peopleAttentionFilters).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="status" dataDefault="current" defaultValue={query.status} aria-label="Filter by status" className="lg:w-auto" options={Object.entries(peopleStatusFilters).map(([value, text]) => ({ value, label: text }))} />
           <div className="flex gap-2">
             <button type="submit" className="btn-primary btn-sm">Search</button>
             {filtered && <Link href={hrefWith(peopleDefaults, { sort: query.sort, dir: query.dir, per: query.per })} className="btn-ghost btn-sm">Clear</Link>}

@@ -59,13 +59,13 @@ async function main() {
     if (homes[0]) routes.push(`/app/homes/${homes[0].id}?tab=schedule`, `/app/homes/${homes[0].id}?tab=schedule&week=2025-01-06`, `/app/homes/${homes[0].id}?tab=schedule&week=junk`);
     const { rows: meds } = await pool.query("select id, individual_id from medications where active limit 1");
     routes.push("/app/staff/new");
-    routes.push("/app/clock", "/app/clock?done=in", "/app/clock/in", "/app/clock/correction", "/app/clock/correction?entry=not-a-punch", "/app/time", "/app/time?tab=review", "/app/time?tab=punches", "/app/time?tab=punches&filter=flagged&staff=bad&home=bad&from=bad&page=9", "/app/time?tab=handovers", "/app/time?tab=nonsense", "/app/time?tab=timesheets", "/app/time?tab=timesheets&period=2026-01-05", "/app/time?tab=timesheets&period=bad", "/app/clock/timesheets", "/app/clock/timesheets/2026-09-28");
+    routes.push("/app/clock", "/app/clock?done=in", "/app/clock/in", "/app/clock/correction", "/app/clock/correction?entry=not-a-punch", "/app/time", "/app/time?tab=review", "/app/time?tab=punches", "/app/time?tab=punches&filter=flagged&staff=bad&home=bad&from=bad&page=9", "/app/time?tab=handovers", "/app/time?tab=nonsense", "/app/time?tab=timesheets", "/app/time?tab=timesheets&period=2026-01-05", "/app/time?tab=timesheets&period=bad", "/app/clock/timesheets", "/app/clock/timesheets/2026-09-28", "/app/clock/time-off", "/app/time?tab=timeoff", "/app/time?tab=reports", "/app/time?tab=reports&from=2026-09-01&to=2026-09-30", "/app/time?tab=reports&from=bad&to=2099-01-01", "/app/settings/differentials");
     if (staff[0]) routes.push(`/app/time/sheets/2026-09-28/${staff[0].id}`);
     if (homeRows[0]) routes.push(`/app/homes/${homeRows[0].id}?tab=details`);
     if (staff[0]) {
       const member = `/app/staff/${staff[0].id}`;
       routes.push(member, `${member}/edit`);
-      for (const tab of ["schedule", "time", "notes", "credentials", "documents", "account", "not-a-tab"]) routes.push(`${member}?tab=${tab}`);
+      for (const tab of ["schedule", "time", "pay", "notes", "credentials", "documents", "account", "not-a-tab"]) routes.push(`${member}?tab=${tab}`);
     }
     if (homes[0]) routes.push(...["", "?tab=medications", "?tab=medications&day=2026-01-01", "?tab=expenses", "?tab=expenses&month=2025-12", "?tab=issues", "?tab=issues&show=all", "?tab=details", "?tab=bogus"].map(q => `/app/homes/${homes[0].id}${q}`));
     if (meds[0]) routes.push(`/app/individuals/${meds[0].individual_id}/medications/${meds[0].id}`);

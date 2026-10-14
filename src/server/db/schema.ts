@@ -983,3 +983,81 @@ export const timeAdjustments = pgTable(
   },
   table => [index("time_adjustments_sheet").on(table.periodId, table.staffId)],
 );
+
+/* ---------- Pay rates, differentials and time off ---------- */
+
+/* A staff member's hourly rate from a date. Old rates stay, so past periods are worked out at the rate then. */
+export const payRates = pgTable(
+  "pay_rates",
+  {
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    centsPerHour: integer("cents_per_hour").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("pay_rates_staff").on(table.staffId, table.effectiveFrom)],
+);
+
+/* Extra pay per hour: certain hours (nights), certain days (weekends), or at a certain home. */
+export const payDifferentials = pgTable("pay_differentials", {
+  id: id(),
+  name: text("name").notNull(),
+  kind: text("kind").$type<"hours" | "days" | "home">().notNull(),
+  startTime: text("start_time").notNull().default(""),
+  endTime: text("end_time").notNull().default(""),
+  days: jsonb("days").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  homeId: uuid("home_id").references(() => homes.id, { onDelete: "cascade" }),
+  centsPerHour: integer("cents_per_hour").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/* A request for time off. Paid time off counts on the timesheet; some types draw from the leave balance. */
+export const timeOffRequests = pgTable(
+  "time_off_requests",
+  {
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    paid: boolean("paid").notNull(),
+    usesBalance: boolean("uses_balance").notNull().default(false),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    minutes: integer("minutes").notNull(),
+    reason: text("reason").notNull().default(""),
+    status: text("status").$type<"pending" | "approved" | "declined" | "cancelled">().notNull().default("pending"),
+    decidedBy: uuid("decided_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
+    openedShifts: integer("opened_shifts").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  table => [index("time_off_staff").on(table.staffId, table.startDate), index("time_off_status").on(table.status)],
+);
+
+/* Every change to a staff member's leave balance: earned, used, or set by hand. The balance is the sum. */
+export const leaveLedger = pgTable(
+  "leave_ledger",
+  {
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"accrual" | "used" | "adjustment">().notNull(),
+    minutes: integer("minutes").notNull(),
+    onDate: date("on_date").notNull(),
+    note: text("note").notNull().default(""),
+    requestId: uuid("request_id").references(() => timeOffRequests.id, { onDelete: "cascade" }),
+    periodId: uuid("period_id").references(() => payPeriods.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("leave_ledger_staff").on(table.staffId)],
+);

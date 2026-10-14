@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, Coffee, FileSpreadsheet, History, MapPinOff, Phone, Radio, ScrollText, TimerReset, UserX } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, Clock, Coffee, FileSpreadsheet, Palmtree, History, MapPinOff, Phone, Radio, ScrollText, TimerReset, UserX } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
 import { listHref, Pagination } from "@/components/app/ListControls";
@@ -7,6 +7,9 @@ import { SearchSelect } from "@/components/app/SearchSelect";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { HandoverCard } from "@/components/clock/HandoverCard";
 import { TimesheetsView } from "@/components/clock/TimesheetsView";
+import { TimeOffView } from "@/components/clock/TimeOffView";
+import { ReportsView } from "@/components/clock/ReportsView";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt } from "@/lib/format";
 import { flagLabel, formatMinutes } from "@/lib/timeclock";
@@ -25,6 +28,8 @@ const TABS = [
   ["punches", "All punches", History],
   ["handovers", "Handovers", ScrollText],
   ["timesheets", "Timesheets", FileSpreadsheet],
+  ["timeoff", "Time off", Palmtree],
+  ["reports", "Reports", BarChart3],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 type Search = Record<string, string | undefined>;
@@ -51,7 +56,7 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
     <>
       <PageHeader
         eyebrow="Time & attendance"
-        title={{ live: "Who is working", review: "Time to review", punches: "All punches", handovers: "Handovers", timesheets: "Timesheets and payroll" }[tab]}
+        title={{ live: "Who is working", review: "Time to review", punches: "All punches", handovers: "Handovers", timesheets: "Timesheets and payroll", timeoff: "Time off", reports: "Attendance reports" }[tab]}
         description={tab === "timesheets" ? "Each pay period: check hours, approve timesheets, lock the period, then download the payroll file." : "Live from staff clocking in and out on their phones, against the schedule."}
       />
       <nav className="mb-6 flex w-full gap-1 overflow-x-auto rounded-xl bg-panel p-1 sm:w-fit" aria-label="Time views">
@@ -71,6 +76,8 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
       {tab === "review" && <ReviewView board={board} now={now} />}
       {tab === "punches" && <PunchesView query={query} now={now} />}
       {tab === "handovers" && <HandoversView query={query} />}
+      {tab === "timeoff" && <TimeOffView settings={settings} now={now} />}
+      {tab === "reports" && <ReportsView query={query} settings={settings} now={now} />}
       {tab === "timesheets" && <TimesheetsView requested={query.period} settings={settings} now={now} admin={user.role === "admin"} />}
     </>
   );
@@ -278,10 +285,7 @@ async function PunchesView({ query: raw, now }: { query: Search; now: number }) 
         <div className="min-w-[220px] flex-1">
           <SearchSelect name="staff" defaultValue={query.staff} placeholder="Any staff member" emptyLabel="Any staff member" submitOnChange options={staff.map(member => ({ value: member.id, label: `${member.firstName} ${member.lastName}` }))} />
         </div>
-        <select name="home" defaultValue={query.home} aria-label="Home" className="field lg:w-auto">
-          <option value="">All homes</option>
-          {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-        </select>
+        <Select name="home" defaultValue={query.home} aria-label="Home" emptyLabel="All homes" className="lg:w-56" options={homes.map(home => ({ value: home.id, label: home.name }))} />
         <label className="flex items-center gap-2 text-xs text-mute">From <input type="date" name="from" defaultValue={query.from} className="field w-auto py-2" /></label>
         <label className="flex items-center gap-2 text-xs text-mute">To <input type="date" name="to" defaultValue={query.to} className="field w-auto py-2" /></label>
         <button type="submit" className="btn-primary btn-sm">Show</button>
@@ -300,10 +304,7 @@ async function HandoversView({ query: raw }: { query: Search }) {
     <div className="space-y-4">
       <AutoSubmitForm className="flex items-center gap-3">
         <input type="hidden" name="tab" value="handovers" />
-        <select name="home" defaultValue={query.home} aria-label="Home" className="field w-auto">
-          <option value="">All homes</option>
-          {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-        </select>
+        <Select name="home" defaultValue={query.home} aria-label="Home" emptyLabel="All homes" className="w-64" options={homes.map(home => ({ value: home.id, label: home.name }))} />
       </AutoSubmitForm>
       {result.rows.length === 0 ? (
         <Panel><Empty>No handovers yet. They are written when staff clock out.</Empty></Panel>

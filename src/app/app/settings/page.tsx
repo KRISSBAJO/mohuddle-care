@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Palmtree, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
 import { ChoicePicker, ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
+import { Select } from "@/components/app/Select";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
@@ -47,7 +48,10 @@ const GROUPS: Group[] = [
       { key: "clock_in_requirements", title: "To clock in", help: "Location: on their phone, near the home. If a phone cannot share its location they can still clock in; it is flagged and the home manager is told. Handover: read and acknowledge the last handover at the home. Statements: tick each statement below.", choices: [["location", "Be at the home"], ["handover", "Read the last handover"], ["statements", "Tick the statements"]] },
       { key: "clock_out_blocking", title: "Must be done before clock-out", help: "Anything not chosen still shows as a warning and is flagged for a manager.", choices: [["handover", "Handover note"], ["checks", "Handover ticks"], ["incident", "Incident reported"], ["notes", "Daily notes written"], ["doses", "Doses recorded"]] },
       { key: "clock_early_minutes", title: "Clock in early by up to", help: "Earlier than this, the shift cannot be clocked in to yet.", unit: "minutes", min: 0, max: 120 },
-      { key: "clock_late_grace_minutes", title: "Still on time within", help: "After this they are marked late.", unit: "minutes", min: 0, max: 60 },
+      { key: "clock_pay_early_from", title: "Early clock-ins are paid from", help: "The real punch time is always kept; this only changes the hours counted.", options: [["shift", "The shift start"], ["punch", "When they clocked in"]] },
+      { key: "clock_late_grace_minutes", title: "Still on time within", help: "Up to this late counts as on time and is not recorded as late.", unit: "minutes", min: 0, max: 120 },
+      { key: "clock_late_exception_minutes", title: "Late is an exception after", help: "Between on time and this, the punch is marked late but not sent for review. From this on, it is an exception and the manager is told.", unit: "minutes", min: 0, max: 240 },
+      { key: "clock_early_leave_minutes", title: "Leaving early needs a reason after", help: "Clocking out more than this before the shift ends asks why and is an exception.", unit: "minutes", min: 0, max: 240 },
       { key: "clock_geofence_meters", title: "Distance from the home", help: "Phones further away than this must give a reason, and the punch is flagged. Each home's location is set on its details.", unit: "meters", min: 25, max: 5000 },
       { key: "clock_overstay_minutes", title: "Staying late needs a reason after", help: "Clocking out later than this past the shift end asks why.", unit: "minutes", min: 0, max: 240 },
       { key: "clock_no_show_minutes", title: "No-show after", help: "The manager is told when a shift has no clock-in this long after it starts.", unit: "minutes", min: 5, max: 240 },
@@ -63,7 +67,7 @@ const GROUPS: Group[] = [
     title: "Pay periods",
     icon: Wallet,
     intro: "How hours become timesheets: the pay period, overtime, rounding, holidays and the payroll export. Mohuddle counts hours; pay is worked out by your payroll provider.",
-    link: ["/app/time?tab=timesheets", "Timesheets"],
+    link: ["/app/settings/differentials", "Pay differentials"],
     items: [
       { key: "pay_period_type", title: "Pay period", help: "Changing this only affects periods not yet started. Locked periods stay as they were.", options: [["weekly", "Every week"], ["biweekly", "Every two weeks"], ["semimonthly", "Twice a month (1st–15th, 16th–end)"], ["monthly", "Every month"]] },
       { key: "pay_period_anchor", title: "A period start date", help: "For weekly or every-two-weeks pay: the first day of any one pay period. Other periods count from it.", date: true },
@@ -72,7 +76,24 @@ const GROUPS: Group[] = [
       { key: "overtime_warning_hours", title: "Warn about overtime at", help: "Staff and the people told about time are warned once a week when someone reaches this.", unit: "hours", min: 1, max: 80 },
       { key: "time_rounding_minutes", title: "Rounding", help: "Each punch is rounded to the nearest step, up or down, so it evens out. The real times are always kept.", options: [["0", "No rounding"], ["5", "Nearest 5 minutes"], ["6", "Nearest 6 minutes (tenth of an hour)"], ["15", "Nearest 15 minutes"]] },
       { key: "paid_holidays", title: "Holidays", help: "One per line, starting with the date. Hours worked on these days are shown separately for holiday pay." },
-      { key: "payroll_export_columns", title: "Payroll export columns", help: "In order. Allowed: employee_number, first_name, last_name, email, period_start, period_end, regular_hours, overtime_hours, total_hours, holiday_hours, adjustment_hours, status." },
+      { key: "overtime_pay_percent", title: "Overtime pay", help: "Of the regular rate, which includes differentials. Federal law requires at least 150.", unit: "%", min: 100, max: 300 },
+      { key: "holiday_pay_percent", title: "Holiday pay", help: "For hours worked on a listed holiday. 100 means no extra.", unit: "%", min: 100, max: 300 },
+      { key: "payroll_export_columns", title: "Payroll export columns", help: "In order. Allowed: employee_number, first_name, last_name, email, period_start, period_end, regular_hours, overtime_hours, total_hours, holiday_hours, adjustment_hours, time_off_hours, hourly_rate, gross_pay, status. Rates and pay are only filled in for administrators." },
+    ],
+  },
+  {
+    id: "time-off",
+    title: "Time off",
+    icon: Palmtree,
+    intro: "The kinds of time off staff can ask for, and how leave is earned.",
+    link: ["/app/time?tab=timeoff", "Time off requests"],
+    items: [
+      { key: "time_off_types", title: "Paid types", help: "Paid time off shows on the timesheet and in the payroll file." },
+      { key: "time_off_unpaid_types", title: "Unpaid types", help: "Recorded so the schedule and managers know, but not paid." },
+      { key: "time_off_balance_types", title: "Types that use the balance", help: "Must match paid types above exactly. Others, such as jury duty, are paid without using the balance." },
+      { key: "pto_accrual_hours_worked", title: "Earn one hour per", help: "Leave is earned when a pay period is locked. 0 turns earning off; balances can still be set by hand.", unit: "hours worked", min: 0, max: 200 },
+      { key: "pto_max_balance_hours", title: "Most leave held", help: "Earning stops at this balance.", unit: "hours", min: 0, max: 2000 },
+      { key: "time_off_notice_days", title: "Notice needed", help: "Requests with less notice are marked short notice for the manager. Sick leave is never short notice.", unit: "days", min: 0, max: 90 },
     ],
   },
   {
@@ -229,9 +250,7 @@ export default async function SettingsPage() {
                       ) : def.kind === "list" ? (
                         <ListEditor name={item.key} initial={value as string[]} />
                       ) : item.options ? (
-                        <select id={item.key} name={item.key} className="field" defaultValue={String(value)}>
-                          {item.options.map(([optionValue, text]) => <option key={optionValue} value={optionValue}>{text}</option>)}
-                        </select>
+                        <Select id={item.key} name={item.key} defaultValue={String(value)} options={item.options.map(([optionValue, text]) => ({ value: optionValue, label: text }))} />
                       ) : item.date ? (
                         <input id={item.key} name={item.key} type="date" required className="field" defaultValue={String(value)} />
                       ) : def.kind === "text" ? (

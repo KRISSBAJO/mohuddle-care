@@ -134,6 +134,13 @@
       "when": 1792007188515,
       "tag": "0018_talented_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792009123698,
+      "tag": "0019_square_sway",
+      "breakpoints": true
     }
   ]
 }

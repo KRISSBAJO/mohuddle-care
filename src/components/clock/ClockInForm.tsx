@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import { AlertTriangle, CalendarClock, Check, Loader2, LocateFixed, MapPin, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { HandoverCard, type HandoverView } from "@/components/clock/HandoverCard";
 import { usePosition } from "@/components/clock/usePosition";
 import { cn } from "@/lib/cn";
@@ -124,10 +125,7 @@ export function ClockInForm({
         {!useShift && (
           <div className="mt-3">
             <label htmlFor="clock-home" className="label">Home you are working at</label>
-            <select id="clock-home" className="field" value={homeId} onChange={event => { setHomeId(event.target.value); setRead([]); }}>
-              <option value="">Choose</option>
-              {homes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            <Select id="clock-home" value={homeId} onChange={value => { setHomeId(value); setRead([]); }} placeholder="Choose the home" options={homes.map(item => ({ value: item.id, label: item.name }))} />
           </div>
         )}
       </Step>

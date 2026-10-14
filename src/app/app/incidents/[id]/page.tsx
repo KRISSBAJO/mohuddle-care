@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, ClipboardCheck, FileCheck2, FileWarning, Flag,
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar, Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
@@ -148,10 +149,10 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
                 <ModalForm action={updateIncidentDetails.bind(null, id)} title="Edit incident details" description="The original account cannot be changed. Add anything new as a follow-up note." triggerLabel="Edit details" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save details">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Category" htmlFor="ed-category">
-                      <select id="ed-category" name="category" className="field" defaultValue={incident.category}>{Object.entries(labels.incidentCategory).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
+                      <Select id="ed-category" name="category" defaultValue={incident.category} options={Object.entries(labels.incidentCategory).map(([value, text]) => ({ value, label: text }))} />
                     </Field>
                     <Field label="Severity" htmlFor="ed-severity">
-                      <select id="ed-severity" name="severity" className="field" defaultValue={incident.severity}>{Object.entries(labels.incidentSeverity).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
+                      <Select id="ed-severity" name="severity" defaultValue={incident.severity} options={Object.entries(labels.incidentSeverity).map(([value, text]) => ({ value, label: text }))} />
                     </Field>
                   </div>
                   <label className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-flag has-[:checked]:bg-flag-soft">

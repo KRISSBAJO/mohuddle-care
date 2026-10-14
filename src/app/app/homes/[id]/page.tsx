@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Field } from "@/components/app/ui";
 import { HomeDetailsTab } from "@/components/homes/HomeDetailsTab";
 import { HomeExpensesTab } from "@/components/homes/HomeExpensesTab";
@@ -91,10 +92,10 @@ export default async function HomePage({ params, searchParams }: { params: Promi
               <Field label="What is wrong" htmlFor="issue-title"><input id="issue-title" name="title" required minLength={3} maxLength={160} className="field" placeholder="Kitchen tap leaking" /></Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Category" htmlFor="issue-category">
-                  <select id="issue-category" name="category" className="field">{settings.issue_categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                  <Select id="issue-category" name="category" defaultValue={settings.issue_categories[0]} options={settings.issue_categories.map(c => ({ value: c, label: c }))} />
                 </Field>
                 <Field label="Priority" htmlFor="issue-priority">
-                  <select id="issue-priority" name="priority" className="field" defaultValue="normal">{Object.entries(labels.issuePriority).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
+                  <Select id="issue-priority" name="priority" defaultValue="normal" options={Object.entries(labels.issuePriority).map(([value, text]) => ({ value, label: text }))} />
                 </Field>
               </div>
               <Field label="Details" htmlFor="issue-details" hint="Where it is, since when, and anything already tried."><textarea id="issue-details" name="details" rows={3} maxLength={3000} className="field" /></Field>
@@ -123,10 +124,10 @@ export default async function HomePage({ params, searchParams }: { params: Promi
                 <Field label="Amount (USD)" htmlFor="exp-amount"><input id="exp-amount" name="amount" required inputMode="decimal" className="field" placeholder="42.50" /></Field>
                 <Field label="Date" htmlFor="exp-date"><input id="exp-date" name="spentOn" type="date" required className="field" defaultValue={dateKey()} /></Field>
                 <Field label="Category" htmlFor="exp-category">
-                  <select id="exp-category" name="category" className="field">{settings.expense_categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                  <Select id="exp-category" name="category" defaultValue={settings.expense_categories[0]} options={settings.expense_categories.map(c => ({ value: c, label: c }))} />
                 </Field>
                 <Field label="Paid by" htmlFor="exp-method">
-                  <select id="exp-method" name="paymentMethod" className="field">{Object.entries(labels.paymentMethod).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
+                  <Select id="exp-method" name="paymentMethod" defaultValue={Object.keys(labels.paymentMethod)[0]} options={Object.entries(labels.paymentMethod).map(([value, text]) => ({ value, label: text }))} />
                 </Field>
               </div>
               <Field label="Store or supplier" htmlFor="exp-vendor"><input id="exp-vendor" name="vendor" maxLength={120} className="field" placeholder="Kroger, Nolensville Pike" /></Field>

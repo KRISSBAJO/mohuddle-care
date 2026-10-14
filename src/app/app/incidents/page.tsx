@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertOctagon, AlertTriangle, ClipboardList, Download, FileWarning, Plus, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
@@ -119,37 +120,24 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
             <input name="q" defaultValue={query.q} maxLength={120} placeholder="Search what happened, actions, person or home" aria-label="Search incidents" className="field pl-10" />
           </div>
-          <select name="period" data-default="90" defaultValue={query.period} aria-label="When" className="field">
-            {Object.entries(incidentPeriods).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="status" data-default="all" defaultValue={query.status} aria-label="Status" className="field">
-            {Object.entries(incidentStatusFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="attention" data-default="any" defaultValue={query.attention} aria-label="Needs attention" className="field">
-            {Object.entries(incidentAttention).map(([value, text]) => <option key={value} value={value}>{value === "any" ? "Needs attention: anything" : text}</option>)}
-          </select>
-          <select name="reportable" data-default="any" defaultValue={query.reportable} aria-label="Reportable" className="field">
-            <option value="any">Reportable or not</option>
-            <option value="yes">Reportable only</option>
-            <option value="no">Not reportable</option>
-          </select>
-          <select name="category" defaultValue={query.category} aria-label="Category" className="field">
-            <option value="">All categories</option>
-            {Object.entries(labels.incidentCategory).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="severity" defaultValue={query.severity} aria-label="Severity" className="field">
-            <option value="">All severities</option>
-            {Object.entries(labels.incidentSeverity).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-          <select name="home" defaultValue={query.home} aria-label="Home" className="field">
-            <option value="">All homes</option>
-            <option value="none">No home</option>
-            {options.homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
-          <select name="person" defaultValue={query.person} aria-label="Person" className="field">
-            <option value="">Everyone</option>
-            {options.people.map(person => <option key={person.id} value={person.id}>{person.first} {person.last}</option>)}
-          </select>
+          <Select name="period" dataDefault="90" defaultValue={query.period} aria-label="When" options={Object.entries(incidentPeriods).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="status" dataDefault="all" defaultValue={query.status} aria-label="Status" options={Object.entries(incidentStatusFilters).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="attention" dataDefault="any" defaultValue={query.attention} aria-label="Needs attention" options={Object.entries(incidentAttention).map(([value, text]) => ({ value, label: value === "any" ? "Needs attention: anything" : text }))} />
+          <Select
+            name="reportable"
+            dataDefault="any"
+            defaultValue={query.reportable}
+            aria-label="Reportable"
+            options={[
+              { value: "any", label: "Reportable or not" },
+              { value: "yes", label: "Reportable only" },
+              { value: "no", label: "Not reportable" },
+            ]}
+          />
+          <Select name="category" defaultValue={query.category} aria-label="Category" emptyLabel="All categories" options={Object.entries(labels.incidentCategory).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="severity" defaultValue={query.severity} aria-label="Severity" emptyLabel="All severities" options={Object.entries(labels.incidentSeverity).map(([value, text]) => ({ value, label: text }))} />
+          <Select name="home" defaultValue={query.home} aria-label="Home" emptyLabel="All homes" searchable options={[{ value: "none", label: "No home" }, ...options.homes.map(home => ({ value: home.id, label: home.name }))]} />
+          <Select name="person" defaultValue={query.person} aria-label="Person" emptyLabel="Everyone" searchable options={options.people.map(person => ({ value: person.id, label: `${person.first} ${person.last}` }))} />
           <div className="flex gap-2 sm:col-span-2 lg:col-span-2 xl:col-span-2">
             <button type="submit" className="btn-primary btn-sm">Search</button>
             {filtered && <Link href={hrefWith(incidentDefaults, { per: query.per })} className="btn-ghost btn-sm">Clear filters</Link>}

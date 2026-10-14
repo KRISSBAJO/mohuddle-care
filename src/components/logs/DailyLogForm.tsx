@@ -1,8 +1,9 @@
 "use client";
 
-import { startTransition, useActionState, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
 import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, shiftMinutes } from "@/lib/log-note";
@@ -177,6 +178,14 @@ export function DailyLogForm(props: Props) {
     setFilled(next);
   }
 
+  useEffect(() => {
+    const element = form.current;
+    if (!element) return;
+    const update = () => measure();
+    element.addEventListener("select-change", update);
+    return () => element.removeEventListener("select-change", update);
+  });
+
   const completed = visible.filter(([id]) => filled.has(id)).length;
   const levelOptions = useMemo(() => [...promptLevels, ...ADL_EXTRA], [promptLevels]);
 
@@ -208,46 +217,44 @@ export function DailyLogForm(props: Props) {
           {myShifts.length > 0 && (
             <div>
               <Label htmlFor="shiftPick">Your shift</Label>
-              <select
+              <Select
                 id="shiftPick"
-                className="field"
                 value={shiftId}
-                onChange={event => {
-                  const next = myShifts.find(option => option.id === event.target.value);
-                  setShiftId(event.target.value);
+                onChange={value => {
+                  const next = myShifts.find(option => option.id === value);
+                  setShiftId(value);
                   if (next) {
                     setLogDate(next.day);
                     setTimes({ start: next.start, end: next.end });
                   }
                 }}
-              >
-                {myShifts.map(option => (
-                  <option key={option.id} value={option.id}>
-                    {dayLabel(option.day)} · {option.name} {option.start}–{option.end} · {option.home}{option.current ? " (now)" : ""}
-                  </option>
-                ))}
-                <option value="">Not on the schedule</option>
-              </select>
+                options={[
+                  ...myShifts.map(option => ({ value: option.id, label: `${dayLabel(option.day)} · ${option.name} ${option.start}–${option.end}${option.current ? " (now)" : ""}`, hint: option.home })),
+                  { value: "", label: "Not on the schedule" },
+                ]}
+              />
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <Label htmlFor="individualId">Person</Label>
-              <select id="individualId" name="individualId" required className="field" value={personId} onChange={event => setPersonId(event.target.value)}>
-                <option value="" disabled>Choose a person</option>
-                {scheduled ? (
-                  <>
-                    <optgroup label={`Living at ${scheduled.home}`}>
-                      {people.filter(option => option.homeId === scheduled.homeId).map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
-                    </optgroup>
-                    <optgroup label="Everyone else">
-                      {people.filter(option => option.homeId !== scheduled.homeId).map(option => <option key={option.id} value={option.id}>{option.name}{option.home ? ` · ${option.home}` : ""}</option>)}
-                    </optgroup>
-                  </>
-                ) : (
-                  people.map(option => <option key={option.id} value={option.id}>{option.name}{option.home ? ` · ${option.home}` : ""}</option>)
-                )}
-              </select>
+              <Select
+                id="individualId"
+                name="individualId"
+                required
+                searchable
+                placeholder="Search for a person"
+                value={personId}
+                onChange={setPersonId}
+                options={
+                  scheduled
+                    ? [
+                        ...people.filter(option => option.homeId === scheduled.homeId).map(option => ({ value: option.id, label: option.name, group: `Living at ${scheduled.home}` })),
+                        ...people.filter(option => option.homeId !== scheduled.homeId).map(option => ({ value: option.id, label: option.name, hint: option.home ?? undefined, group: "Everyone else" })),
+                      ]
+                    : people.map(option => ({ value: option.id, label: option.name, hint: option.home ?? undefined }))
+                }
+              />
             </div>
             <div>
               <Label htmlFor="logDate">Date of the shift</Label>
@@ -299,9 +306,7 @@ export function DailyLogForm(props: Props) {
             </div>
             <div>
               <Label htmlFor="location">Where</Label>
-              <select id="location" name="location" required className="field" defaultValue={props.locations[0]}>
-                {props.locations.map(place => <option key={place}>{place}</option>)}
-              </select>
+              <Select id="location" name="location" required defaultValue={props.locations[0]} options={props.locations.map(place => ({ value: place, label: place }))} />
             </div>
           </div>
           <p className="text-xs text-mute">
@@ -351,10 +356,7 @@ export function DailyLogForm(props: Props) {
             {adlItems.map((item, index) => (
               <div key={item} className="grid items-center gap-2 border-b border-line px-3.5 py-2.5 last:border-b-0 md:grid-cols-[11rem_14rem_1fr] md:gap-3">
                 <label htmlFor={`adl-${index}`} className="text-sm font-medium">{item}</label>
-                <select id={`adl-${index}`} name={`adl.${index}`} required={Boolean(mustFill("care"))} className="field py-2" defaultValue="">
-                  <option value="">—</option>
-                  {levelOptions.map(level => <option key={level}>{level}</option>)}
-                </select>
+                <Select id={`adl-${index}`} name={`adl.${index}`} required={Boolean(mustFill("care"))} placeholder="—" emptyLabel="—" options={levelOptions.map(level => ({ value: level, label: level }))} />
                 <input name={`adlNote.${index}`} maxLength={500} className="field py-2" placeholder="Note, for example needed help with buttons" aria-label={`Note on ${item}`} />
               </div>
             ))}
@@ -368,10 +370,7 @@ export function DailyLogForm(props: Props) {
             {MEALS.map(meal => (
               <div key={meal}>
                 <Label htmlFor={`meal-${meal}`}>{meal}</Label>
-                <select id={`meal-${meal}`} name={`meal.${meal}`} className="field py-2" defaultValue="">
-                  <option value="">—</option>
-                  {INTAKE.map(amount => <option key={amount}>{amount}</option>)}
-                </select>
+                <Select id={`meal-${meal}`} name={`meal.${meal}`} placeholder="—" emptyLabel="—" options={INTAKE.map(amount => ({ value: amount, label: amount }))} />
               </div>
             ))}
           </div>
@@ -397,10 +396,7 @@ export function DailyLogForm(props: Props) {
               </div>
               <div className="sm:col-span-3">
                 <Label htmlFor="sleepQuality" optional>How they slept</Label>
-                <select id="sleepQuality" name="sleepQuality" className="field" defaultValue="">
-                  <option value="">—</option>
-                  {SLEEP_QUALITY.map(quality => <option key={quality}>{quality}</option>)}
-                </select>
+                <Select id="sleepQuality" name="sleepQuality" placeholder="—" emptyLabel="—" options={SLEEP_QUALITY.map(quality => ({ value: quality, label: quality }))} />
               </div>
             </div>
             <div>
@@ -419,10 +415,7 @@ export function DailyLogForm(props: Props) {
               </div>
               <div className="sm:col-span-2">
                 <Label htmlFor="stoolType" optional>Stool type (Bristol chart)</Label>
-                <select id="stoolType" name="stoolType" className="field" defaultValue="">
-                  <option value="">—</option>
-                  {STOOL_TYPES.map(type => <option key={type}>{type}</option>)}
-                </select>
+                <Select id="stoolType" name="stoolType" placeholder="—" emptyLabel="—" options={STOOL_TYPES.map(type => ({ value: type, label: type }))} />
               </div>
               <div>
                 <Label htmlFor="incontinence" optional>Incontinence episodes</Label>
@@ -520,17 +513,11 @@ export function DailyLogForm(props: Props) {
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <div>
                         <Label htmlFor={`${key}-prompt`}>Support needed</Label>
-                        <select id={`${key}-prompt`} name={`goal.${goal.id}.prompt`} required className="field py-2" defaultValue="">
-                          <option value="" disabled>Choose</option>
-                          {promptLevels.map(level => <option key={level}>{level}</option>)}
-                        </select>
+                        <Select id={`${key}-prompt`} name={`goal.${goal.id}.prompt`} required options={promptLevels.map(level => ({ value: level, label: level }))} />
                       </div>
                       <div>
                         <Label htmlFor={`${key}-outcome`}>How it went</Label>
-                        <select id={`${key}-outcome`} name={`goal.${goal.id}.outcome`} required className="field py-2" defaultValue="">
-                          <option value="" disabled>Choose</option>
-                          {Object.entries(GOAL_OUTCOME).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-                        </select>
+                        <Select id={`${key}-outcome`} name={`goal.${goal.id}.outcome`} required options={Object.entries(GOAL_OUTCOME).map(([value, text]) => ({ value, label: text }))} />
                       </div>
                       <div>
                         <Label htmlFor={`${key}-attempts`} optional>Attempts</Label>
@@ -737,10 +724,7 @@ function ExtraField({ item }: { item: NoteItem }) {
         </div>
       )}
       {item.fieldType === "choice" && (
-        <select id={id} name={name} required={item.required} className="field max-w-md" defaultValue="">
-          <option value="">—</option>
-          {item.options.map(option => <option key={option}>{option}</option>)}
-        </select>
+        <Select id={id} name={name} required={item.required} className="max-w-md" placeholder="—" emptyLabel="—" options={item.options.map(option => ({ value: option, label: option }))} />
       )}
       {item.fieldType === "multi" && (
         <div className="flex flex-wrap gap-2">

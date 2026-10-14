@@ -21,9 +21,10 @@ export function SheetTotals({ sheet }: { sheet: StaffSheet }) {
     ["Overtime", hours(totals.overtime), totals.overtime ? "text-[#8a5a10]" : ""],
     ["Total", hours(totals.total), "text-brand"],
     ["Holiday worked", hours(totals.holiday), ""],
+    ...(totals.timeOff ? [["Paid time off", hours(totals.timeOff), "text-plum"] as [string, string, string]] : []),
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className={cn("grid grid-cols-2 gap-3", totals.timeOff ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
       {cells.map(([title, value, tone]) => (
         <div key={title} className="card p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>

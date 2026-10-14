@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, Building2, CheckCircle2, ClipboardCheck, FileClock, FileSignature, FolderOpen, Inbox, LayoutGrid, Search, Send, Settings2, UserRound, Users } from "lucide-react";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, PageHeader, Panel } from "@/components/app/ui";
 import { DocIcon, OwnerDocuments } from "@/components/docs/OwnerDocuments";
 import { FreshLinkButton } from "@/components/docs/ShareLink";
@@ -148,11 +149,16 @@ function TypeFields({ type, prefix, category }: { type?: Awaited<ReturnType<type
       <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
         <Field label="Name" htmlFor={`${prefix}-name`}><input id={`${prefix}-name`} name="name" required minLength={2} maxLength={120} className="field" defaultValue={type?.name} /></Field>
         <Field label="For" htmlFor={`${prefix}-cat`}>
-          <select id={`${prefix}-cat`} name="category" className="field" defaultValue={type?.category ?? category ?? "staff"}>
-            <option value="staff">Staff</option>
-            <option value="person">People supported</option>
-            <option value="business">Business</option>
-          </select>
+          <Select
+            id={`${prefix}-cat`}
+            name="category"
+            defaultValue={type?.category ?? category ?? "staff"}
+            options={[
+              { value: "staff", label: "Staff" },
+              { value: "person", label: "People supported" },
+              { value: "business", label: "Business" },
+            ]}
+          />
         </Field>
       </div>
       <Field label="Description" htmlFor={`${prefix}-desc`}><input id={`${prefix}-desc`} name="description" maxLength={500} className="field" defaultValue={type?.description} /></Field>

@@ -2,6 +2,7 @@ import { Field } from "@/components/app/ui";
 import { dateKey, labels } from "@/lib/format";
 import type { schema } from "@/server/db";
 import { SearchSelect } from "@/components/app/SearchSelect";
+import { Select } from "@/components/app/Select";
 
 type Task = typeof schema.tasks.$inferSelect;
 type Option = { id: string; name: string };
@@ -40,15 +41,10 @@ export function TaskFields({
           <SearchSelect id={`${prefix}-assignee`} name="assignedTo" defaultValue={task?.assignedTo ?? defaults.assignedTo ?? ""} emptyLabel="Nobody yet" placeholder="Search staff" options={staff.map(member => ({ value: member.id, label: member.name }))} />
         </Field>
         <Field label="Priority" htmlFor={`${prefix}-priority`}>
-          <select id={`${prefix}-priority`} name="priority" className="field" defaultValue={task?.priority ?? "normal"}>
-            {Object.entries(labels.taskPriority).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
+          <Select id={`${prefix}-priority`} name="priority" defaultValue={task?.priority ?? "normal"} options={Object.entries(labels.taskPriority).map(([value, text]) => ({ value, label: text }))} />
         </Field>
         <Field label="Category" htmlFor={`${prefix}-category`}>
-          <select id={`${prefix}-category`} name="category" className="field" defaultValue={task?.category ?? ""}>
-            <option value="">None</option>
-            {categoryOptions.map(category => <option key={category}>{category}</option>)}
-          </select>
+          <Select id={`${prefix}-category`} name="category" defaultValue={task?.category ?? ""} emptyLabel="None" options={categoryOptions.map(category => ({ value: category, label: category }))} />
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -56,10 +52,7 @@ export function TaskFields({
           <SearchSelect id={`${prefix}-person`} name="individualId" defaultValue={task?.individualId ?? defaults.individualId ?? ""} emptyLabel="None" placeholder="Search people" options={people.map(person => ({ value: person.id, label: person.name }))} />
         </Field>
         <Field label="Home" htmlFor={`${prefix}-home`}>
-          <select id={`${prefix}-home`} name="homeId" className="field" defaultValue={task?.homeId ?? defaults.homeId ?? ""}>
-            <option value="">None</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
+          <Select id={`${prefix}-home`} name="homeId" searchable defaultValue={task?.homeId ?? defaults.homeId ?? ""} emptyLabel="None" options={homes.map(home => ({ value: home.id, label: home.name }))} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">

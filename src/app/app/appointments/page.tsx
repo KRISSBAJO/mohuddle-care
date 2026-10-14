@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { AppointmentList } from "@/components/appointments/AppointmentParts";
+import { Select } from "@/components/app/Select";
 import { PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { requestTime } from "@/server/clock";
@@ -62,10 +63,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         <form className="flex flex-wrap items-center gap-2">
           {view !== "upcoming" && <input type="hidden" name="view" value={view} />}
           <input name="q" defaultValue={query.q} placeholder="Person, type or doctor" className="field w-56 py-2" aria-label="Search appointments" />
-          <select name="home" defaultValue={homeId ?? ""} className="field w-auto py-2" aria-label="Filter by home">
-            <option value="">All homes</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
+          <Select name="home" defaultValue={homeId ?? ""} size="sm" aria-label="Filter by home" emptyLabel="All homes" searchable options={homes.map(home => ({ value: home.id, label: home.name }))} />
           <button className="btn-ghost btn-sm">Show</button>
         </form>
       </div>

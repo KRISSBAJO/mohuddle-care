@@ -127,6 +127,7 @@ const flagWords: Record<string, string> = {
   no_location_in: "No location in",
   no_location_out: "No location out",
   overstay: "Stayed late",
+  left_early: "Left early",
   left_undone: "Left work undone",
   forgot_clock_out: "Forgot clock out",
   edited: "Edited",

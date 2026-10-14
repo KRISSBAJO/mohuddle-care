@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, CheckCircle2, Home, ListChecks, MessageSquare, Search, UserRound, UserX } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Avatar, PageHeader } from "@/components/app/ui";
 import { TaskCheck } from "@/components/tasks/TaskCheck";
@@ -151,19 +152,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           <input name="q" defaultValue={filters.q} placeholder="Search tasks" className="field py-2 pl-9" aria-label="Search tasks" />
         </div>
         <SearchSelect name="person" defaultValue={filters.person} emptyLabel="Any person" submitOnChange placeholder="Person" options={options.people.map(person => ({ value: person.id, label: person.name }))} />
-        <select name="home" defaultValue={filters.home} className="field py-2" aria-label="Home">
-          <option value="">Any home</option>
-          {options.homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-        </select>
+        <Select name="home" defaultValue={filters.home} size="sm" aria-label="Home" emptyLabel="Any home" searchable options={options.homes.map(home => ({ value: home.id, label: home.name }))} />
         <SearchSelect name="assignee" defaultValue={filters.assignee} emptyLabel="Anyone" submitOnChange placeholder="Assigned to" options={options.staff.map(member => ({ value: member.id, label: member.name }))} />
-        <select name="priority" defaultValue={filters.priority} className="field py-2" aria-label="Priority">
-          <option value="">Any priority</option>
-          {Object.entries({ high: "High", normal: "Normal", low: "Low" }).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-        </select>
-        <select name="category" defaultValue={filters.category} className="field py-2" aria-label="Category">
-          <option value="">Any category</option>
-          {settings.task_categories.map(category => <option key={category}>{category}</option>)}
-        </select>
+        <Select name="priority" defaultValue={filters.priority} size="sm" aria-label="Priority" emptyLabel="Any priority" options={Object.entries({ high: "High", normal: "Normal", low: "Low" }).map(([value, text]) => ({ value, label: text }))} />
+        <Select name="category" defaultValue={filters.category} size="sm" aria-label="Category" emptyLabel="Any category" options={settings.task_categories.map(category => ({ value: category, label: category }))} />
       </AutoSubmitForm>
       {filtered && (
         <p className="-mt-3 mb-4 text-xs text-mute">

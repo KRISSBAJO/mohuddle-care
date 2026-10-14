@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AlertTriangle, Ban, CheckCircle2, Search, Trash2, X } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import { label } from "@/lib/format";
 import {
@@ -151,9 +152,7 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
             <div className="space-y-4 border-b border-line px-6 py-5 md:border-b-0 md:border-r">
               <div>
                 <label htmlFor="se-home" className="label">Home</label>
-                <select id="se-home" className="field" value={homeId} onChange={event => setHomeId(event.target.value)}>
-                  {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-                </select>
+                <Select id="se-home" searchable value={homeId} onChange={value => setHomeId(value)} options={homes.map(home => ({ value: home.id, label: home.name }))} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -162,29 +161,23 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
                 </div>
                 <div>
                   <label htmlFor="se-kind" className="label">Shift pattern</label>
-                  <select
+                  <Select
                     id="se-kind"
-                    className="field"
                     value={patternId ?? ""}
-                    onChange={event => {
-                      const next = rules.patterns.find(option => option.id === event.target.value) ?? null;
+                    onChange={value => {
+                      const next = rules.patterns.find(option => option.id === value) ?? null;
                       setPatternId(next?.id ?? null);
                       if (next) {
                         setStart(next.start);
                         setEnd(next.end);
                       }
                     }}
-                  >
-                    <optgroup label="Runs on this day">
-                      {rules.patterns.filter(option => option.weekdays.includes(weekday)).map(option => <option key={option.id} value={option.id}>{option.name} · {option.start}–{option.end}</option>)}
-                    </optgroup>
-                    {rules.patterns.some(option => !option.weekdays.includes(weekday)) && (
-                      <optgroup label="Other days">
-                        {rules.patterns.filter(option => !option.weekdays.includes(weekday)).map(option => <option key={option.id} value={option.id}>{option.name} · {option.start}–{option.end}</option>)}
-                      </optgroup>
-                    )}
-                    <option value="">Custom times</option>
-                  </select>
+                    emptyLabel="Custom times"
+                    options={[
+                      ...rules.patterns.filter(option => option.weekdays.includes(weekday)).map(option => ({ value: option.id, label: `${option.name} · ${option.start}–${option.end}`, group: "Runs on this day" })),
+                      ...rules.patterns.filter(option => !option.weekdays.includes(weekday)).map(option => ({ value: option.id, label: `${option.name} · ${option.start}–${option.end}`, group: "Other days" })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label htmlFor="se-start" className="label">Starts</label>

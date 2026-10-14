@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarClock, CheckCircle2, UserRound } from "lucide-react";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt, label, labels } from "@/lib/format";
@@ -99,15 +100,11 @@ export async function HomeIssuesTab({ homeId, home, show, user, staff }: { homeI
                   >
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Status" htmlFor={`st-${issue.id}`}>
-                        <select id={`st-${issue.id}`} name="status" className="field" defaultValue={issue.status}>
-                          {Object.entries(labels.issueStatus).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-                        </select>
+                        <Select id={`st-${issue.id}`} name="status" defaultValue={issue.status} options={Object.entries(labels.issueStatus).map(([value, text]) => ({ value, label: text }))} />
                       </Field>
                       {runs ? (
                         <Field label="Priority" htmlFor={`pr-${issue.id}`}>
-                          <select id={`pr-${issue.id}`} name="priority" className="field" defaultValue={issue.priority}>
-                            {Object.entries(labels.issuePriority).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-                          </select>
+                          <Select id={`pr-${issue.id}`} name="priority" defaultValue={issue.priority} options={Object.entries(labels.issuePriority).map(([value, text]) => ({ value, label: text }))} />
                         </Field>
                       ) : (
                         <input type="hidden" name="priority" value={issue.priority} />

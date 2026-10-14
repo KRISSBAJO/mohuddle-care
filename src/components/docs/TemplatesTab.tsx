@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import { FileSignature, FileText, Upload } from "lucide-react";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { sections } from "@/lib/signing";
@@ -17,14 +18,16 @@ type Type = Awaited<ReturnType<typeof documentTypes>>[number];
 
 function TypeSelect({ types, value, id }: { types: Type[]; value?: string | null; id: string }) {
   return (
-    <select id={id} name="typeId" data-extra className="field" defaultValue={value ?? ""}>
-      <option value="">Do not file under a type</option>
-      {(["staff", "person", "business"] as const).map(category => (
-        <optgroup key={category} label={category === "staff" ? "Staff" : category === "person" ? "People supported" : "Business"}>
-          {types.filter(type => type.category === category).map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
-        </optgroup>
-      ))}
-    </select>
+    <Select
+      id={id}
+      name="typeId"
+      dataExtra
+      defaultValue={value ?? ""}
+      emptyLabel="Do not file under a type"
+      options={(["staff", "person", "business"] as const).flatMap(category =>
+        types.filter(type => type.category === category).map(type => ({ value: type.id, label: type.name, group: category === "staff" ? "Staff" : category === "person" ? "People supported" : "Business" })),
+      )}
+    />
   );
 }
 
@@ -34,11 +37,16 @@ function TextFields({ template, types, prefix }: { template?: Template; types: T
       <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
         <Field label="Name" htmlFor={`${prefix}-title`}><input id={`${prefix}-title`} name="title" required minLength={2} maxLength={160} className="field" defaultValue={template?.title} /></Field>
         <Field label="Signed by" htmlFor={`${prefix}-cat`}>
-          <select id={`${prefix}-cat`} name="category" className="field" defaultValue={template?.category ?? "staff"}>
-            <option value="staff">Staff</option>
-            <option value="person">Person or guardian</option>
-            <option value="business">Business</option>
-          </select>
+          <Select
+            id={`${prefix}-cat`}
+            name="category"
+            defaultValue={template?.category ?? "staff"}
+            options={[
+              { value: "staff", label: "Staff" },
+              { value: "person", label: "Person or guardian" },
+              { value: "business", label: "Business" },
+            ]}
+          />
         </Field>
       </div>
       <Field label="File the signed copy as" htmlFor={`${prefix}-type`}><TypeSelect types={types} value={template?.typeId} id={`${prefix}-type`} /></Field>
@@ -87,18 +95,25 @@ export async function TemplatesTab() {
                     Name
                     <input data-extra name="title" className="field py-1.5 text-sm font-normal text-ink" placeholder="Agency vehicle use agreement" />
                   </label>
-                  <label className="grid gap-1 text-xs font-semibold text-mute">
-                    Signed by
-                    <select data-extra name="category" className="field py-1.5 text-sm font-normal text-ink" defaultValue="staff">
-                      <option value="staff">Staff</option>
-                      <option value="person">Person or guardian</option>
-                      <option value="business">Business</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-semibold text-mute">
-                    File the signed copy as
+                  <div className="grid gap-1 text-xs font-semibold text-mute">
+                    <label htmlFor="upload-template-category">Signed by</label>
+                    <Select
+                      id="upload-template-category"
+                      name="category"
+                      dataExtra
+                      size="sm"
+                      defaultValue="staff"
+                      options={[
+                        { value: "staff", label: "Staff" },
+                        { value: "person", label: "Person or guardian" },
+                        { value: "business", label: "Business" },
+                      ]}
+                    />
+                  </div>
+                  <div className="grid gap-1 text-xs font-semibold text-mute">
+                    <label htmlFor="upload-template-type">File the signed copy as</label>
                     <TypeSelect types={types} id="upload-template-type" />
-                  </label>
+                  </div>
                 </div>
               }
             />

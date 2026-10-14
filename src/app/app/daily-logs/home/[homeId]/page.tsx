@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { listHref, SortHeader } from "@/components/app/ListControls";
 import { Avatar, Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { CoverageLegend, Crumbs, DaySquare, MoodBadge, dayHead } from "@/components/logs/LogBrowserParts";
@@ -81,13 +82,18 @@ export default async function HomeLogsPage({ params, searchParams }: { params: P
             <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
             <input name="q" defaultValue={query.q} placeholder="Find a person" aria-label="Find a person" className="field pl-10" />
           </div>
-          <select name="days" data-default="14" defaultValue={String(days)} aria-label="How many days" className="field lg:w-auto">
-            {windowSizes.map(size => <option key={size} value={size}>Last {size} days</option>)}
-          </select>
-          <select name="status" data-default="current" defaultValue={query.status} aria-label="Who to show" className="field lg:w-auto">
-            <option value="current">Living here now</option>
-            <option value="all">Include people who left</option>
-          </select>
+          <Select name="days" dataDefault="14" defaultValue={String(days)} aria-label="How many days" className="lg:w-auto" options={windowSizes.map(size => ({ value: String(size), label: `Last ${size} days` }))} />
+          <Select
+            name="status"
+            dataDefault="current"
+            defaultValue={query.status}
+            aria-label="Who to show"
+            className="lg:w-auto"
+            options={[
+              { value: "current", label: "Living here now" },
+              { value: "all", label: "Include people who left" },
+            ]}
+          />
           <div className="flex items-center gap-1">
             <Link href={href({ end: addDays(end, -days), page: 1 })} className="btn-ghost btn-sm px-2" aria-label="Earlier days"><ChevronLeft className="h-4 w-4" /></Link>
             <span className="flex items-center gap-1.5 px-1 text-xs font-semibold text-mute"><CalendarDays className="h-3.5 w-3.5" /> {fmt.day(result.from)} – {fmt.day(end)}</span>

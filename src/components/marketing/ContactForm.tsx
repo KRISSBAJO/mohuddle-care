@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState } from "react";
 import { CheckCircle2, Send } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { services } from "@/lib/site";
 import { submitEnquiry, type EnquiryState } from "@/server/actions/public";
 
@@ -51,12 +52,7 @@ export function ContactForm({ kind = "contact", interests }: { kind?: "contact" 
         </div>
         <div>
           <label htmlFor="interest" className="label">{kind === "contact" ? "I am asking about" : "Role or interest"}</label>
-          <select id="interest" name="interest" className="field" defaultValue="">
-            <option value="">Choose one</option>
-            {options.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+          <Select id="interest" name="interest" defaultValue="" emptyLabel="Choose one" options={options.map(option => ({ value: option, label: option }))} />
         </div>
       </div>
       <div>

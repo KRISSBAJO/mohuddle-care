@@ -58,6 +58,7 @@ export default async function ClockOutPage() {
         blocking={settings.clock_out_blocking}
         minChars={settings.handover_min_chars}
         overstay={context.overstay}
+        leftEarly={context.leftEarly}
         needLocation={settings.clock_in_requirements.includes("location")}
         radius={settings.clock_geofence_meters}
         fullName={member ? `${member.first} ${member.last}` : ""}

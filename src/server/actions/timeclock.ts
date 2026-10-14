@@ -80,7 +80,7 @@ export async function clockIn(_previous: FormState, formData: FormData): Promise
     homeId = context.shift.homeId;
     shiftId = context.shift.id;
     late = lateMinutes(context.shift.startsAt, now, settings.clock_late_grace_minutes);
-    if (late) flags.push("late");
+    if (late && late >= Math.max(settings.clock_late_exception_minutes, settings.clock_late_grace_minutes)) flags.push("late");
   } else {
     if (!isUuid(input.homeId) || !context.homes.some(home => home.id === input.homeId)) return { error: "Choose the home you are working at." };
     if (input.reason.length < 5) return { error: "Say why you are working without a scheduled shift." };
@@ -134,12 +134,12 @@ export async function clockIn(_previous: FormState, formData: FormData): Promise
     return entry.id;
   });
 
-  const serious = flags.filter(flag => flag !== "late");
+  const serious = flags;
   if (serious.length) {
     await tellManagers(homeId, user.id, {
       kind: "time",
-      title: `${user.name} clocked in ${flags.includes("unscheduled") ? "without a scheduled shift" : flags.includes("away_in") ? "away from the home" : "without a location"} at ${home.name}`,
-      body: [serious.map(flag => ({ unscheduled: "No scheduled shift", away_in: "Away from the home", no_location_in: "Location could not be read" })[flag] ?? flag).join(" · "), input.reason].filter(Boolean).join(". "),
+      title: `${user.name} clocked in ${flags.includes("unscheduled") ? "without a scheduled shift" : flags.includes("away_in") ? "away from the home" : flags.includes("no_location_in") ? "without a location" : `${late} minutes late`} at ${home.name}`,
+      body: [serious.map(flag => ({ unscheduled: "No scheduled shift", away_in: "Away from the home", no_location_in: "Location could not be read", late: `${late} minutes late` })[flag] ?? flag).join(" · "), input.reason].filter(Boolean).join(". "),
       href: `/app/time/${entryId}`,
       tone: "warn",
       dedupeKey: `time:in:${entryId}`,
@@ -225,6 +225,7 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
   if (input.incident === "not_reported") warnings.push("An incident happened and was not reported yet");
   if (warnings.length && !input.confirmWarnings) return { error: "Tick that you have seen what is still undone." };
   if (context.overstay > 0 && input.overstayReason.length < 5) return { error: `You are ${formatMinutes(context.overstay)} past the end of your shift. Say why you stayed.` };
+  if (context.leftEarly > 0 && input.overstayReason.length < 5) return { error: `Your shift ends in ${formatMinutes(context.leftEarly)}. Say why you are leaving early.` };
   if (!member || !nameMatches(input.attestedName, member.first, member.last)) return { error: `Type your full name, ${member?.first ?? ""} ${member?.last ?? ""}, to sign.` };
 
   const needs = settings.clock_in_requirements;
@@ -235,6 +236,7 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
   if (verdict.state === "outside") flags.push("away_out");
   if (verdict.state === "unavailable") flags.push("no_location_out");
   if (context.overstay > 0) flags.push("overstay");
+  if (context.leftEarly > 0) flags.push("left_early");
   if (warnings.length) flags.push("left_undone");
   const { userAgent } = await client();
   const clockOutAt = new Date(now);
@@ -283,10 +285,16 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "time:clock_out", entity: "time_entry", entityId: open.entry.id });
   });
 
-  if (flags.some(flag => ["away_out", "no_location_out"].includes(flag)) || input.incident === "not_reported") {
+  if (flags.some(flag => ["away_out", "no_location_out", "left_early"].includes(flag)) || input.incident === "not_reported") {
     await tellManagers(open.entry.homeId, user.id, {
       kind: "time",
-      title: input.incident === "not_reported" ? `${user.name} clocked out with an incident not yet reported` : verdict.state === "outside" ? `${user.name} clocked out away from ${open.home ?? "the home"}` : `${user.name} clocked out without a location at ${open.home ?? "the home"}`,
+      title: input.incident === "not_reported"
+        ? `${user.name} clocked out with an incident not yet reported`
+        : verdict.state === "outside"
+          ? `${user.name} clocked out away from ${open.home ?? "the home"}`
+          : context.leftEarly > 0
+            ? `${user.name} left ${formatMinutes(context.leftEarly)} early from ${open.home ?? "the home"}`
+            : `${user.name} clocked out without a location at ${open.home ?? "the home"}`,
       body: input.reason || undefined,
       href: `/app/time/${open.entry.id}`,
       tone: input.incident === "not_reported" ? "bad" : "warn",

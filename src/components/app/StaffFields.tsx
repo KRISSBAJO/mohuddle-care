@@ -1,3 +1,4 @@
+import { Select } from "@/components/app/Select";
 import { Field } from "@/components/app/ui";
 import { labels } from "@/lib/format";
 import type { schema } from "@/server/db";
@@ -17,15 +18,10 @@ export function StaffFields({ homes, member, prefix, loginEmail, employmentTypes
         <input id={id("last")} name="lastName" required maxLength={80} autoComplete="off" className="field" defaultValue={member?.lastName} />
       </Field>
       <Field label="Job" htmlFor={id("role")}>
-        <select id={id("role")} name="role" className="field" defaultValue={member?.role ?? "dsp"}>
-          {Object.entries(labels.staffRole).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-        </select>
+        <Select id={id("role")} name="role" defaultValue={member?.role ?? "dsp"} options={Object.entries(labels.staffRole).map(([value, text]) => ({ value, label: text }))} />
       </Field>
       <Field label="Based at" htmlFor={id("home")}>
-        <select id={id("home")} name="homeId" className="field" defaultValue={member?.homeId ?? ""}>
-          <option value="">Floating or office</option>
-          {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-        </select>
+        <Select id={id("home")} name="homeId" searchable defaultValue={member?.homeId ?? ""} emptyLabel="Floating or office" options={homes.map(home => ({ value: home.id, label: home.name }))} />
       </Field>
       <Field label="Email" htmlFor={id("email")} hint={loginEmail ? "This is also their sign-in email." : "Used for their Mohuddle login later."}>
         <input id={id("email")} name="email" type="email" required maxLength={200} autoComplete="off" className="field" defaultValue={member?.email} />
@@ -37,10 +33,7 @@ export function StaffFields({ homes, member, prefix, loginEmail, employmentTypes
         <input id={id("hired")} name="hiredAt" type="date" className="field" defaultValue={member?.hiredAt ?? ""} />
       </Field>
       <Field label="Employment" htmlFor={id("employment")}>
-        <select id={id("employment")} name="employmentType" className="field" defaultValue={member?.employmentType ?? ""}>
-          <option value="">Not set</option>
-          {[...new Set([...(member?.employmentType ? [member.employmentType] : []), ...employmentTypes])].map(type => <option key={type}>{type}</option>)}
-        </select>
+        <Select id={id("employment")} name="employmentType" defaultValue={member?.employmentType ?? ""} emptyLabel="Not set" options={[...new Set([...(member?.employmentType ? [member.employmentType] : []), ...employmentTypes])].map(type => ({ value: type, label: type }))} />
       </Field>
       <Field label="Employee number" htmlFor={id("number")} hint="As used by payroll.">
         <input id={id("number")} name="employeeNumber" maxLength={40} autoComplete="off" className="field" defaultValue={member?.employeeNumber} />

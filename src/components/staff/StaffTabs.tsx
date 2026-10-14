@@ -3,6 +3,7 @@ import { AlertTriangle, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, C
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { LinkIssuer } from "@/components/app/LinkIssuer";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { MoodBadge, dayHead } from "@/components/logs/LogBrowserParts";
 import { OwedShifts } from "@/components/logs/OwedShifts";
@@ -275,7 +276,7 @@ export function StaffCredentialsTab({ detail, manager, warningDays, credentialTy
           <ModalForm action={addCredential} title="Add a credential" description="Renewed a certificate? Add the new one, then remove the old one." triggerLabel="Add credential" submitLabel="Save credential">
             <input type="hidden" name="staffId" value={member.id} />
             <Field label="Credential" htmlFor="cred-type">
-              <select id="cred-type" name="type" className="field">{credentialTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+              <Select id="cred-type" name="type" defaultValue={credentialTypes[0]} options={credentialTypes.map(type => ({ value: type, label: type }))} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Issued" htmlFor="cred-issued"><input id="cred-issued" name="issuedAt" type="date" className="field" /></Field>
@@ -334,9 +335,7 @@ export function StaffAccountTab({ detail, user, manager, self, manageable }: { d
               {manager && member.active && grantable.length > 0 ? (
                 <LinkIssuer action={createLogin.bind(null, member.id)} label="Create login and get link">
                   <Field label="Access level" htmlFor="login-role">
-                    <select id="login-role" name="role" className="field" defaultValue={grantable.includes(defaultLoginRole(member.role)) ? defaultLoginRole(member.role) : grantable[0]}>
-                      {grantable.map(role => <option key={role} value={role}>{loginRoleLabel[role]}</option>)}
-                    </select>
+                    <Select id="login-role" name="role" defaultValue={grantable.includes(defaultLoginRole(member.role)) ? defaultLoginRole(member.role) : grantable[0]} options={grantable.map(role => ({ value: role, label: loginRoleLabel[role] }))} />
                   </Field>
                 </LinkIssuer>
               ) : (
@@ -366,9 +365,7 @@ export function StaffAccountTab({ detail, user, manager, self, manageable }: { d
                   {member.active && (
                     <ConfirmAction action={setLoginRole.bind(null, login.id)} label="Change access" confirm="Change this person's access? They will be signed out everywhere.">
                       <Field label="Access level" htmlFor="change-role">
-                        <select id="change-role" name="role" className="field" defaultValue={login.role}>
-                          {grantable.map(role => <option key={role} value={role}>{loginRoleLabel[role]}</option>)}
-                        </select>
+                        <Select id="change-role" name="role" defaultValue={login.role} options={grantable.map(role => ({ value: role, label: loginRoleLabel[role] }))} />
                       </Field>
                     </ConfirmAction>
                   )}

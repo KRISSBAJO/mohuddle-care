@@ -10,6 +10,8 @@ import { hours } from "@/lib/payroll";
 import { addAdjustment, approveTimesheet, removeAdjustment, returnTimesheet } from "@/server/actions/payroll";
 import { requestTime } from "@/server/clock";
 import { requireManager } from "@/server/guard";
+import { dollars } from "@/lib/pay";
+import { payFor } from "@/server/queries/pay";
 import { isDay, periodOn, sheetFor } from "@/server/queries/payroll";
 import { isUuid } from "@/server/queries/timeclock";
 import { getSettings } from "@/server/settings";
@@ -18,7 +20,7 @@ export const metadata = { title: "Timesheet" };
 
 /* One person's timesheet for a manager: check it, adjust it, approve it or send it back. */
 export default async function StaffTimesheetPage({ params }: { params: Promise<{ start: string; staffId: string }> }) {
-  await requireManager();
+  const user = await requireManager();
   const { start, staffId } = await params;
   if (!isDay(start) || !isUuid(staffId)) notFound();
   const [settings, now] = await Promise.all([getSettings(), requestTime()]);
@@ -29,6 +31,7 @@ export default async function StaffTimesheetPage({ params }: { params: Promise<{
   const locked = sheet.period.status === "locked";
   const name = `${sheet.member.first} ${sheet.member.last}`;
   const ended = period.end < dateKey(new Date(now));
+  const pay = user.role === "admin" ? await payFor(sheet, staffId, settings) : null;
 
   return (
     <div className="max-w-6xl">
@@ -68,6 +71,35 @@ export default async function StaffTimesheetPage({ params }: { params: Promise<{
         </Panel>
 
         <aside className="space-y-6">
+          {pay && (
+            <Panel title="Estimated pay" action={<span className="text-xs text-mute">Administrators only</span>}>
+              <dl className="divide-y divide-line/60 text-sm">
+                {(
+                  [
+                    ["Straight time", pay.straight],
+                    ...pay.byDifferential.map(item => [`${item.name} (${hours(item.minutes)} h)`, item.cents] as [string, number]),
+                    ["Overtime premium", pay.overtimePremium],
+                    ["Holiday premium", pay.holidayPremium],
+                    ["Paid time off", pay.timeOff],
+                    ["Adjustments", pay.adjustments],
+                  ] as [string, number][]
+                )
+                  .filter(([, cents]) => cents !== 0)
+                  .map(([label, cents]) => (
+                    <div key={label} className="flex justify-between gap-3 px-5 py-2.5">
+                      <dt className="text-mute">{label}</dt>
+                      <dd className="tabular-nums">{dollars(cents)}</dd>
+                    </div>
+                  ))}
+                <div className="flex justify-between gap-3 px-5 py-3 font-bold">
+                  <dt>Gross, estimated</dt>
+                  <dd className="tabular-nums">{dollars(pay.gross)}</dd>
+                </div>
+              </dl>
+              {pay.missingRate && <p className="border-t border-line px-5 py-3 text-xs font-semibold text-flag">No pay rate covers some of these days. Add one on the staff page, Pay &amp; leave tab.</p>}
+              <p className="border-t border-line px-5 py-2.5 text-xs text-dim">Before tax and deductions. Your payroll provider has the final figure.</p>
+            </Panel>
+          )}
           {!locked && status !== "approved" && (
             <Panel title="Approve">
               <div className="p-5">

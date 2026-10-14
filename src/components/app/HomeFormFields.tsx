@@ -5,6 +5,7 @@ import { labels } from "@/lib/format";
 import type { ShiftPattern } from "@/lib/schedule";
 import type { schema } from "@/server/db";
 import { SearchSelect } from "@/components/app/SearchSelect";
+import { Select } from "@/components/app/Select";
 
 type Home = typeof schema.homes.$inferSelect;
 type Staff = { id: string; firstName: string; lastName: string; role: string };
@@ -37,9 +38,7 @@ export function HomeFormFields({ home, staff, patterns, includeManagement = fals
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name" htmlFor="home-name"><input id="home-name" name="name" required minLength={2} maxLength={80} className="field" defaultValue={home?.name} placeholder="Hillcrest House" /></Field>
           <Field label="Type" htmlFor="home-type">
-            <select id="home-type" name="type" className="field" defaultValue={home?.type ?? "group_home"}>
-              {Object.entries(labels.homeType).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-            </select>
+            <Select id="home-type" name="type" defaultValue={home?.type ?? "group_home"} options={Object.entries(labels.homeType).map(([value, text]) => ({ value, label: text }))} />
           </Field>
           <Field label="Places (capacity)" htmlFor="home-capacity" hint={minCapacity > 1 ? `At least ${minCapacity}, the people living here now.` : "How many people can live or attend here."}>
             <input id="home-capacity" name="capacity" type="number" required min={minCapacity} max={20} className="field" defaultValue={home?.capacity ?? 4} />

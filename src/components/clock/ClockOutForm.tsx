@@ -38,6 +38,7 @@ export function ClockOutForm({
   blocking,
   minChars,
   overstay,
+  leftEarly,
   needLocation,
   radius,
   fullName,
@@ -52,6 +53,7 @@ export function ClockOutForm({
   blocking: string[];
   minChars: number;
   overstay: number;
+  leftEarly: number;
   needLocation: boolean;
   radius: number;
   fullName: string;
@@ -82,7 +84,7 @@ export function ClockOutForm({
     (hasHome && must("checks") && checklist.some(label => !checks[label]?.done && (checks[label]?.comment ?? "").trim().length < 3)) ||
     (hasHome && incident === "") ||
     (must("incident") && incident === "not_reported") ||
-    (overstay > 0 && overstayReason.trim().length < 5) ||
+    ((overstay > 0 || leftEarly > 0) && overstayReason.trim().length < 5) ||
     (away && reason.trim().length < 5) ||
     (warnings > 0 && !confirm) ||
     signed.trim().length < 3 ||
@@ -202,6 +204,13 @@ export function ClockOutForm({
               {must("incident") ? ", then choose \"Yes, and I reported it\"." : ". Your manager will be told it is not reported yet."}
             </p>
           )}
+        </Section>
+      )}
+
+      {leftEarly > 0 && (
+        <Section title="You are leaving early" hint={`Your shift ends in ${leftEarly} minutes.`} tone="must">
+          <label htmlFor="early" className="label">Why are you leaving early?</label>
+          <input id="early" maxLength={500} className="field" value={overstayReason} onChange={event => setOverstayReason(event.target.value)} placeholder="Relieved early by the night staff; manager agreed" />
         </Section>
       )}
 

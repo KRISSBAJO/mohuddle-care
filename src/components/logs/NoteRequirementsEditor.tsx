@@ -2,6 +2,7 @@ import { ListPlus } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
+import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { FIELD_TYPES, OPTIONAL_SECTIONS, SECTION_KEYS, type NoteConfig, type Scope } from "@/lib/note-requirements";
@@ -21,9 +22,7 @@ function ItemFields({ item, prefix }: { item?: Row; prefix: string }) {
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Answer type" htmlFor={`${prefix}-type`}>
-          <select id={`${prefix}-type`} name="fieldType" className="field" defaultValue={item?.fieldType ?? "yes_no"}>
-            {Object.entries(FIELD_TYPES).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
+          <Select id={`${prefix}-type`} name="fieldType" defaultValue={item?.fieldType ?? "yes_no"} options={Object.entries(FIELD_TYPES).map(([value, text]) => ({ value, label: text }))} />
         </Field>
         <Field label="Unit" htmlFor={`${prefix}-unit`} hint="Numbers only, for example oz or lb.">
           <input id={`${prefix}-unit`} name="unit" maxLength={20} className="field" defaultValue={item?.unit} />
@@ -96,12 +95,17 @@ export function NoteRequirementsEditor({
                         <p className="text-xs text-mute">{OPTIONAL_SECTIONS[key].hint}</p>
                         {scope !== "all" && <p className="mt-0.5 text-[11px] text-dim">{SCOPE_LABEL[inherited.from]} setting: {stateText(inherited)}</p>}
                       </div>
-                      <select id={`${scope}-section-${key}`} name={`section.${key}`} defaultValue={valueFor(key)} className="field py-2">
-                        {scope !== "all" && <option value="inherit">Follow {scope === "home" ? "agency" : "home and agency"} ({stateText(inherited)})</option>}
-                        <option value="on">On</option>
-                        <option value="required">On and must be filled in</option>
-                        <option value="off">Off</option>
-                      </select>
+                      <Select
+                        id={`${scope}-section-${key}`}
+                        name={`section.${key}`}
+                        defaultValue={valueFor(key)}
+                        options={[
+                          ...(scope !== "all" ? [{ value: "inherit", label: `Follow ${scope === "home" ? "agency" : "home and agency"} (${stateText(inherited)})` }] : []),
+                          { value: "on", label: "On" },
+                          { value: "required", label: "On and must be filled in" },
+                          { value: "off", label: "Off" },
+                        ]}
+                      />
                     </div>
                   );
                 })}

@@ -257,8 +257,26 @@ export const settingDefs = {
   clock_late_grace_minutes: {
     label: "Clocking in this many minutes after the start still counts as on time",
     kind: "number",
-    schema: z.coerce.number().int().min(0).max(60),
+    schema: z.coerce.number().int().min(0).max(120),
     fallback: 7,
+  },
+  clock_late_exception_minutes: {
+    label: "Clocking in this many minutes late is an exception for a manager to review",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(240),
+    fallback: 30,
+  },
+  clock_early_leave_minutes: {
+    label: "Clocking out more than this many minutes before the shift ends needs a reason",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(240),
+    fallback: 15,
+  },
+  clock_pay_early_from: {
+    label: "When someone clocks in early, pay from",
+    kind: "text",
+    schema: z.enum(["shift", "punch"]),
+    fallback: "shift",
   },
   clock_geofence_meters: {
     label: "Staff must be within this many meters of the home to clock in or out",
@@ -353,8 +371,56 @@ export const settingDefs = {
   payroll_export_columns: {
     label: "Columns in the payroll export, in order",
     kind: "list",
-    schema: z.array(z.enum(["employee_number", "first_name", "last_name", "email", "period_start", "period_end", "regular_hours", "overtime_hours", "total_hours", "holiday_hours", "adjustment_hours", "status"])).min(1),
+    schema: z.array(z.enum(["employee_number", "first_name", "last_name", "email", "period_start", "period_end", "regular_hours", "overtime_hours", "total_hours", "holiday_hours", "adjustment_hours", "time_off_hours", "hourly_rate", "gross_pay", "status"])).min(1),
     fallback: ["employee_number", "last_name", "first_name", "period_start", "period_end", "regular_hours", "overtime_hours", "holiday_hours", "total_hours"],
+  },
+  overtime_pay_percent: {
+    label: "Overtime is paid at this percent of the regular rate",
+    kind: "number",
+    schema: z.coerce.number().int().min(100).max(300),
+    fallback: 150,
+  },
+  holiday_pay_percent: {
+    label: "Hours worked on a holiday are paid at this percent (100 means no extra)",
+    kind: "number",
+    schema: z.coerce.number().int().min(100).max(300),
+    fallback: 150,
+  },
+  time_off_types: {
+    label: "Paid time off types (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Vacation / PTO", "Sick", "Bereavement", "Jury duty"],
+  },
+  time_off_unpaid_types: {
+    label: "Unpaid time off types (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)),
+    fallback: ["Unpaid leave"],
+  },
+  time_off_balance_types: {
+    label: "Paid types that use the leave balance (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)),
+    fallback: ["Vacation / PTO", "Sick"],
+  },
+  pto_accrual_hours_worked: {
+    label: "Staff earn one hour of leave for this many hours worked (0 turns earning off)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(200),
+    fallback: 30,
+  },
+  pto_max_balance_hours: {
+    label: "Leave balance stops growing at this many hours",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(2000),
+    fallback: 80,
+  },
+  time_off_notice_days: {
+    label: "Ask for time off at least this many days ahead (sick leave excepted)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(90),
+    fallback: 14,
   },
   employment_types: {
     label: "Ways staff are employed (one per line)",

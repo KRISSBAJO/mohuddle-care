@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { parseHolidays, periodFor, timesheet, workweekStart, type Period, type PeriodType, type Punch, type SheetRules } from "@/lib/payroll";
 import { db, schema } from "@/server/db";
+import { paidTimeOffMinutes } from "@/server/queries/pay";
 import type { Settings } from "@/server/settings";
 
 export type PeriodRow = typeof schema.payPeriods.$inferSelect;
@@ -10,7 +11,7 @@ export type SheetRow = typeof schema.timesheets.$inferSelect;
 export const isDay = (value: string | undefined | null): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 
 export function sheetRules(settings: Settings): SheetRules {
-  return { rounding: settings.time_rounding_minutes, overtimeAfterHours: settings.overtime_after_hours, weekStartsOn: settings.workweek_starts_on, holidays: parseHolidays(settings.paid_holidays) };
+  return { rounding: settings.time_rounding_minutes, overtimeAfterHours: settings.overtime_after_hours, weekStartsOn: settings.workweek_starts_on, holidays: parseHolidays(settings.paid_holidays), payFromShiftStart: settings.clock_pay_early_from === "shift" };
 }
 
 /* The pay period for a day under the current settings, unless a stored period already covers it. */
@@ -56,19 +57,21 @@ async function punchesAround(period: Period, weekStartsOn: number, staffIds?: st
       clockOutAt: schema.timeEntries.clockOutAt,
       homeId: schema.timeEntries.homeId,
       home: schema.homes.name,
+      shiftStart: schema.shifts.startsAt,
       flags: schema.timeEntries.flags,
       reviewedAt: schema.timeEntries.reviewedAt,
       mealMinutes: sql<number>`coalesce((select sum(extract(epoch from (coalesce(b.end_at, now()) - b.start_at)) / 60) from time_breaks b where b.entry_id = ${schema.timeEntries.id} and b.kind = 'meal'), 0)::int`,
     })
     .from(schema.timeEntries)
     .leftJoin(schema.homes, eq(schema.homes.id, schema.timeEntries.homeId))
+    .leftJoin(schema.shifts, eq(schema.shifts.id, schema.timeEntries.shiftId))
     .where(and(gte(schema.timeEntries.clockInAt, from), lt(schema.timeEntries.clockInAt, to), staffIds ? inArray(schema.timeEntries.staffId, staffIds) : undefined))
     .orderBy(asc(schema.timeEntries.clockInAt));
   return rows;
 }
 
 type Around = Awaited<ReturnType<typeof punchesAround>>[number];
-const asPunch = (row: Around): Punch => ({ id: row.id, clockInAt: row.clockInAt, clockOutAt: row.clockOutAt, mealMinutes: row.mealMinutes, homeId: row.homeId, home: row.home });
+const asPunch = (row: Around): Punch => ({ id: row.id, clockInAt: row.clockInAt, clockOutAt: row.clockOutAt, mealMinutes: row.mealMinutes, homeId: row.homeId, home: row.home, shiftStart: row.shiftStart });
 
 /* One person's timesheet for a period: lines, totals, adjustments and where it stands. */
 export async function sheetFor(staffId: string, period: Period, settings: Settings) {
@@ -84,7 +87,9 @@ export async function sheetFor(staffId: string, period: Period, settings: Settin
     db.select().from(schema.timesheets).where(and(eq(schema.timesheets.periodId, row.id), eq(schema.timesheets.staffId, staffId))).limit(1),
     db.select({ first: schema.staff.firstName, last: schema.staff.lastName, employeeNumber: schema.staff.employeeNumber, email: schema.staff.email }).from(schema.staff).where(eq(schema.staff.id, staffId)).limit(1),
   ]);
-  const result = timesheet(punches.map(asPunch), period, sheetRules(settings), adjustments.map(item => ({ minutes: item.adjustment.minutes, overtime: item.adjustment.overtime })));
+  const computed = timesheet(punches.map(asPunch), period, sheetRules(settings), adjustments.map(item => ({ minutes: item.adjustment.minutes, overtime: item.adjustment.overtime })));
+  const timeOff = (await paidTimeOffMinutes(period, [staffId])).get(staffId) ?? 0;
+  const result = { ...computed, totals: { ...computed.totals, timeOff, paid: computed.totals.total + timeOff } };
   const inPeriod = punches.filter(item => dateKey(item.clockInAt) >= period.start && dateKey(item.clockInAt) <= period.end);
   return {
     period: row,
@@ -108,7 +113,8 @@ export async function periodOverview(period: Period, settings: Settings) {
     db.select().from(schema.timeAdjustments).where(eq(schema.timeAdjustments.periodId, row.id)),
   ]);
   const inPeriod = (item: Around) => dateKey(item.clockInAt) >= period.start && dateKey(item.clockInAt) <= period.end;
-  const staffIds = [...new Set([...punches.filter(inPeriod).map(item => item.staffId), ...sheets.map(item => item.staffId), ...adjustments.map(item => item.staffId)])];
+  const timeOff = await paidTimeOffMinutes(period);
+  const staffIds = [...new Set([...punches.filter(inPeriod).map(item => item.staffId), ...sheets.map(item => item.staffId), ...adjustments.map(item => item.staffId), ...timeOff.keys()])];
   const people = staffIds.length
     ? await db.select({ id: schema.staff.id, first: schema.staff.firstName, last: schema.staff.lastName, employeeNumber: schema.staff.employeeNumber, email: schema.staff.email }).from(schema.staff).where(inArray(schema.staff.id, staffIds))
     : [];
@@ -119,7 +125,7 @@ export async function periodOverview(period: Period, settings: Settings) {
       const result = timesheet(mine.map(asPunch), period, rules, adjustments.filter(item => item.staffId === person.id).map(item => ({ minutes: item.minutes, overtime: item.overtime })));
       return {
         ...person,
-        totals: result.totals,
+        totals: { ...result.totals, timeOff: timeOff.get(person.id) ?? 0, paid: result.totals.total + (timeOff.get(person.id) ?? 0) },
         sheet: sheets.find(item => item.staffId === person.id) ?? null,
         unreviewed: mine.filter(item => inPeriod(item) && item.flags.length && !item.reviewedAt).length,
       };
@@ -129,7 +135,7 @@ export async function periodOverview(period: Period, settings: Settings) {
   return {
     period: row,
     rows,
-    totals: { regular: sum(t => t.regular), overtime: sum(t => t.overtime), total: sum(t => t.total), holiday: sum(t => t.holiday), open: sum(t => t.open) },
+    totals: { regular: sum(t => t.regular), overtime: sum(t => t.overtime), total: sum(t => t.total), holiday: sum(t => t.holiday), open: sum(t => t.open), timeOff: sum(t => t.timeOff) },
     signed: rows.filter(item => item.sheet?.status === "signed").length,
     approved: rows.filter(item => item.sheet?.status === "approved").length,
     unreviewed: rows.reduce((total, item) => total + item.unreviewed, 0),
@@ -207,3 +213,12 @@ export async function openPunchesIn(period: Period, staffId?: string) {
   return rows.length;
 }
 
+
+/* Estimated gross pay for everyone in a period, for administrators. */
+export async function periodPay(period: Period, staffIds: string[], settings: Settings) {
+  const { activeDifferentials, payFor, ratesFor, timeOffIn } = await import("@/server/queries/pay");
+  const [rates, differentials, timeOff] = await Promise.all([ratesFor(staffIds), activeDifferentials(), timeOffIn(period, staffIds)]);
+  const result = new Map<string, Awaited<ReturnType<typeof payFor>>>();
+  for (const staffId of staffIds) result.set(staffId, await payFor(await sheetFor(staffId, period, settings), staffId, settings, { rates, differentials, timeOff }));
+  return result;
+}

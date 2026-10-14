@@ -76,3 +76,13 @@ test("hours and CSV cells", () => {
   assert.equal(csvCell("-1.50"), "-1.50");
   assert.equal(csvCell(null), "");
 });
+
+test("early clock-ins can be paid from the shift start", () => {
+  const early = { ...punch("e", "2026-10-14T11:45:00Z", "2026-10-14T20:00:00Z"), shiftStart: new Date("2026-10-14T12:00:00Z") };
+  const period = { start: "2026-10-12", end: "2026-10-18" };
+  assert.equal(timesheet([early], period, rules).totals.total, 495);
+  assert.equal(timesheet([early], period, { ...rules, payFromShiftStart: true }).totals.total, 480);
+  // A late clock-in is never moved earlier.
+  const late = { ...punch("l", "2026-10-14T12:20:00Z", "2026-10-14T20:00:00Z"), shiftStart: new Date("2026-10-14T12:00:00Z") };
+  assert.equal(timesheet([late], period, { ...rules, payFromShiftStart: true }).totals.total, 460);
+});

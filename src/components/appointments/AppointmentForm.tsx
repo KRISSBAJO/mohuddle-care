@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useState } from "react";
 import { CalendarClock, ClipboardList, MapPin, Stethoscope, UserRound, Users } from "lucide-react";
 import { SearchSelect } from "@/components/app/SearchSelect";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import type { FormState } from "@/server/actions/auth";
 
@@ -77,10 +78,7 @@ export function AppointmentForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="appt-type">Type</Label>
-            <select id="appt-type" name="type" required className="field" defaultValue={initial.type}>
-              <option value="" disabled>Choose</option>
-              {typeOptions.map(type => <option key={type}>{type}</option>)}
-            </select>
+            <Select id="appt-type" name="type" required defaultValue={initial.type} options={typeOptions.map(type => ({ value: type, label: type }))} />
           </div>
           <div>
             <Label htmlFor="appt-provider">Doctor or clinician</Label>

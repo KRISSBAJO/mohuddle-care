@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, ClipboardCheck, ClipboardList, Clock, Home as HomeIcon, Plus, Search, Users } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { CoverageLegend, DaySquare, MoodBadge, dayHead } from "@/components/logs/LogBrowserParts";
 import { OwedShifts } from "@/components/logs/OwedShifts";
@@ -200,14 +201,8 @@ async function NotesView({ query: raw }: { query: Search }) {
           <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-mute" aria-hidden="true" />
           <input name="q" defaultValue={query.q} placeholder="Search person, staff or note text" aria-label="Search notes" className="field pl-10" />
         </div>
-        <select name="home" defaultValue={query.home} aria-label="Filter by home" className="field lg:w-auto">
-          <option value="">All homes</option>
-          {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          <option value="none">Not in one of our homes</option>
-        </select>
-        <select name="mood" data-default="any" defaultValue={query.mood} aria-label="Filter by mood" className="field lg:w-auto">
-          {Object.entries(moodFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-        </select>
+        <Select name="home" defaultValue={query.home} aria-label="Filter by home" className="lg:w-auto" emptyLabel="All homes" searchable options={[...homes.map(home => ({ value: home.id, label: home.name })), { value: "none", label: "Not in one of our homes" }]} />
+        <Select name="mood" dataDefault="any" defaultValue={query.mood} aria-label="Filter by mood" className="lg:w-auto" options={Object.entries(moodFilters).map(([value, text]) => ({ value, label: text }))} />
         <label className="flex items-center gap-2 text-xs text-mute">From <input type="date" name="from" defaultValue={query.from} className="field w-auto py-2" /></label>
         <label className="flex items-center gap-2 text-xs text-mute">To <input type="date" name="to" defaultValue={query.to} className="field w-auto py-2" /></label>
         <div className="flex gap-2">
@@ -306,10 +301,7 @@ async function OwedView({ user, manager, day, home }: { user: { staffId: string 
           <form className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="view" value="owed" />
             {day && <input type="hidden" name="day" value={day} />}
-            <select name="home" defaultValue={home ?? ""} className="field w-auto py-2" aria-label="Filter by home">
-              <option value="">All homes</option>
-              {homes.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
-            </select>
+            <Select name="home" defaultValue={home ?? ""} size="sm" aria-label="Filter by home" emptyLabel="All homes" searchable options={homes.map(option => ({ value: option.id, label: option.name }))} />
             <button className="btn-ghost btn-sm">Filter</button>
             <p className="text-xs text-mute">{day ? `Shifts that started on ${fmt.dayLong(day)}.` : "Shifts that started yesterday or today."} Notes are due {settings.shift_note_grace_hours} hours after a shift ends.</p>
           </form>

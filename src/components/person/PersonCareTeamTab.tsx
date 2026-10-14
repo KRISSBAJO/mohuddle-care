@@ -2,6 +2,7 @@ import Link from "next/link";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { CalendarClock, CreditCard, Mail, MapPin, Phone, ShieldPlus, Star, UsersRound } from "lucide-react";
 import { PrintButton } from "@/components/app/PrintButton";
+import { Select } from "@/components/app/Select";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
@@ -23,10 +24,7 @@ function ContactFields({ contact, roles, prefix }: { contact?: Contact; roles: s
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Role" htmlFor={`${prefix}-role`}>
-          <select id={`${prefix}-role`} name="role" required className="field" defaultValue={contact?.role ?? ""}>
-            <option value="" disabled>Choose</option>
-            {options.map(role => <option key={role}>{role}</option>)}
-          </select>
+          <Select id={`${prefix}-role`} name="role" required defaultValue={contact?.role ?? ""} options={options.map(role => ({ value: role, label: role }))} />
         </Field>
         <Field label="Name" htmlFor={`${prefix}-name`}><input id={`${prefix}-name`} name="name" required minLength={2} maxLength={120} className="field" defaultValue={contact?.name} /></Field>
       </div>
@@ -54,17 +52,19 @@ function InsuranceFields({ insurance, types, prefix }: { insurance?: Insurance; 
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Type" htmlFor={`${prefix}-kind`}>
-          <select id={`${prefix}-kind`} name="kind" required className="field" defaultValue={insurance?.kind ?? ""}>
-            <option value="" disabled>Choose</option>
-            {options.map(kind => <option key={kind}>{kind}</option>)}
-          </select>
+          <Select id={`${prefix}-kind`} name="kind" required defaultValue={insurance?.kind ?? ""} options={options.map(kind => ({ value: kind, label: kind }))} />
         </Field>
         <Field label="Billing order" htmlFor={`${prefix}-rank`}>
-          <select id={`${prefix}-rank`} name="rank" className="field" defaultValue={insurance?.rank ?? "primary"}>
-            <option value="primary">Primary</option>
-            <option value="secondary">Secondary</option>
-            <option value="tertiary">Third</option>
-          </select>
+          <Select
+            id={`${prefix}-rank`}
+            name="rank"
+            defaultValue={insurance?.rank ?? "primary"}
+            options={[
+              { value: "primary", label: "Primary" },
+              { value: "secondary", label: "Secondary" },
+              { value: "tertiary", label: "Third" },
+            ]}
+          />
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

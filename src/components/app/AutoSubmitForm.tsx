@@ -1,9 +1,30 @@
 "use client";
 
-/* A GET form for list filters. Changing a dropdown applies it at once; the search box applies on Enter. */
+import { useEffect, useRef } from "react";
+
+/*
+ * A GET form for list filters. Choosing from a dropdown applies it at once; the search box applies
+ * on Enter. Works with native selects and with the Select component.
+ */
 export function AutoSubmitForm({ children, className }: { children: React.ReactNode; className?: string }) {
+  const form = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const element = form.current;
+    if (!element) return;
+    const apply = () => {
+      // A new filter starts again from the first page.
+      const page = element.elements.namedItem("page");
+      if (page instanceof HTMLInputElement) page.value = "1";
+      element.requestSubmit();
+    };
+    element.addEventListener("select-change", apply);
+    return () => element.removeEventListener("select-change", apply);
+  }, []);
+
   return (
     <form
+      ref={form}
       method="get"
       className={className}
       role="search"
@@ -19,11 +40,9 @@ export function AutoSubmitForm({ children, className }: { children: React.ReactN
       onChange={event => {
         const target = event.target as HTMLElement;
         if (target.tagName === "SELECT") {
-          const form = event.currentTarget;
-          // A new filter starts again from the first page.
-          const page = form.elements.namedItem("page");
+          const page = event.currentTarget.elements.namedItem("page");
           if (page instanceof HTMLInputElement) page.value = "1";
-          form.requestSubmit();
+          event.currentTarget.requestSubmit();
         }
       }}
     >

@@ -10,6 +10,8 @@ import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { notify } from "@/server/notify";
 import { ensurePeriod, isDay, openPunchesIn, sheetFor, type PeriodRow } from "@/server/queries/payroll";
+import { accrual } from "@/lib/pay";
+import { leaveBalances } from "@/server/queries/pay";
 import { getSettings } from "@/server/settings";
 import type { FormState } from "./auth";
 
@@ -195,8 +197,16 @@ export async function lockPeriod(periodId: string, _previous: FormState, formDat
   const overview = await periodOverview(range, settings);
   const waiting = overview.rows.filter(row => row.sheet?.status !== "approved");
   if (waiting.length && formData.get("anyway") !== "on") return { error: `${waiting.length} ${waiting.length === 1 ? "timesheet is" : "timesheets are"} not approved yet. Approve them, or tick "Lock anyway".` };
-  await db.update(schema.payPeriods).set({ status: "locked", lockedBy: user.id, lockedAt: new Date() }).where(eq(schema.payPeriods.id, period.id));
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "pay_period:lock", entity: "pay_period", entityId: period.id });
+  // Leave is earned on the hours actually worked in the period, once it is locked.
+  const balances = await leaveBalances(overview.rows.map(row => row.id));
+  const earned = overview.rows
+    .map(row => ({ staffId: row.id, minutes: accrual(row.totals.total - row.totals.adjustments, settings.pto_accrual_hours_worked, balances.get(row.id) ?? 0, settings.pto_max_balance_hours * 60) }))
+    .filter(row => row.minutes > 0);
+  await db.transaction(async tx => {
+    await tx.update(schema.payPeriods).set({ status: "locked", lockedBy: user.id, lockedAt: new Date() }).where(eq(schema.payPeriods.id, period.id));
+    if (earned.length) await tx.insert(schema.leaveLedger).values(earned.map(row => ({ staffId: row.staffId, kind: "accrual" as const, minutes: row.minutes, onDate: period.endDate, note: `Earned ${period.startDate} to ${period.endDate}`, periodId: period.id, createdBy: user.id })));
+    await tx.insert(schema.auditLog).values({ userId: user.id, action: "pay_period:lock", entity: "pay_period", entityId: period.id });
+  });
   refresh(period.startDate);
   return {};
 }
@@ -210,6 +220,8 @@ export async function unlockPeriod(periodId: string, _previous: FormState, formD
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 500);
   if (reason.length < 5) return { error: "Give the reason for unlocking. It is kept." };
   await db.update(schema.payPeriods).set({ status: "open", lockedBy: null, lockedAt: null }).where(eq(schema.payPeriods.id, period.id));
+  // Leave earned when it was locked is taken back; it is earned again when it is locked again.
+  await db.delete(schema.leaveLedger).where(and(eq(schema.leaveLedger.periodId, period.id), eq(schema.leaveLedger.kind, "accrual")));
   await db.insert(schema.auditLog).values({ userId: user.id, action: `pay_period:unlock:${reason}`.slice(0, 200), entity: "pay_period", entityId: period.id });
   refresh(period.startDate);
   return {};

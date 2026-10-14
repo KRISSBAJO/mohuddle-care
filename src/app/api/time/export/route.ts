@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import { csvCell, EXPORT_COLUMNS, hours, type ExportColumn } from "@/lib/payroll";
 import { canManage, getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
-import { isDay, periodOverview } from "@/server/queries/payroll";
+import { rateOn } from "@/lib/pay";
+import { ratesFor } from "@/server/queries/pay";
+import { isDay, periodOverview, periodPay } from "@/server/queries/payroll";
 import { getSettings } from "@/server/settings";
 
 /*
@@ -19,6 +21,11 @@ export async function GET(request: Request) {
   const settings = await getSettings();
   const overview = await periodOverview({ start: period.startDate, end: period.endDate }, settings);
   const columns = settings.payroll_export_columns as ExportColumn[];
+  // Rates and pay are only filled in for administrators; for others those columns stay empty.
+  const admin = user.role === "admin";
+  const wantsPay = admin && columns.some(column => column === "gross_pay" || column === "hourly_rate");
+  const pay = wantsPay ? await periodPay({ start: period.startDate, end: period.endDate }, overview.rows.map(row => row.id), settings) : null;
+  const rates = wantsPay ? await ratesFor(overview.rows.map(row => row.id)) : [];
 
   const value = (row: (typeof overview.rows)[number], column: ExportColumn): string => {
     switch (column) {
@@ -33,6 +40,12 @@ export async function GET(request: Request) {
       case "total_hours": return hours(row.totals.total);
       case "holiday_hours": return hours(row.totals.holiday);
       case "adjustment_hours": return hours(row.totals.adjustments);
+      case "time_off_hours": return hours(row.totals.timeOff);
+      case "hourly_rate": {
+        const cents = admin ? rateOn(rates.filter(rate => rate.staffId === row.id), period.endDate) : null;
+        return cents === null ? "" : (cents / 100).toFixed(2);
+      }
+      case "gross_pay": return pay?.get(row.id) ? (pay.get(row.id)!.gross / 100).toFixed(2) : "";
       case "status": return row.sheet?.status ?? "open";
     }
   };

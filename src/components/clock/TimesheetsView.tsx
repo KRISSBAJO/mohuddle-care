@@ -8,7 +8,8 @@ import { cn } from "@/lib/cn";
 import { addDays, dateKey, fmt } from "@/lib/format";
 import { hours } from "@/lib/payroll";
 import { approveSigned, lockPeriod, unlockPeriod } from "@/server/actions/payroll";
-import { isDay, periodOn, periodOverview } from "@/server/queries/payroll";
+import { dollars } from "@/lib/pay";
+import { isDay, periodOn, periodOverview, periodPay } from "@/server/queries/payroll";
 import type { Settings } from "@/server/settings";
 
 /* The manager's view of one pay period: everyone's hours, where each timesheet stands, then lock and export. */
@@ -18,6 +19,8 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
   let period = await periodOn(isDay(requested) ? requested : addDays(today, -1), settings);
   if (!isDay(requested) && period.end >= today) period = await periodOn(addDays(period.start, -1), settings);
   const overview = await periodOverview(period, settings);
+  const pay = admin ? await periodPay(period, overview.rows.map(item => item.id), settings) : null;
+  const grossTotal = pay ? [...pay.values()].reduce((sum, item) => sum + item.gross, 0) : 0;
   const row = overview.period;
   const locked = row.status === "locked";
   const ended = period.end < today;
@@ -42,7 +45,7 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className={cn("grid grid-cols-2 gap-3", pay ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
         {(
           [
             ["Staff", String(overview.rows.length), ""],
@@ -50,6 +53,7 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
             ["Overtime", hours(overview.totals.overtime), overview.totals.overtime ? "text-[#8a5a10]" : ""],
             ["Approved", `${overview.approved} / ${overview.rows.length}`, overview.approved === overview.rows.length && overview.rows.length ? "text-sage" : ""],
             ["Still open or flagged", `${overview.totals.open} / ${overview.unreviewed}`, overview.totals.open ? "text-flag" : overview.unreviewed ? "text-[#8a5a10]" : "text-sage"],
+            ...(pay ? [["Gross pay (est.)", dollars(grossTotal), "text-brand"] as const] : []),
           ] as const
         ).map(([title, value, tone]) => (
           <div key={title} className="card p-4">
@@ -79,6 +83,7 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
                   <th className="text-right">Overtime</th>
                   <th className="text-right">Total</th>
                   <th className="hidden text-right md:table-cell">Holiday</th>
+                  {pay && <th className="text-right">Gross (est.)</th>}
                   <th>Status</th>
                   <th className="hidden lg:table-cell">Needs attention</th>
                 </tr>
@@ -96,6 +101,7 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
                       <td className={cn("text-right tabular-nums", item.totals.overtime ? "font-semibold text-[#8a5a10]" : "text-dim")}>{hours(item.totals.overtime)}</td>
                       <td className="text-right font-semibold tabular-nums">{hours(item.totals.total)}</td>
                       <td className="hidden text-right tabular-nums text-mute md:table-cell">{item.totals.holiday ? hours(item.totals.holiday) : "—"}</td>
+                      {pay && <td className={cn("text-right tabular-nums", pay.get(item.id)?.missingRate && "text-flag")} title={pay.get(item.id)?.missingRate ? "No pay rate for some days" : undefined}>{dollars(pay.get(item.id)?.gross ?? 0)}{pay.get(item.id)?.missingRate ? " *" : ""}</td>}
                       <td><Badge tone={sheetStatus[status].tone}>{status === "signed" ? "Signed" : sheetStatus[status].text}</Badge></td>
                       <td className="hidden lg:table-cell">
                         <span className="flex flex-wrap gap-1">

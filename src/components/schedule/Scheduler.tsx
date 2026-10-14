@@ -24,6 +24,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import { addDays, fmt, label, zonedTime } from "@/lib/format";
 import {
@@ -664,10 +665,7 @@ export function Scheduler(props: Props) {
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-mute" aria-hidden="true" />
             <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a person, home or note" aria-label="Find a person, home or note" className="field w-full py-2 pl-9 sm:w-60" />
           </div>
-          <select value={homeFilter} onChange={event => setHomeFilter(event.target.value)} aria-label="Filter by home" className="field w-full py-2 sm:w-auto">
-            <option value="">All homes</option>
-            {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-          </select>
+          <Select value={homeFilter} onChange={value => setHomeFilter(value)} aria-label="Filter by home" searchable emptyLabel="All homes" className="w-full sm:w-auto" options={homes.map(home => ({ value: home.id, label: home.name }))} />
           <div className="flex flex-wrap gap-1.5">
             {toggleChip("Open only", onlyOpen, setOnlyOpen)}
             {toggleChip("Problems", onlyProblems, setOnlyProblems)}

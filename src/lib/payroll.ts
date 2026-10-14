@@ -49,11 +49,11 @@ export function parseHolidays(lines: string[]): Map<string, string> {
   return map;
 }
 
-export type Punch = { id: string; clockInAt: Date; clockOutAt: Date | null; mealMinutes: number; homeId: string | null; home: string | null };
-export type PunchLine = Punch & { day: string; minutes: number; regular: number; overtime: number; holiday: string | null; open: boolean };
+export type Punch = { id: string; clockInAt: Date; clockOutAt: Date | null; mealMinutes: number; homeId: string | null; home: string | null; shiftStart?: Date | null };
+export type PunchLine = Punch & { day: string; minutes: number; regular: number; overtime: number; holiday: string | null; open: boolean; paidStart?: Date };
 export type Adjustment = { minutes: number; overtime: boolean };
 
-export type SheetRules = { rounding: number; overtimeAfterHours: number; weekStartsOn: number; holidays: Map<string, string> };
+export type SheetRules = { rounding: number; overtimeAfterHours: number; weekStartsOn: number; holidays: Map<string, string>; payFromShiftStart?: boolean };
 
 /*
  * Lines and totals for one person's punches. Overtime is per workweek: punches are taken in order and
@@ -68,14 +68,16 @@ export function timesheet(punches: Punch[], period: Period, rules: SheetRules, a
   const lines: PunchLine[] = ordered.map(punch => {
     const day = dateKey(punch.clockInAt);
     if (!punch.clockOutAt) return { ...punch, day, minutes: 0, regular: 0, overtime: 0, holiday: rules.holidays.get(day) ?? null, open: true };
-    const start = roundTime(punch.clockInAt.getTime(), rules.rounding);
+    // An early clock-in can be paid from the shift start instead; the real punch is kept either way.
+    const begin = rules.payFromShiftStart && punch.shiftStart && punch.shiftStart > punch.clockInAt ? punch.shiftStart : punch.clockInAt;
+    const start = roundTime(begin.getTime(), rules.rounding);
     const end = roundTime(punch.clockOutAt.getTime(), rules.rounding);
     const minutes = Math.max(0, Math.round((end - start) / 60_000) - punch.mealMinutes);
     const week = workweekStart(day, rules.weekStartsOn);
     const before = weekUsed.get(week) ?? 0;
     const regular = Math.max(0, Math.min(minutes, threshold - before));
     weekUsed.set(week, before + minutes);
-    return { ...punch, day, minutes, regular, overtime: minutes - regular, holiday: rules.holidays.get(day) ?? null, open: false };
+    return { ...punch, day, minutes, regular, overtime: minutes - regular, holiday: rules.holidays.get(day) ?? null, open: false, paidStart: begin };
   });
   const inside = lines.filter(line => line.day >= period.start && line.day <= period.end);
   const adjusted = {
@@ -93,6 +95,8 @@ export function timesheet(punches: Punch[], period: Period, rules: SheetRules, a
   }
   return {
     lines: inside,
+    // Every line in the workweeks given, for working out the regular rate behind overtime pay.
+    allLines: lines,
     totals: {
       regular,
       overtime,
@@ -130,6 +134,9 @@ export const EXPORT_COLUMNS = {
   total_hours: "Total hours",
   holiday_hours: "Holiday hours worked",
   adjustment_hours: "Adjustment hours",
+  time_off_hours: "Paid time off hours",
+  hourly_rate: "Hourly rate",
+  gross_pay: "Gross pay (estimate)",
   status: "Timesheet status",
 } as const;
 export type ExportColumn = keyof typeof EXPORT_COLUMNS;

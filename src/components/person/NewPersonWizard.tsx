@@ -21,6 +21,7 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { Select } from "@/components/app/Select";
 import { cn } from "@/lib/cn";
 import { FIELD_TYPES, OPTIONAL_SECTIONS, SECTION_KEYS, type FieldType, type SectionKey } from "@/lib/note-requirements";
 import type { FormState } from "@/server/actions/auth";
@@ -490,16 +491,11 @@ export function NewPersonWizard({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="np-service">Service</Label>
-                    <select id="np-service" required className="field" {...bind("serviceType")}>
-                      {Object.entries(services).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-                    </select>
+                    <Select id="np-service" required value={person.serviceType} onChange={value => setPerson("serviceType", value)} options={Object.entries(services).map(([value, text]) => ({ value, label: text }))} />
                   </div>
                   <div>
                     <Label htmlFor="np-home">Home</Label>
-                    <select id="np-home" className="field" {...bind("homeId")}>
-                      <option value="">Not in one of our homes</option>
-                      {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
-                    </select>
+                    <Select id="np-home" searchable value={person.homeId} onChange={value => setPerson("homeId", value)} emptyLabel="Not in one of our homes" options={homes.map(home => ({ value: home.id, label: home.name }))} />
                   </div>
                   <div><Label htmlFor="np-admitted" optional>Support started</Label><input id="np-admitted" type="date" className="field" {...bind("admittedAt")} /></div>
                 </div>
@@ -603,10 +599,7 @@ export function NewPersonWizard({
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <Label htmlFor={`np-contact-${i}-role`}>Role</Label>
-                        <select id={`np-contact-${i}-role`} className="field" value={contact.role} onChange={e => team.change(i, { role: e.target.value })}>
-                          <option value="" disabled>Choose</option>
-                          {lists.careTeamRoles.map(role => <option key={role}>{role}</option>)}
-                        </select>
+                        <Select id={`np-contact-${i}-role`} value={contact.role} onChange={value => team.change(i, { role: value })} options={lists.careTeamRoles.map(role => ({ value: role, label: role }))} />
                       </div>
                       <div><Label htmlFor={`np-contact-${i}-name`}>Name</Label><input id={`np-contact-${i}-name`} maxLength={120} className="field" value={contact.name} onChange={e => team.change(i, { name: e.target.value })} /></div>
                       <div><Label htmlFor={`np-contact-${i}-org`} optional>Organization or clinic</Label><input id={`np-contact-${i}-org`} maxLength={120} className="field" value={contact.organization} onChange={e => team.change(i, { organization: e.target.value })} /></div>
@@ -631,18 +624,20 @@ export function NewPersonWizard({
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
                       <Label htmlFor={`np-ins-${i}-kind`}>Type</Label>
-                      <select id={`np-ins-${i}-kind`} className="field" value={c.kind} onChange={e => cover.change(i, { kind: e.target.value })}>
-                        <option value="" disabled>Choose</option>
-                        {lists.insuranceTypes.map(kind => <option key={kind}>{kind}</option>)}
-                      </select>
+                      <Select id={`np-ins-${i}-kind`} value={c.kind} onChange={value => cover.change(i, { kind: value })} options={lists.insuranceTypes.map(kind => ({ value: kind, label: kind }))} />
                     </div>
                     <div>
                       <Label htmlFor={`np-ins-${i}-rank`}>Order</Label>
-                      <select id={`np-ins-${i}-rank`} className="field" value={c.rank} onChange={e => cover.change(i, { rank: e.target.value as Cover["rank"] })}>
-                        <option value="primary">Primary</option>
-                        <option value="secondary">Secondary</option>
-                        <option value="tertiary">Tertiary</option>
-                      </select>
+                      <Select
+                        id={`np-ins-${i}-rank`}
+                        value={c.rank}
+                        onChange={value => cover.change(i, { rank: value as Cover["rank"] })}
+                        options={[
+                          { value: "primary", label: "Primary" },
+                          { value: "secondary", label: "Secondary" },
+                          { value: "tertiary", label: "Tertiary" },
+                        ]}
+                      />
                     </div>
                     <div><Label htmlFor={`np-ins-${i}-payer`}>Insurer</Label><input id={`np-ins-${i}-payer`} maxLength={120} className="field" value={c.payer} onChange={e => cover.change(i, { payer: e.target.value })} placeholder="TennCare / Amerigroup" /></div>
                     <div><Label htmlFor={`np-ins-${i}-member`}>Member ID</Label><input id={`np-ins-${i}-member`} maxLength={60} autoComplete="off" className="field" value={c.memberId} onChange={e => cover.change(i, { memberId: e.target.value })} /></div>
@@ -677,11 +672,16 @@ export function NewPersonWizard({
                     </div>
                     <div>
                       <Label htmlFor={`np-goal-${i}-period`}>Per</Label>
-                      <select id={`np-goal-${i}-period`} className="field" value={g.frequencyPeriod} onChange={e => goal.change(i, { frequencyPeriod: e.target.value as Goal["frequencyPeriod"] })}>
-                        <option value="day">Day</option>
-                        <option value="week">Week</option>
-                        <option value="month">Month</option>
-                      </select>
+                      <Select
+                        id={`np-goal-${i}-period`}
+                        value={g.frequencyPeriod}
+                        onChange={value => goal.change(i, { frequencyPeriod: value as Goal["frequencyPeriod"] })}
+                        options={[
+                          { value: "day", label: "Day" },
+                          { value: "week", label: "Week" },
+                          { value: "month", label: "Month" },
+                        ]}
+                      />
                     </div>
                     <div><Label htmlFor={`np-goal-${i}-effective`} optional>Effective date</Label><input id={`np-goal-${i}-effective`} type="date" className="field" value={g.effectiveDate} onChange={e => goal.change(i, { effectiveDate: e.target.value })} /></div>
                     <div><Label htmlFor={`np-goal-${i}-target`} optional>Target date</Label><input id={`np-goal-${i}-target`} type="date" className="field" value={g.targetDate} onChange={e => goal.change(i, { targetDate: e.target.value })} /></div>
@@ -689,9 +689,7 @@ export function NewPersonWizard({
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label htmlFor={`np-goal-${i}-service`}>Recorded on</Label>
-                      <select id={`np-goal-${i}-service`} className="field" value={g.documentedOn} onChange={e => goal.change(i, { documentedOn: e.target.value })}>
-                        {[...new Set([g.documentedOn, ...lists.goalServices])].map(service => <option key={service}>{service}</option>)}
-                      </select>
+                      <Select id={`np-goal-${i}-service`} value={g.documentedOn} onChange={value => goal.change(i, { documentedOn: value })} options={[...new Set([g.documentedOn, ...lists.goalServices])].map(service => ({ value: service, label: service }))} />
                     </div>
                     <div><Label htmlFor={`np-goal-${i}-setup`} optional>Note for staff</Label><input id={`np-goal-${i}-setup`} maxLength={1000} className="field" value={g.setupNotes} onChange={e => goal.change(i, { setupNotes: e.target.value })} placeholder="Use the picture recipe cards" /></div>
                   </div>
@@ -754,9 +752,7 @@ export function NewPersonWizard({
                       <div><Label htmlFor={`np-item-${i}-label`}>Question</Label><input id={`np-item-${i}-label`} maxLength={160} className="field" value={row.label} onChange={e => item.change(i, { label: e.target.value })} placeholder="Weight checked this shift" /></div>
                       <div>
                         <Label htmlFor={`np-item-${i}-type`}>Answer</Label>
-                        <select id={`np-item-${i}-type`} className="field" value={row.fieldType} onChange={e => item.change(i, { fieldType: e.target.value as FieldType })}>
-                          {Object.entries(FIELD_TYPES).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-                        </select>
+                        <Select id={`np-item-${i}-type`} value={row.fieldType} onChange={value => item.change(i, { fieldType: value as FieldType })} options={Object.entries(FIELD_TYPES).map(([value, text]) => ({ value, label: text }))} />
                       </div>
                     </div>
                     {(row.fieldType === "choice" || row.fieldType === "multi") && (
