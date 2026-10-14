@@ -110,6 +110,42 @@ export const settingDefs = {
     schema: z.array(z.string().min(1)).min(1),
     fallback: ["Community outing", "Day program", "Work or volunteering", "Exercise", "Faith community", "Shopping or errands", "Leisure at home", "Household chores", "Cooking", "Family or friends visit", "Medical appointment", "Phone or video call"],
   },
+  appointment_types: {
+    label: "Appointment types (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Primary care", "Dentist", "Psychiatry", "Neurology", "Eye doctor", "Hearing", "Physical therapy", "Occupational therapy", "Speech therapy", "Lab work", "Podiatry", "Specialist", "Hospital follow-up"],
+  },
+  appointment_reminder_days: {
+    label: "Remind the escort and home manager this many days before an appointment",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(14),
+    fallback: 2,
+  },
+  appointment_document_hours: {
+    label: "Appointments must be documented within this many hours of their time",
+    kind: "number",
+    schema: z.coerce.number().int().min(1).max(168),
+    fallback: 24,
+  },
+  notify_roles_appointments: {
+    label: "Login roles told about appointments (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator", "nurse"],
+  },
+  notify_roles_notes: {
+    label: "Login roles told about overdue daily notes (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator"],
+  },
+  notify_roles_incidents: {
+    label: "Login roles told about incidents (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator"],
+  },
   expense_approval_dollars: {
     label: "Home expenses above this many dollars need approval (0 means every expense does)",
     kind: "number",

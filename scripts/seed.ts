@@ -47,7 +47,7 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
   const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
@@ -236,6 +236,19 @@ async function main() {
     { individualId: olivia.id, staffId: luis.id, logDate: today, mood: "good", checks, meals: "Lunch from home.", activities: "Coffee cart morning, art after lunch.", goalProgress: "", health: "", behaviours: "", notes: "" },
   );
   await db.insert(schema.dailyLogs).values(logRows);
+
+  // Appointments: one coming up, one past and documented with a follow-up still to book, one past and not yet documented.
+  const [neuro] = await db
+    .insert(schema.appointments)
+    .values([
+      { individualId: tasha.id, type: "Neurology", provider: "Dr. Ferris", clinic: "Vanderbilt Neurology", address: "1161 21st Ave S, Nashville", phone: "615-555-0177", scheduledAt: zoned(addDays(today, -9), "09:30"), reason: "Six-month seizure review.", escortStaffId: sofia.id, status: "completed", seenBy: "Dr. Ferris", summary: "Seizure log reviewed: none in three months. Lamotrigine level due. Tasha asked good questions about driving rules.", orders: "Blood level for Lamotrigine at the lab.", followUpNeeded: true, followUpBy: addDays(today, 20), followUpNotes: "Review the blood level.", documentedAt: zoned(addDays(today, -9), "13:00") },
+    ])
+    .returning();
+  await db.insert(schema.appointments).values([
+    { individualId: brianna.id, type: "Physical therapy", provider: "Dana Ruiz, PT", clinic: "Elite Physical Therapy", address: "2700 Nolensville Pike, Nashville", phone: "615-555-0144", scheduledAt: zoned(addDays(today, 2), "14:00"), reason: "Transfer strength; knee pain.", prep: "Wear the gait belt. Bring the home exercise sheet.", transport: "Home van, wheelchair ramp", escortStaffId: jamal.id },
+    { individualId: devon.id, type: "Dentist", provider: "Dr. Kim", clinic: "Bright Smiles Dental", scheduledAt: zoned(addDays(today, -1), "10:00"), reason: "Cleaning.", escortStaffId: jamal.id },
+    { individualId: tasha.id, type: "Lab work", clinic: "Vanderbilt Lab", scheduledAt: zoned(addDays(today, 5), "08:00"), reason: "Lamotrigine level.", prep: "Take the morning dose after the blood draw.", followUpOf: neuro.id },
+  ]);
 
   // What daily notes cover: the agency default, plus examples for one home and two people.
   await db.insert(schema.noteRequirements).values([

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Wallet, type LucideIcon } from "lucide-react";
-import { ListEditor, SettingsGroupForm } from "@/components/app/SettingsForms";
+import { ArrowRight, Bell, CalendarDays, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
+import { ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
@@ -9,7 +9,7 @@ import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
 
 export const metadata = { title: "Settings" };
 
-type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number };
+type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean };
 type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?: [string, string]; items: Item[] };
 
 /* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
@@ -37,6 +37,28 @@ const GROUPS: Group[] = [
     icon: Pill,
     intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
     items: [{ key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 }],
+  },
+  {
+    id: "appointments",
+    title: "Appointments",
+    icon: Stethoscope,
+    intro: "Appointment types, reminders before a visit, and the deadline for documenting it.",
+    items: [
+      { key: "appointment_reminder_days", title: "Remind before a visit", help: "The escort and home manager are reminded this far ahead, and again on the day.", unit: "days", min: 0, max: 14 },
+      { key: "appointment_document_hours", title: "Document a visit within", help: "After this, the visit shows as overdue and the team is told.", unit: "hours", min: 1, max: 168 },
+      { key: "appointment_types", title: "Appointment types", help: "Offered when booking an appointment." },
+    ],
+  },
+  {
+    id: "notifications",
+    title: "Notifications",
+    icon: Bell,
+    intro: "Who is told about what. Escorts, the staff who owe notes and home managers are always told about their own.",
+    items: [
+      { key: "notify_roles_appointments", title: "Appointments", help: "New, moved, cancelled and undocumented visits, follow-ups to book, and medication changes from a visit.", roles: true },
+      { key: "notify_roles_notes", title: "Overdue daily notes", help: "When a staff member's notes pass their deadline.", roles: true },
+      { key: "notify_roles_incidents", title: "Incidents", help: "Every new incident, and reportable incidents near or past their filing deadline.", roles: true },
+    ],
   },
   {
     id: "incidents",
@@ -137,7 +159,9 @@ export default async function SettingsPage() {
                         <label htmlFor={item.key} className="text-sm font-semibold">{item.title}</label>
                         {item.help && <p className="text-xs text-mute">{item.help}</p>}
                       </div>
-                      {def.kind === "list" ? (
+                      {item.roles ? (
+                        <RolePicker name={item.key} initial={value as string[]} />
+                      ) : def.kind === "list" ? (
                         <ListEditor name={item.key} initial={value as string[]} />
                       ) : def.kind === "text" ? (
                         <input id={item.key} name={item.key} className="field font-mono" defaultValue={String(value)} />

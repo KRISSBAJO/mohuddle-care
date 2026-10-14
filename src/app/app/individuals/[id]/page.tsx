@@ -13,6 +13,7 @@ import {
   Phone,
   Pill,
   ShieldAlert,
+  Stethoscope,
   Target,
   UserRound,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { IndividualFields } from "@/components/app/IndividualForm";
 import { ModalForm } from "@/components/app/ModalForm";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar, Badge } from "@/components/app/ui";
+import { PersonAppointmentsTab } from "@/components/person/PersonAppointmentsTab";
 import { PersonCarePlanTab } from "@/components/person/PersonCarePlanTab";
 import { PersonHealthTab } from "@/components/person/PersonHealthTab";
 import { PersonIncidentsTab } from "@/components/person/PersonIncidentsTab";
@@ -43,6 +45,7 @@ const TABS = [
   ["overview", "Overview", LayoutDashboard],
   ["plan", "Care plan", Target],
   ["medications", "Medications", Pill],
+  ["appointments", "Appointments", Stethoscope],
   ["health", "Health", HeartPulse],
   ["logs", "Daily logs", ClipboardList],
   ["incidents", "Incidents", ShieldAlert],
@@ -74,6 +77,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
   const badges: Partial<Record<PersonTab, { n: number; tone: string }>> = {
     medications: counts.dosesLate ? { n: counts.dosesLate, tone: "bg-flag-soft text-flag" } : counts.activeMeds ? { n: counts.activeMeds, tone: "bg-panel text-mute" } : undefined,
     plan: counts.activeGoals ? { n: counts.activeGoals, tone: "bg-sky text-brand-deep" } : undefined,
+    appointments: counts.appointmentsToDocument ? { n: counts.appointmentsToDocument, tone: "bg-accent-soft text-[#8a5a10]" } : counts.upcomingAppointments ? { n: counts.upcomingAppointments, tone: "bg-panel text-mute" } : undefined,
     incidents: counts.openIncidents ? { n: counts.openIncidents, tone: "bg-accent-soft text-[#8a5a10]" } : undefined,
     tasks: counts.overdueTasks ? { n: counts.overdueTasks, tone: "bg-flag-soft text-flag" } : counts.openTasks ? { n: counts.openTasks, tone: "bg-panel text-mute" } : undefined,
   };
@@ -228,6 +232,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
       {tab === "overview" && <PersonOverviewTab id={id} person={person} home={home} lateMinutes={settings.med_late_minutes} />}
       {tab === "plan" && <PersonCarePlanTab id={id} person={person} manager={manager} />}
       {tab === "medications" && <PersonMedicationsTab id={id} person={person} manager={manager} end={query.end} days={query.days} lateMinutes={settings.med_late_minutes} />}
+      {tab === "appointments" && <PersonAppointmentsTab id={id} person={person} />}
       {tab === "health" && <PersonHealthTab id={id} person={person} manager={manager} />}
       {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} adlOrder={settings.adl_items} />}
       {tab === "incidents" && <PersonIncidentsTab id={id} person={person} />}

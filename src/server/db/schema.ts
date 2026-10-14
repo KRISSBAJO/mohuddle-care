@@ -37,6 +37,7 @@ export const taskStatus = pgEnum("task_status", ["open", "done"]);
 export const expenseStatus = pgEnum("expense_status", ["pending", "approved", "rejected"]);
 export const issuePriority = pgEnum("issue_priority", ["low", "normal", "high", "urgent"]);
 export const issueStatus = pgEnum("issue_status", ["open", "in_progress", "resolved"]);
+export const appointmentStatus = pgEnum("appointment_status", ["scheduled", "completed", "cancelled", "missed"]);
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -459,4 +460,70 @@ export const incidentNotes = pgTable(
     createdAt: createdAt(),
   },
   table => [index("incident_notes_incident").on(table.incidentId, table.createdAt)],
+);
+
+/*
+ * Doctor, dentist, therapy and other appointments for a person. Booking records who goes with them;
+ * after the visit staff document what was said, any changes, and whether a follow-up is needed.
+ */
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: id(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull().default(""),
+    clinic: text("clinic").notNull().default(""),
+    address: text("address").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull().default(60),
+    reason: text("reason").notNull().default(""),
+    prep: text("prep").notNull().default(""),
+    transport: text("transport").notNull().default(""),
+    escortStaffId: uuid("escort_staff_id").references(() => staff.id, { onDelete: "set null" }),
+    status: appointmentStatus("status").notNull().default("scheduled"),
+    statusReason: text("status_reason").notNull().default(""),
+    // Filled in after the visit.
+    seenBy: text("seen_by").notNull().default(""),
+    summary: text("summary").notNull().default(""),
+    diagnosisChanges: text("diagnosis_changes").notNull().default(""),
+    medicationChanges: text("medication_changes").notNull().default(""),
+    orders: text("orders").notNull().default(""),
+    followUpNeeded: boolean("follow_up_needed").notNull().default(false),
+    followUpBy: date("follow_up_by"),
+    followUpNotes: text("follow_up_notes").notNull().default(""),
+    followUpOf: uuid("follow_up_of").references((): AnyPgColumn => appointments.id, { onDelete: "set null" }),
+    nextAppointmentId: uuid("next_appointment_id").references((): AnyPgColumn => appointments.id, { onDelete: "set null" }),
+    documentedBy: uuid("documented_by").references(() => users.id, { onDelete: "set null" }),
+    documentedAt: timestamp("documented_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("appointments_person").on(table.individualId), index("appointments_when").on(table.scheduledAt)],
+);
+
+/*
+ * In-app notifications. Each is for one login. dedupeKey stops the same reminder being sent twice,
+ * so the reminder sweep can run as often as it likes.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    href: text("href").notNull().default(""),
+    tone: text("tone").$type<"info" | "warn" | "bad" | "good">().notNull().default("info"),
+    dedupeKey: text("dedupe_key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("notifications_once").on(table.userId, table.dedupeKey), index("notifications_user_unread").on(table.userId, table.readAt)],
 );

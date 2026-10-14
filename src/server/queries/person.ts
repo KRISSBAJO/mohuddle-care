@@ -14,7 +14,7 @@ export async function personHeader(id: string, lateMinutes: number) {
   const today = dateKey();
   if (person.active) await ensureMedicationRecords(today);
   const now = Date.now();
-  const [home, goalRows, medRows, incidentRows, taskRows, lastLog, doses] = await Promise.all([
+  const [home, goalRows, medRows, incidentRows, taskRows, lastLog, doses, appointmentRows] = await Promise.all([
     person.homeId ? db.select().from(schema.homes).where(eq(schema.homes.id, person.homeId)).limit(1).then(rows => rows[0] ?? null) : null,
     db.select({ status: schema.planGoals.status, n: count() }).from(schema.planGoals).where(eq(schema.planGoals.individualId, id)).groupBy(schema.planGoals.status),
     db.select({ n: count() }).from(schema.medications).where(and(eq(schema.medications.individualId, id), eq(schema.medications.active, true))),
@@ -34,6 +34,13 @@ export async function personHeader(id: string, lateMinutes: number) {
       .select({ status: schema.medAdministrations.status, at: schema.medAdministrations.scheduledFor })
       .from(schema.medAdministrations)
       .where(and(eq(schema.medAdministrations.individualId, id), gte(schema.medAdministrations.scheduledFor, zonedTime(today, "00:00")), lt(schema.medAdministrations.scheduledFor, zonedTime(addDays(today, 1), "00:00")))),
+    db
+      .select({
+        upcoming: sql<number>`count(*) filter (where ${schema.appointments.scheduledAt} >= now())`.mapWith(Number),
+        toDocument: sql<number>`count(*) filter (where ${schema.appointments.scheduledAt} < now())`.mapWith(Number),
+      })
+      .from(schema.appointments)
+      .where(and(eq(schema.appointments.individualId, id), eq(schema.appointments.status, "scheduled"))),
   ]);
   const manager = home?.managerStaffId
     ? await db.select({ id: schema.staff.id, firstName: schema.staff.firstName, lastName: schema.staff.lastName, phone: schema.staff.phone }).from(schema.staff).where(eq(schema.staff.id, home.managerStaffId)).limit(1).then(rows => rows[0] ?? null)
@@ -52,6 +59,8 @@ export async function personHeader(id: string, lateMinutes: number) {
       openTasks: taskRows[0]?.open ?? 0,
       overdueTasks: taskRows[0]?.overdue ?? 0,
       lastLog: lastLog[0]?.day ?? null,
+      upcomingAppointments: appointmentRows[0]?.upcoming ?? 0,
+      appointmentsToDocument: appointmentRows[0]?.toDocument ?? 0,
       dosesToday: doses.length,
       dosesDone: doses.filter(dose => dose.status !== "due").length,
       dosesLate: doses.filter(dose => dose.status === "due" && dose.at.getTime() < now - lateMinutes * 60_000).length,

@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { ClipboardList, Phone, Pill, ShieldAlert } from "lucide-react";
+import { ClipboardList, Phone, Pill, ShieldAlert, Stethoscope } from "lucide-react";
 import { Avatar, Badge, Empty, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { fmt, initials, label } from "@/lib/format";
 import { requestTime } from "@/server/clock";
 import type { schema } from "@/server/db";
 import { personOverview } from "@/server/queries/person";
+import { nextAppointmentFor } from "@/server/queries/appointments";
 import { DoseList, MoodStrip, MoreLink } from "./parts";
 
 type Person = typeof schema.individuals.$inferSelect;
@@ -17,7 +18,7 @@ const priorityTone = { low: "neutral", normal: "brand", high: "bad" } as const;
 
 /* The person at a glance: today, how they have been, who is around them, and what needs doing. */
 export async function PersonOverviewTab({ id, person, home, lateMinutes }: { id: string; person: Person; home: Home | null; lateMinutes: number }) {
-  const [data, now] = await Promise.all([personOverview(id, person.active ? person.homeId : null), requestTime()]);
+  const [data, now, next] = await Promise.all([personOverview(id, person.active ? person.homeId : null), requestTime(), nextAppointmentFor(id)]);
   const base = `/app/individuals/${id}`;
   const onNow = data.onShift.filter(shift => shift.startsAt.getTime() <= now && shift.endsAt.getTime() > now);
 
@@ -65,6 +66,21 @@ export async function PersonOverviewTab({ id, person, home, lateMinutes }: { id:
       </div>
 
       <div className="space-y-6">
+        <Panel title="Next appointment" action={<MoreLink href={`${base}?tab=appointments`}>All appointments</MoreLink>}>
+          {next ? (
+            <Link href={`/app/appointments/${next.id}`} className="flex items-start gap-3 px-5 py-4 hover:bg-panel/50">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-plum-soft text-plum"><Stethoscope className="h-5 w-5" /></span>
+              <span className="min-w-0 text-sm">
+                <span className="block font-semibold">{next.type}{next.provider ? ` · ${next.provider}` : ""}</span>
+                <span className="block text-mute">{fmt.dateTime(next.scheduledAt)}{next.clinic ? ` · ${next.clinic}` : ""}</span>
+                <span className={next.escort ? "block text-xs text-mute" : "block text-xs font-semibold text-[#8a5a10]"}>{next.escort ? `With ${next.escort}` : "No escort chosen yet"}</span>
+              </span>
+            </Link>
+          ) : (
+            <Empty>Nothing booked.</Empty>
+          )}
+        </Panel>
+
         <Panel title={`How to support ${person.firstName} well`} action={<MoreLink href={`${base}?tab=profile`}>Profile</MoreLink>}>
           <p className="whitespace-pre-line p-5 text-sm leading-relaxed">{person.supportNotes || "No support notes yet. Coordinators add these with Edit details."}</p>
         </Panel>

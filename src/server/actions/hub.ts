@@ -2,12 +2,13 @@
 
 import { and, eq, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { homeManagerOf, notify, recipients } from "@/server/notify";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { parseMoney, zonedTime } from "@/lib/format";
-import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
+import { fmt, parseMoney, zonedTime } from "@/lib/format";
+import { getSettings, saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
@@ -159,6 +160,23 @@ export async function createIncident(_p: FormState, formData: FormData): Promise
     .values({ ...parsed.data, reportedBy: user.staffId })
     .returning({ id: schema.incidents.id });
   await audit(user.id, "create", "incident", row.id);
+  // Coordinators and the home manager hear about every incident as soon as it is reported.
+  {
+    const settings = await getSettings();
+    const [person] = parsed.data.individualId
+      ? await db.select({ first: schema.individuals.firstName, last: schema.individuals.lastName, homeId: schema.individuals.homeId }).from(schema.individuals).where(eq(schema.individuals.id, parsed.data.individualId)).limit(1)
+      : [];
+    const homeId = parsed.data.homeId ?? person?.homeId ?? null;
+    const to = await recipients({ roles: settings.notify_roles_incidents, staffIds: [await homeManagerOf(homeId)], except: user.id });
+    await notify(to, {
+      kind: "incident:reported",
+      title: `${parsed.data.reportable ? "Reportable incident" : "Incident"} reported${person ? ` for ${person.first} ${person.last}` : ""}`,
+      body: `${parsed.data.category.replace("_", " ")}, ${parsed.data.severity} severity. ${parsed.data.description.slice(0, 200)}`,
+      href: `/app/incidents/${row.id}`,
+      tone: parsed.data.severity === "high" || parsed.data.severity === "critical" || parsed.data.reportable ? "bad" : "warn",
+      dedupeKey: `incident:reported:${row.id}`,
+    });
+  }
   revalidatePath("/app/incidents");
   revalidatePath("/app");
   revalidatePath("/app/individuals/[id]", "page");
@@ -181,8 +199,18 @@ export async function createTask(_p: FormState, formData: FormData): Promise<For
   const user = await requireUser();
   const parsed = taskSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
-  await db.insert(schema.tasks).values(parsed.data);
-  await audit(user.id, "create", "task");
+  const [task] = await db.insert(schema.tasks).values(parsed.data).returning({ id: schema.tasks.id });
+  await audit(user.id, "create", "task", task.id);
+  if (parsed.data.assignedTo) {
+    await notify(await recipients({ staffIds: [parsed.data.assignedTo], except: user.id }), {
+      kind: "task:assigned",
+      title: `New task for you: ${parsed.data.title}`,
+      body: parsed.data.dueAt ? `Due ${fmt.dateTime(parsed.data.dueAt)}.` : "",
+      href: parsed.data.individualId ? `/app/individuals/${parsed.data.individualId}?tab=tasks` : "/app/tasks",
+      tone: parsed.data.priority === "high" ? "warn" : "info",
+      dedupeKey: `task:assigned:${task.id}`,
+    });
+  }
   revalidatePath("/app/tasks");
   revalidatePath("/app/individuals/[id]", "page");
   revalidatePath("/app");

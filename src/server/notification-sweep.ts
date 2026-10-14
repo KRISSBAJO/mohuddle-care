@@ -1,0 +1,183 @@
+import "server-only";
+import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { dateKey, fmt } from "@/lib/format";
+import { db, schema } from "@/server/db";
+import { homeManagerOf, notify, recipients } from "@/server/notify";
+import { notesOwed } from "@/server/queries/notes-owed";
+import { getSettings } from "@/server/settings";
+
+const state = globalThis as unknown as { milestoneSweepAt?: number; milestoneSweepRunning?: boolean };
+const EVERY_MS = 2 * 60_000;
+
+/*
+ * Sends the reminders that depend on time passing: upcoming appointments, visits not yet documented,
+ * follow-ups not booked, overdue daily notes and incident filing deadlines. Every message has a
+ * dedupe key, so running this often never sends the same reminder twice. It runs at most every two
+ * minutes, after a page in the Hub is served.
+ */
+export async function sweepNotifications(force = false) {
+  const now = Date.now();
+  if (!force && (state.milestoneSweepRunning || now - (state.milestoneSweepAt ?? 0) < EVERY_MS)) return { skipped: true };
+  state.milestoneSweepRunning = true;
+  state.milestoneSweepAt = now;
+  let sent = 0;
+  try {
+    const settings = await getSettings();
+    const today = dateKey(new Date(now));
+    const managers = new Map<string, string | null>();
+    const managerOf = async (homeId: string | null) => {
+      if (!homeId) return null;
+      if (!managers.has(homeId)) managers.set(homeId, await homeManagerOf(homeId));
+      return managers.get(homeId) ?? null;
+    };
+
+    // Appointments coming up, today, without an escort, or past and not documented.
+    const appointments = await db
+      .select({
+        id: schema.appointments.id,
+        type: schema.appointments.type,
+        provider: schema.appointments.provider,
+        clinic: schema.appointments.clinic,
+        scheduledAt: schema.appointments.scheduledAt,
+        escortStaffId: schema.appointments.escortStaffId,
+        first: schema.individuals.firstName,
+        last: schema.individuals.lastName,
+        homeId: schema.individuals.homeId,
+      })
+      .from(schema.appointments)
+      .innerJoin(schema.individuals, eq(schema.individuals.id, schema.appointments.individualId))
+      .where(
+        and(
+          eq(schema.appointments.status, "scheduled"),
+          gte(schema.appointments.scheduledAt, new Date(now - 30 * 86_400_000)),
+          lt(schema.appointments.scheduledAt, new Date(now + Math.max(1, settings.appointment_reminder_days) * 86_400_000)),
+        ),
+      );
+    for (const visit of appointments) {
+      const href = `/app/appointments/${visit.id}`;
+      const who = `${visit.first} ${visit.last}`;
+      const what = `${visit.type}${visit.provider ? ` with ${visit.provider}` : ""}`;
+      const at = visit.scheduledAt.getTime();
+      const manager = await managerOf(visit.homeId);
+      if (at > now) {
+        const day = dateKey(visit.scheduledAt);
+        const whenText = `${day === today ? "Today" : `${fmt.weekday(day)} ${fmt.day(day)}`} at ${fmt.time(visit.scheduledAt)}${visit.clinic ? `, ${visit.clinic}` : ""}`;
+        sent += await notify(await recipients({ staffIds: [visit.escortStaffId, manager] }), {
+          kind: "appointment:reminder",
+          title: `${who}: ${what}`,
+          body: `${whenText}.${visit.escortStaffId ? "" : " Nobody is booked to go with them yet."}`,
+          href,
+          tone: "info",
+          dedupeKey: `appointment:reminder:${visit.id}:${at}`,
+        });
+        if (day === today && visit.escortStaffId) {
+          sent += await notify(await recipients({ staffIds: [visit.escortStaffId] }), {
+            kind: "appointment:today",
+            title: `Today: ${who}'s ${visit.type.toLowerCase()} at ${fmt.time(visit.scheduledAt)}`,
+            body: "Check the visit sheet before you leave, and document the visit afterwards.",
+            href,
+            tone: "info",
+            dedupeKey: `appointment:today:${visit.id}:${at}`,
+          });
+        }
+        if (!visit.escortStaffId) {
+          sent += await notify(await recipients({ roles: settings.notify_roles_appointments, staffIds: [manager] }), {
+            kind: "appointment:no-escort",
+            title: `No one is going with ${who} yet`,
+            body: `${what}, ${whenText}. Choose an escort.`,
+            href,
+            tone: "warn",
+            dedupeKey: `appointment:no-escort:${visit.id}:${at}`,
+          });
+        }
+      } else if (now - at > settings.appointment_document_hours * 3_600_000) {
+        sent += await notify(await recipients({ roles: settings.notify_roles_appointments, staffIds: [visit.escortStaffId, manager] }), {
+          kind: "appointment:undocumented",
+          title: `${who}'s ${visit.type.toLowerCase()} visit is not documented`,
+          body: `It was on ${fmt.dateTime(visit.scheduledAt)}. Write what happened, or mark it cancelled or missed.`,
+          href,
+          tone: "bad",
+          dedupeKey: `appointment:undocumented:${visit.id}`,
+        });
+      }
+    }
+
+    // Follow-ups the doctor asked for that are past their date and still not booked.
+    const followUps = await db
+      .select({ id: schema.appointments.id, type: schema.appointments.type, followUpBy: schema.appointments.followUpBy, first: schema.individuals.firstName, homeId: schema.individuals.homeId })
+      .from(schema.appointments)
+      .innerJoin(schema.individuals, eq(schema.individuals.id, schema.appointments.individualId))
+      .where(and(eq(schema.appointments.status, "completed"), eq(schema.appointments.followUpNeeded, true), isNull(schema.appointments.nextAppointmentId), lt(schema.appointments.followUpBy, today)));
+    for (const visit of followUps) {
+      sent += await notify(await recipients({ roles: settings.notify_roles_appointments, staffIds: [await managerOf(visit.homeId)] }), {
+        kind: "appointment:follow-up-overdue",
+        title: `${visit.first}'s ${visit.type.toLowerCase()} follow-up is overdue`,
+        body: `It was needed by ${fmt.day(visit.followUpBy)} and is not booked.`,
+        href: `/app/appointments/${visit.id}`,
+        tone: "bad",
+        dedupeKey: `appointment:follow-up-overdue:${visit.id}`,
+      });
+    }
+
+    // Daily notes past their deadline: the staff member who owes them, their home manager and the chosen roles.
+    const owed = await notesOwed({ from: new Date(now - 3 * 86_400_000) });
+    for (const shift of owed) {
+      const missing = shift.people.filter(person => !person.logId);
+      if (shift.state !== "overdue" || !missing.length) continue;
+      const names = missing.map(person => person.name.split(" ")[0]).join(", ");
+      sent += await notify(await recipients({ staffIds: [shift.staffId] }), {
+        kind: "notes:overdue",
+        title: `You owe ${missing.length} daily ${missing.length === 1 ? "note" : "notes"} from ${fmt.weekday(shift.day)} ${fmt.day(shift.day)}`,
+        body: `${shift.home}, ${shift.pattern}: ${names}.`,
+        href: "/app/daily-logs?view=owed",
+        tone: "bad",
+        dedupeKey: `notes:overdue:${shift.shiftId}`,
+      });
+      const overseers = await recipients({ roles: settings.notify_roles_notes, staffIds: [await managerOf(shift.homeId)] });
+      sent += await notify(
+        overseers.filter(Boolean),
+        {
+          kind: "notes:overdue-team",
+          title: `${shift.staff}: ${missing.length} overdue ${missing.length === 1 ? "note" : "notes"} from ${fmt.weekday(shift.day)} ${fmt.day(shift.day)}`,
+          body: `${shift.home}, ${shift.pattern} on ${fmt.weekday(shift.day)} ${fmt.day(shift.day)}: ${names}.`,
+          href: `/app/daily-logs?view=owed&day=${shift.day}`,
+          tone: "warn",
+          dedupeKey: `notes:overdue-team:${shift.shiftId}`,
+        },
+      );
+    }
+
+    // Reportable incidents close to, or past, their state filing deadline.
+    const hours = settings.incident_report_hours;
+    const incidents = await db
+      .select({ id: schema.incidents.id, occurredAt: schema.incidents.occurredAt, category: schema.incidents.category, homeId: schema.incidents.homeId, first: schema.individuals.firstName })
+      .from(schema.incidents)
+      .leftJoin(schema.individuals, eq(schema.individuals.id, schema.incidents.individualId))
+      .where(and(eq(schema.incidents.reportable, true), isNull(schema.incidents.stateFiledAt), ne(schema.incidents.status, "closed"), gte(schema.incidents.occurredAt, new Date(now - 14 * 86_400_000))));
+    for (const incident of incidents) {
+      const deadline = incident.occurredAt.getTime() + hours * 3_600_000;
+      const overdue = deadline < now;
+      if (!overdue && deadline - now > 6 * 3_600_000) continue;
+      sent += await notify(await recipients({ roles: settings.notify_roles_incidents, staffIds: [await managerOf(incident.homeId)] }), {
+        kind: overdue ? "incident:filing-overdue" : "incident:filing-soon",
+        title: overdue ? `State filing overdue${incident.first ? ` for ${incident.first}` : ""}` : `State filing due by ${fmt.time(new Date(deadline))}`,
+        body: `A reportable ${incident.category.replace("_", " ")} incident from ${fmt.dateTime(incident.occurredAt)} has not been filed.`,
+        href: `/app/incidents/${incident.id}`,
+        tone: overdue ? "bad" : "warn",
+        dedupeKey: `incident:${overdue ? "filing-overdue" : "filing-soon"}:${incident.id}`,
+      });
+    }
+  } finally {
+    state.milestoneSweepRunning = false;
+  }
+  return { sent };
+}
+
+/* Unread count and the latest few, for the bell. */
+export async function bellFor(userId: string) {
+  const [[{ unread }], latest] = await Promise.all([
+    db.select({ unread: sql<number>`count(*)::int` }).from(schema.notifications).where(and(eq(schema.notifications.userId, userId), isNull(schema.notifications.readAt))),
+    db.select().from(schema.notifications).where(eq(schema.notifications.userId, userId)).orderBy(sql`${schema.notifications.readAt} is not null`, sql`${schema.notifications.createdAt} desc`).limit(8),
+  ]);
+  return { unread, latest };
+}
