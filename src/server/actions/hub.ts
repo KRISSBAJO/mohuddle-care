@@ -306,10 +306,11 @@ export async function createStaff(_p: FormState, formData: FormData): Promise<Fo
   if (!parsed.success) return firstError(parsed.error);
   const existing = await db.select({ id: schema.staff.id }).from(schema.staff).where(eq(schema.staff.email, parsed.data.email)).limit(1);
   if (existing.length) return { error: "A staff member with that email already exists." };
-  await db.insert(schema.staff).values(parsed.data);
-  await audit(user.id, "create", "staff");
+  const [row] = await db.insert(schema.staff).values(parsed.data).returning({ id: schema.staff.id });
+  await audit(user.id, "create", "staff", row.id);
   revalidatePath("/app/staff");
-  return {};
+  // Straight to their page, where the next steps are: a login and their credentials.
+  redirect(`/app/staff/${row.id}?created=1`);
 }
 
 const credentialSchema = z.object({
@@ -324,9 +325,12 @@ export async function addCredential(_p: FormState, formData: FormData): Promise<
   const user = await requireManager();
   const parsed = credentialSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
+  const { issuedAt, expiresAt } = parsed.data;
+  if (issuedAt && expiresAt && expiresAt < issuedAt) return { error: "The expiry date is before the issue date." };
   await db.insert(schema.credentials).values(parsed.data);
   await audit(user.id, "create", "credential", parsed.data.staffId);
   revalidatePath("/app/staff");
+  revalidatePath(`/app/staff/${parsed.data.staffId}`);
   revalidatePath("/app");
   return {};
 }

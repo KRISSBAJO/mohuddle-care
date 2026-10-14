@@ -334,3 +334,9 @@
   .landing-page *, .landing-page *::before, .landing-page *::after { animation: none !important; transition: none !important; }
   .landing-scroll-progress { display: none; }
 }
+
+/* Pop-up forms (ModalForm). Native <dialog>: Escape closes it and focus stays inside. */
+.hub-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 0; border-radius: 20px; background: white; color: var(--color-ink); box-shadow: var(--shadow-float); overflow: auto; }
+.hub-dialog::backdrop { background: #0b223966; backdrop-filter: blur(2px); }
+.hub-dialog[open] { animation: rise .25s var(--ease-soft) both; }
+@media (prefers-reduced-motion: reduce) { .hub-dialog[open] { animation: none; } }

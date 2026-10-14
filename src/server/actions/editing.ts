@@ -118,7 +118,9 @@ export async function updateStaff(id: string, _previous: FormState, formData: Fo
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "update", entity: "staff", entityId: id });
   });
   revalidatePath("/app/staff");
-  redirect(`/app/staff/${id}?saved=1`);
+  revalidatePath(`/app/staff/${id}`);
+  // No redirect: the edit pop-up closes itself and the page shows the new details.
+  return {};
 }
 
 /*
