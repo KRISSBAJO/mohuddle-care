@@ -222,3 +222,57 @@ export async function setHomeActive(id: string, active: boolean): Promise<FormSt
   revalidatePath("/app");
   return {};
 }
+
+/* ---------- People we support ---------- */
+
+/*
+ * Discharge ends support without deleting anything. The person leaves the daily lists, their
+ * place in a home is freed, and upcoming medication doses are withdrawn. Their history stays.
+ */
+export async function dischargeIndividual(id: string, _previous: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireManager();
+  if (!uuid.safeParse(id).success) return { error: "Unknown person." };
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 500);
+  if (reason.length < 3) return { error: "Say why support ended, for example moved to another provider." };
+  const day = String(formData.get("date") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Choose the date support ended." };
+  const now = new Date();
+  const done = await db.transaction(async tx => {
+    const [person] = await tx.select().from(schema.individuals).where(eq(schema.individuals.id, id)).for("update");
+    if (!person || !person.active) return false;
+    await tx.update(schema.individuals).set({ active: false, dischargedAt: day, dischargeReason: reason }).where(eq(schema.individuals.id, id));
+    await tx
+      .delete(schema.medAdministrations)
+      .where(and(eq(schema.medAdministrations.individualId, id), eq(schema.medAdministrations.status, "due"), gt(schema.medAdministrations.scheduledFor, now)));
+    await tx.insert(schema.auditLog).values({ userId: user.id, action: "individual:discharge", entity: "individual", entityId: id });
+    return true;
+  });
+  if (!done) return { error: "This person is already discharged. Refresh the page." };
+  revalidatePath(`/app/individuals/${id}`);
+  revalidatePath("/app/individuals");
+  revalidatePath("/app/homes");
+  revalidatePath("/app");
+  return {};
+}
+
+export async function readmitIndividual(id: string): Promise<FormState> {
+  const user = await requireManager();
+  if (!uuid.safeParse(id).success) return { error: "Unknown person." };
+  const [person] = await db.select().from(schema.individuals).where(eq(schema.individuals.id, id)).limit(1);
+  if (!person) return { error: "Unknown person." };
+  if (person.homeId) {
+    const [home] = await db.select().from(schema.homes).where(eq(schema.homes.id, person.homeId)).limit(1);
+    const placed = await residentsIn(person.homeId);
+    // Their old place may be taken or the home closed. Readmit without a home rather than overfill it.
+    if (!home?.active || placed >= home.capacity) {
+      await db.update(schema.individuals).set({ homeId: null }).where(eq(schema.individuals.id, id));
+    }
+  }
+  await db.update(schema.individuals).set({ active: true, dischargedAt: null, dischargeReason: "" }).where(eq(schema.individuals.id, id));
+  await db.insert(schema.auditLog).values({ userId: user.id, action: "individual:readmit", entity: "individual", entityId: id });
+  revalidatePath(`/app/individuals/${id}`);
+  revalidatePath("/app/individuals");
+  revalidatePath("/app/homes");
+  revalidatePath("/app");
+  return {};
+}

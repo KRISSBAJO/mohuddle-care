@@ -10,7 +10,7 @@ type Props = {
   title: string;
   description?: string;
   triggerLabel: string;
-  triggerIcon?: "plus" | "pencil";
+  triggerIcon?: "plus" | "pencil" | "none";
   triggerTone?: "brand" | "ghost";
   submitLabel: string;
   /* Opens the pop-up as soon as the page loads, for example after following an "add" link. */
@@ -39,7 +39,7 @@ export function ModalForm({ action, title, description, triggerLabel, triggerIco
     if (startOpen) dialog.current?.showModal();
   }, [startOpen]);
 
-  const Icon = triggerIcon === "pencil" ? Pencil : Plus;
+  const Icon = triggerIcon === "none" ? null : triggerIcon === "pencil" ? Pencil : Plus;
 
   return (
     <>
@@ -48,7 +48,7 @@ export function ModalForm({ action, title, description, triggerLabel, triggerIco
         className={cn(triggerTone === "brand" ? "btn-brand" : "btn-ghost", "btn-sm")}
         onClick={() => dialog.current?.showModal()}
       >
-        <Icon className="h-4 w-4" aria-hidden="true" /> {triggerLabel}
+        {Icon && <Icon className="h-4 w-4" aria-hidden="true" />} {triggerLabel}
       </button>
       <dialog
         ref={dialog}

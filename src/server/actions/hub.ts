@@ -52,7 +52,7 @@ export async function createIndividual(_p: FormState, formData: FormData): Promi
   const [row] = await db.insert(schema.individuals).values(parsed.data).returning({ id: schema.individuals.id });
   await audit(user.id, "create", "individual", row.id);
   revalidatePath("/app/individuals");
-  redirect(`/app/individuals/${row.id}`);
+  redirect(`/app/individuals/${row.id}?saved=created`);
 }
 
 export async function updateIndividual(id: string, _p: FormState, formData: FormData): Promise<FormState> {
@@ -62,7 +62,9 @@ export async function updateIndividual(id: string, _p: FormState, formData: Form
   await db.update(schema.individuals).set(parsed.data).where(eq(schema.individuals.id, id));
   await audit(user.id, "update", "individual", id);
   revalidatePath(`/app/individuals/${id}`);
-  redirect(`/app/individuals/${id}`);
+  revalidatePath("/app/individuals");
+  // No redirect: the edit pop-up closes itself and the page shows the new details.
+  return {};
 }
 
 const goalSchema = z.object({

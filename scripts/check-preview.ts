@@ -23,7 +23,7 @@ async function main() {
     const routes = ["/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];
     if (people[0]) routes.push(`/app/individuals/${people[0].id}`, `/app/individuals/${people[0].id}/edit`);
     if (incidents[0]) routes.push(`/app/incidents/${incidents[0].id}`);
-    routes.push("/app/account", "/app/staff?q=a&role=dsp&login=none&cred=any&sort=expiry&dir=desc&per=10&page=2", "/app/staff?status=all&sort=home");
+    routes.push("/app/account", "/app/staff?q=a&role=dsp&login=none&cred=any&sort=expiry&dir=desc&per=10&page=2", "/app/staff?status=all&sort=home", "/app/individuals?q=e&attention=no-log&sort=lastLog&dir=desc&per=10&page=3", "/app/individuals?status=all&sort=age");
     const { rows: staff } = await pool.query("select id from staff where active limit 1");
     const { rows: homes } = await pool.query("select id from homes where active limit 1");
     const { rows: meds } = await pool.query("select id, individual_id from medications where active limit 1");

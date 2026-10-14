@@ -125,6 +125,9 @@ export const individuals = pgTable("individuals", {
   diagnoses: text("diagnoses").notNull().default(""),
   supportNotes: text("support_notes").notNull().default(""),
   active: boolean("active").notNull().default(true),
+  // Set when support ends. The record and its history stay; active is false while discharged.
+  dischargedAt: date("discharged_at"),
+  dischargeReason: text("discharge_reason").notNull().default(""),
   createdAt: createdAt(),
 });
 
