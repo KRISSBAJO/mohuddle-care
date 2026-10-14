@@ -1,43 +1,160 @@
-import { ActionForm } from "@/components/app/ActionForm";
+import Link from "next/link";
+import { ArrowRight, CalendarDays, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Wallet, type LucideIcon } from "lucide-react";
+import { ListEditor, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { SettingsNav } from "@/components/app/SettingsNav";
-import { Field, PageHeader, Panel } from "@/components/app/ui";
+import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
 import { requireManager } from "@/server/guard";
 import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
 
 export const metadata = { title: "Settings" };
 
+type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number };
+type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?: [string, string]; items: Item[] };
+
+/* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
+const GROUPS: Group[] = [
+  {
+    id: "notes",
+    title: "Daily notes",
+    icon: ClipboardList,
+    intro: "When notes are due, what every note must confirm, and the lists staff pick from.",
+    link: ["/app/settings/notes", "Sections and extra questions"],
+    items: [
+      { key: "shift_note_grace_hours", title: "Notes due after a shift ends", help: "Staff must finish their notes within this time. After it, they show as overdue.", unit: "hours", min: 0, max: 48 },
+      { key: "daily_log_due_hour", title: "End-of-day deadline", help: "The Today page lists people still without a note for the day until this hour (0 to 23).", unit: ":00 Central", min: 0, max: 23 },
+      { key: "daily_log_summary_min_chars", title: "Shortest shift summary", help: "Stops one-word summaries such as \"fine\". 0 turns the check off.", unit: "characters", min: 0, max: 500 },
+      { key: "required_daily_checks", title: "Checks every note must confirm", help: "Staff tick each one before they can save." },
+      { key: "adl_items", title: "Personal care tasks", help: "The rows in the personal care section." },
+      { key: "prompt_levels", title: "Levels of support", help: "From least to most help. Used for personal care and plan goals." },
+      { key: "activity_types", title: "Activity types", help: "What staff can tick in the activities section." },
+      { key: "log_locations", title: "Where support was given", help: "The choices for where each shift happened." },
+    ],
+  },
+  {
+    id: "medication",
+    title: "Medication",
+    icon: Pill,
+    intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
+    items: [{ key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 }],
+  },
+  {
+    id: "incidents",
+    title: "Incidents",
+    icon: ShieldAlert,
+    intro: "The filing deadline for incidents reportable to the state.",
+    items: [{ key: "incident_report_hours", title: "File reportable incidents within", help: "The countdown on each reportable incident starts from when it happened.", unit: "hours", min: 1, max: 72 }],
+  },
+  {
+    id: "schedule",
+    title: "Schedule and staffing",
+    icon: CalendarDays,
+    intro: "How the schedule judges coverage, overtime and rest. Shift times are set as shift patterns.",
+    link: ["/app/settings/shifts", "Shift patterns"],
+    items: [
+      { key: "shift_coverage_minimum", title: "Staff needed per shift", help: "The fewest people on duty at a home during each pattern it needs.", unit: "people", min: 1, max: 10 },
+      { key: "overtime_weekly_hours", title: "Overtime warning above", help: "Staff scheduled for more than this in a week are flagged.", unit: "hours a week", min: 8, max: 100 },
+      { key: "min_rest_hours", title: "Shortest rest between shifts", help: "Less rest than this between one person's shifts is flagged.", unit: "hours", min: 0, max: 24 },
+    ],
+  },
+  {
+    id: "staff",
+    title: "Staff and logins",
+    icon: KeyRound,
+    intro: "Credential tracking and how staff sign in.",
+    items: [
+      { key: "credential_types", title: "Credentials tracked", help: "The types offered when adding a credential to a staff member." },
+      { key: "credential_warning_days", title: "Warn before a credential expires", help: "Expiring credentials show on the Today page and the schedule this far ahead.", unit: "days", min: 1, max: 365 },
+      { key: "login_link_valid_hours", title: "Setup and reset links last", help: "How long a one-time sign-in link works.", unit: "hours", min: 1, max: 168 },
+      { key: "password_min_length", title: "Shortest password", help: "For staff choosing a password (8 to 64).", unit: "characters", min: 8, max: 64 },
+    ],
+  },
+  {
+    id: "homes",
+    title: "Homes and money",
+    icon: Wallet,
+    intro: "Expense approval and the categories for expenses and home issues.",
+    items: [
+      { key: "expense_approval_dollars", title: "Expenses need approval above", help: "Smaller expenses are approved at once. 0 means every expense waits for approval.", unit: "dollars", min: 0, max: 100000 },
+      { key: "expense_categories", title: "Expense categories", help: "Offered when staff add a home expense." },
+      { key: "issue_categories", title: "Home issue categories", help: "Offered when staff report a home issue." },
+    ],
+  },
+];
+
+/* Business rules, grouped by area, each group saved on its own. */
 export default async function SettingsPage() {
   await requireManager();
   const settings = await getSettings();
-  const keys = Object.keys(settingDefs) as SettingKey[];
+  const grouped = new Set(GROUPS.flatMap(group => group.items.map(item => item.key)));
+  const others = (Object.keys(settingDefs) as SettingKey[]).filter(key => !grouped.has(key));
+  const groups: Group[] = others.length
+    ? [...GROUPS, { id: "other", title: "Other", icon: Settings2, intro: "Rules not yet placed in a group.", items: others.map(key => ({ key, title: settingDefs[key].label, help: "" })) }]
+    : GROUPS;
+
   return (
-    <div className="max-w-3xl">
-      <PageHeader eyebrow="Settings" title="Business rules" description="These rules drive the Today page, the medication record, the schedule and every daily log. Change them here and the whole Hub follows." />
+    <div className="max-w-6xl">
+      <PageHeader eyebrow="Settings" title="Business rules" description="These rules drive the Today page, daily notes, the medication record, incidents and the schedule. Each group saves on its own." />
       <SettingsNav current="/app/settings" />
-      <Panel>
-        <div className="p-5">
-          <ActionForm action={saveSettings} submitLabel="Save settings">
-            {keys.map(key => {
-              const def: { label: string; kind: "number" | "list" | "text" } = settingDefs[key];
-              const value = settings[key];
-              return def.kind === "list" ? (
-                <Field key={key} label={def.label} htmlFor={key}>
-                  <textarea id={key} name={key} rows={5} className="field" defaultValue={(value as string[]).join("\n")} />
-                </Field>
-              ) : def.kind === "text" ? (
-                <Field key={key} label={def.label} htmlFor={key}>
-                  <input id={key} name={key} className="field max-w-xs font-mono" defaultValue={String(value)} />
-                </Field>
-              ) : (
-                <Field key={key} label={def.label} htmlFor={key}>
-                  <input id={key} name={key} type="number" className="field max-w-xs" defaultValue={String(value)} />
-                </Field>
-              );
-            })}
-          </ActionForm>
+
+      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <nav className="hidden lg:block" aria-label="Rule groups">
+          <ul className="sticky top-4 space-y-1">
+            {groups.map(group => (
+              <li key={group.id}>
+                <a href={`#${group.id}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-mute hover:bg-panel hover:text-ink">
+                  <group.icon className="h-4 w-4" /> {group.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="space-y-6">
+          {groups.map(group => (
+            <section key={group.id} id={group.id} className="card scroll-mt-4 overflow-hidden">
+              <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky text-brand-deep"><group.icon className="h-4 w-4" /></span>
+                  <div>
+                    <h2 className="text-lg font-bold">{group.title}</h2>
+                    <p className="text-sm text-mute">{group.intro}</p>
+                  </div>
+                </div>
+                {group.link && (
+                  <Link href={group.link[0]} className="inline-flex items-center gap-1 text-sm font-semibold text-brand hover:text-brand-deep">
+                    {group.link[1]} <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </header>
+              <SettingsGroupForm action={saveSettings} submitLabel={`Save ${group.title.toLowerCase()}`}>
+                {group.items.map(item => {
+                  const def = settingDefs[item.key] as { kind: "number" | "list" | "text" };
+                  const value = settings[item.key];
+                  return (
+                    <div key={item.key} className={def.kind === "list" ? "px-5 py-4" : "grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_16rem] sm:items-center"}>
+                      <div className={def.kind === "list" ? "mb-3" : undefined}>
+                        <label htmlFor={item.key} className="text-sm font-semibold">{item.title}</label>
+                        {item.help && <p className="text-xs text-mute">{item.help}</p>}
+                      </div>
+                      {def.kind === "list" ? (
+                        <ListEditor name={item.key} initial={value as string[]} />
+                      ) : def.kind === "text" ? (
+                        <input id={item.key} name={item.key} className="field font-mono" defaultValue={String(value)} />
+                      ) : (
+                        <div className="flex items-center overflow-hidden rounded-xl border border-line bg-white focus-within:border-brand">
+                          <input id={item.key} name={item.key} type="number" min={item.min} max={item.max} required className="w-full border-0 bg-transparent px-3.5 py-2.5 text-sm font-semibold outline-none" defaultValue={String(value)} />
+                          {item.unit && <span className="shrink-0 border-l border-line bg-panel/60 px-3 py-2.5 text-xs text-mute">{item.unit}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </SettingsGroupForm>
+            </section>
+          ))}
         </div>
-      </Panel>
+      </div>
     </div>
   );
 }
