@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -40,6 +40,19 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const visible = items.filter(item => !item.manager || manager);
+
+  // The phone menu is a drawer over the page: Escape closes it and the page behind does not scroll.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-0.5" aria-label="Hub">
@@ -89,21 +102,47 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
         {account}
       </aside>
 
-      <div className="flex items-center justify-between bg-ink px-4 py-3 text-white lg:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between bg-ink px-4 py-3 text-white lg:hidden">
         <Link href="/app" className="flex items-center gap-2">
           <Logo className="h-7 w-7" />
           <span className="font-display font-bold">Milestone Hub</span>
         </Link>
-        <button type="button" onClick={() => setOpen(v => !v)} aria-label={open ? "Close menu" : "Open menu"} className="rounded-lg p-2 hover:bg-white/10">
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} aria-controls="hub-drawer" className="rounded-lg p-2 hover:bg-white/10">
+          <Menu className="h-5 w-5" />
         </button>
       </div>
-      {open && (
-        <div className="flex flex-col bg-ink p-4 text-white lg:hidden">
+      <div className={cn("fixed inset-0 z-50 lg:hidden", open ? "pointer-events-auto" : "pointer-events-none")} aria-hidden={!open}>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close menu"
+          onClick={() => setOpen(false)}
+          className={cn("absolute inset-0 bg-ink/50 backdrop-blur-[2px] transition-opacity duration-200", open ? "opacity-100" : "opacity-0")}
+        />
+        <div
+          id="hub-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Hub menu"
+          inert={!open}
+          className={cn(
+            "absolute inset-y-0 left-0 flex w-[min(300px,85vw)] flex-col overflow-y-auto bg-ink p-4 text-white shadow-[var(--shadow-float)] transition-transform duration-200 ease-[var(--ease-soft)] motion-reduce:transition-none",
+            open ? "translate-x-0" : "-translate-x-full",
+          )}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <Link href="/app" onClick={() => setOpen(false)} className="flex items-center gap-2">
+              <Logo className="h-7 w-7" />
+              <span className="font-display font-bold">Milestone Hub</span>
+            </Link>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-2 hover:bg-white/10">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
           {nav}
-          {account}
+          <div className="mt-4">{account}</div>
         </div>
-      )}
+      </div>
     </>
   );
 }

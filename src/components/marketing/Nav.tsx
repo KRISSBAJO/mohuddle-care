@@ -25,7 +25,19 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // The phone menu drops over the page instead of pushing it down. Escape closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
+    <>
+    {open && (
+      <button type="button" tabIndex={-1} aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-ink/30 backdrop-blur-[2px] lg:hidden" />
+    )}
     <header
       className={`sticky top-0 z-40 bg-ground/95 backdrop-blur-md transition-all duration-300 ${
         scrolled ? "border-b border-line shadow-sm" : "border-b border-transparent"
@@ -62,7 +74,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className="border-t border-line bg-ground lg:hidden">
+        <div className="absolute inset-x-0 top-full max-h-[calc(100dvh-72px)] overflow-y-auto border-t border-line bg-ground shadow-[var(--shadow-float)] lg:hidden">
           <nav className="container-x flex flex-col gap-1 py-4" aria-label="Mobile">
             {links.map(link => (
               <Link
@@ -86,5 +98,6 @@ export function Nav() {
         </div>
       )}
     </header>
+    </>
   );
 }
