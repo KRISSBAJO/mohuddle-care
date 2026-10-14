@@ -12,7 +12,7 @@ import { requireUser } from "@/server/guard";
 import { pushPublicKey } from "@/server/push";
 import { getSettings } from "@/server/settings";
 
-export const metadata: Metadata = { title: { default: "Hub", template: "%s | Mohuddle" } };
+export const metadata: Metadata = { title: { absolute: "Today | Mohuddle", template: "%s | Mohuddle" } };
 
 export default async function HubLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
