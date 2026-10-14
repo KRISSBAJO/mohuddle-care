@@ -5,7 +5,7 @@ import { requireManager } from "@/server/guard";
 import { listEnquiries } from "@/server/queries/hub";
 
 export const metadata = { title: "Website messages" };
-const kindLabel: Record<string, string> = { contact: "Enquiry", referral: "Referral", careers: "Job interest", foster: "Foster interest" };
+const kindLabel: Record<string, string> = { contact: "Enquiry", referral: "Referral", careers: "Job interest", foster: "Foster interest", demo: "Mohuddle demo" };
 
 export default async function EnquiriesPage() {
   await requireManager();

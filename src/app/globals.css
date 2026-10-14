@@ -365,3 +365,19 @@ body:has(.hub-shell) {
 @font-face { font-family: "Sig Vibes"; src: url("/fonts/GreatVibes.ttf") format("truetype"); font-display: block; }
 @font-face { font-family: "Sig Caveat"; src: url("/fonts/Caveat.ttf") format("truetype"); font-display: block; }
 @font-face { font-family: "Sig Apple"; src: url("/fonts/HomemadeApple.ttf") format("truetype"); font-display: block; }
+
+/* Mohuddle product site. Inter for reading, Bricolage for headings. */
+.mh-page { font-family: var(--font-inter), "Helvetica Neue", Arial, sans-serif; background: #f7f8f5; }
+.mh-hero { background-image: radial-gradient(900px 500px at 85% 10%, #1f5a48 0%, transparent 60%), radial-gradient(700px 400px at 0% 100%, #173e35 0%, transparent 60%); }
+.mh-demo-bar { height: 30%; animation: mh-wave 1.1s ease-in-out infinite; }
+.mh-demo-mic { animation: mh-pulse 2s ease-out infinite; }
+.mh-demo-words { animation: mh-words 12s linear infinite; }
+.mh-demo-part, .mh-demo-sign { animation: mh-part 12s ease-out infinite both; }
+.mh-demo-sign { animation-delay: 6.4s; }
+@keyframes mh-wave { 0%, 100% { height: 18%; } 50% { height: 95%; } }
+@keyframes mh-pulse { 0% { box-shadow: 0 0 0 0 #ab3c2b66; } 70%, 100% { box-shadow: 0 0 0 12px #ab3c2b00; } }
+@keyframes mh-words { 0% { clip-path: inset(0 0 100% 0); opacity: .3; } 24%, 100% { clip-path: inset(0 0 0 0); opacity: 1; } }
+@keyframes mh-part { 0%, 20% { opacity: 0; transform: translateY(8px); } 30%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mh-demo-bar, .mh-demo-mic, .mh-demo-words, .mh-demo-part, .mh-demo-sign { animation: none; }
+}

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db, schema } from "@/server/db";
 
 const enquirySchema = z.object({
-  kind: z.enum(["contact", "referral", "careers", "foster"]).default("contact"),
+  kind: z.enum(["contact", "referral", "careers", "foster", "demo"]).default("contact"),
   name: z.string().trim().min(2, "Please tell us your name.").max(120),
   email: z.email("Please enter a valid email address.").max(200),
   phone: z.string().trim().max(40).default(""),
