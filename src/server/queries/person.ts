@@ -178,7 +178,8 @@ async function careTeam(id: string, since: Date) {
 
 /* Goals and the progress notes staff wrote about them in daily logs. */
 export async function personCarePlan(id: string) {
-  const [goals, progress, logCount] = await Promise.all([
+  const today = dateKey();
+  const [goals, progress, logCount, worked] = await Promise.all([
     db.select().from(schema.planGoals).where(eq(schema.planGoals.individualId, id)).orderBy(sql`case ${schema.planGoals.status} when 'active' then 0 when 'paused' then 1 else 2 end`, sql`${schema.planGoals.targetDate} asc nulls last`, asc(schema.planGoals.createdAt)),
     db
       .select({ id: schema.dailyLogs.id, day: schema.dailyLogs.logDate, text: schema.dailyLogs.goalProgress, staff: staffName })
@@ -187,9 +188,15 @@ export async function personCarePlan(id: string) {
       .where(and(eq(schema.dailyLogs.individualId, id), ne(schema.dailyLogs.goalProgress, "")))
       .orderBy(desc(schema.dailyLogs.logDate), desc(schema.dailyLogs.createdAt))
       .limit(15),
-    db.select({ n: count() }).from(schema.dailyLogs).where(and(eq(schema.dailyLogs.individualId, id), gte(schema.dailyLogs.logDate, addDays(dateKey(), -29)))),
+    db.select({ n: count() }).from(schema.dailyLogs).where(and(eq(schema.dailyLogs.individualId, id), gte(schema.dailyLogs.logDate, addDays(today, -29)))),
+    // Days each goal was worked on this month or week, whichever began first, for "documented 1 of 3".
+    db
+      .selectDistinct({ goalId: schema.dailyLogGoals.goalId, day: schema.dailyLogs.logDate })
+      .from(schema.dailyLogGoals)
+      .innerJoin(schema.dailyLogs, eq(schema.dailyLogs.id, schema.dailyLogGoals.logId))
+      .where(and(eq(schema.dailyLogs.individualId, id), eq(schema.dailyLogGoals.offered, "yes"), gte(schema.dailyLogs.logDate, addDays(today, -31)))),
   ]);
-  return { goals, progress, logsLast30: logCount[0]?.n ?? 0 };
+  return { goals, progress, logsLast30: logCount[0]?.n ?? 0, worked };
 }
 
 export type MarCell = { id: string; status: (typeof schema.medStatus.enumValues)[number]; recordedAt: Date | null; note: string; staff: string | null };

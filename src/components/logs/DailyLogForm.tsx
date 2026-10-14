@@ -7,6 +7,7 @@ import { Select } from "@/components/app/Select";
 import { FollowUpQuestion } from "@/components/logs/FollowUpQuestion";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
+import { periodWord, type GoalProgress } from "@/lib/goal-progress";
 import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, shiftMinutes } from "@/lib/log-note";
 import type { NoteConfig, NoteItem, SectionKey } from "@/lib/note-requirements";
 import { isoWeekday, kindFor, type ShiftPattern } from "@/lib/schedule";
@@ -20,7 +21,7 @@ export type LogPerson = {
   home: string | null;
   allergies: string;
   supportNotes: string;
-  goals: { id: string; title: string; description: string }[];
+  goals: { id: string; title: string; description: string; measurableStep: string; setupNotes: string; workedToday: boolean; progress: GoalProgress }[];
   homeId: string | null;
   myRecentLogs: { shiftId: string | null; logDate: string; shift: Shift | null }[];
 };
@@ -501,8 +502,13 @@ export function DailyLogForm(props: Props) {
               const key = `goal-${goal.id.slice(0, 8)}`;
               return (
                 <div key={goal.id} className={cn("rounded-xl border p-4", choice === "yes" ? "border-sage/50 bg-sage-soft/30" : "border-line")}>
-                  <p className="font-semibold">{goal.title}</p>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-semibold">{goal.title}</p>
+                    <GoalCount progress={goal.progress} adding={choice === "yes" && !goal.workedToday} />
+                  </div>
                   {goal.description && <p className="text-sm text-mute">{goal.description}</p>}
+                  {goal.measurableStep && <p className="mt-1 text-sm"><span className="font-semibold">Step: </span>{goal.measurableStep}</p>}
+                  {goal.setupNotes && <p className="mt-1 text-xs text-mute">For staff: {goal.setupNotes}</p>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {Object.entries(GOAL_OFFERED).map(([value, text]) => (
                       <label key={value} className={cn(chip, "py-1.5")}>
@@ -698,6 +704,20 @@ export function DailyLogForm(props: Props) {
 }
 
 /* One extra question, drawn by its answer type. */
+/* "Documented 1 of 3 this week", turning green once the plan's count is reached. Choosing
+   "Worked on it" shows what this note brings it to; a second note on the same day adds no day. */
+function GoalCount({ progress, adding }: { progress: GoalProgress; adding: boolean }) {
+  const count = progress.count + (adding ? 1 : 0);
+  const met = progress.target !== null && count >= progress.target;
+  const text = progress.target === null ? `Worked on ${count} ${count === 1 ? "time" : "times"} ${periodWord[progress.period]}` : `Documented ${count} of ${progress.target} ${periodWord[progress.period]}`;
+  return (
+    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums", met ? "bg-sage-soft text-sage" : progress.target === null ? "bg-panel text-mute" : "bg-[#fdf3e1] text-[#8a5a10]")}>
+      {text}
+      {adding && <span className="font-normal"> with this note</span>}
+    </span>
+  );
+}
+
 function ExtraField({ item, personId }: { item: NoteItem; personId: string }) {
   const name = `extra.${item.id}`;
   const id = `extra-${item.id.slice(0, 8)}`;

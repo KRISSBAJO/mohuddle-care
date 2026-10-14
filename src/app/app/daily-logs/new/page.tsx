@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { DailyLogForm, type LogPerson, type MyShift } from "@/components/logs/DailyLogForm";
 import { PageHeader } from "@/components/app/ui";
 import { dateKey } from "@/lib/format";
+import { earliestStart, goalProgress } from "@/lib/goal-progress";
 import { clockOf } from "@/lib/schedule";
 import { activePatterns } from "@/server/queries/patterns";
 import { configAbove, configsForPeople } from "@/server/queries/note-requirements";
@@ -35,7 +36,16 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
   const [goals, todays] = ids.length
     ? await Promise.all([
         db
-          .select({ id: schema.planGoals.id, individualId: schema.planGoals.individualId, title: schema.planGoals.title, description: schema.planGoals.description })
+          .select({
+            id: schema.planGoals.id,
+            individualId: schema.planGoals.individualId,
+            title: schema.planGoals.title,
+            description: schema.planGoals.description,
+            measurableStep: schema.planGoals.measurableStep,
+            frequencyCount: schema.planGoals.frequencyCount,
+            frequencyPeriod: schema.planGoals.frequencyPeriod,
+            setupNotes: schema.planGoals.setupNotes,
+          })
           .from(schema.planGoals)
           .where(and(inArray(schema.planGoals.individualId, ids), eq(schema.planGoals.status, "active")))
           .orderBy(asc(schema.planGoals.createdAt)),
@@ -48,6 +58,16 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
           : [],
       ])
     : [[], []];
+
+  // Days each goal was worked on since the earliest period start, for "documented 1 of 3 this week".
+  const since = earliestStart(goals.map(goal => goal.frequencyPeriod), today);
+  const worked = goals.length
+    ? await db
+        .selectDistinct({ goalId: schema.dailyLogGoals.goalId, day: schema.dailyLogs.logDate })
+        .from(schema.dailyLogGoals)
+        .innerJoin(schema.dailyLogs, eq(schema.dailyLogs.id, schema.dailyLogGoals.logId))
+        .where(and(inArray(schema.dailyLogGoals.goalId, goals.map(goal => goal.id)), eq(schema.dailyLogGoals.offered, "yes"), gte(schema.dailyLogs.logDate, since)))
+    : [];
 
   // The writer's shifts that started in the last 36 hours or start within the next 2: the ones a note can be for.
   const shiftRows = user.staffId
@@ -77,7 +97,17 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
     home: person.home,
     allergies: person.allergies,
     supportNotes: person.supportNotes,
-    goals: goals.filter(goal => goal.individualId === person.id).map(({ id, title, description }) => ({ id, title, description })),
+    goals: goals
+      .filter(goal => goal.individualId === person.id)
+      .map(goal => ({
+        id: goal.id,
+        title: goal.title,
+        description: goal.description,
+        measurableStep: goal.measurableStep,
+        setupNotes: goal.setupNotes,
+        workedToday: worked.some(row => row.goalId === goal.id && row.day === today),
+        progress: goalProgress(worked.filter(row => row.goalId === goal.id).map(row => row.day), goal.frequencyCount, goal.frequencyPeriod, today),
+      })),
     homeId: person.homeId,
     myRecentLogs: todays.filter(row => row.individualId === person.id).map(row => ({ shiftId: row.shiftId, logDate: row.logDate, shift: row.shift as Shift | null })),
   }));

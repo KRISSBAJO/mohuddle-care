@@ -59,13 +59,21 @@ const goalSchema = z.object({
   title: z.string().trim().min(3, "Give the goal a title.").max(160),
   description: optional(1000),
   targetDate: optionalDate,
+  measurableStep: optional(500),
+  // "3 per week": how often the plan says staff work on it. Blank means no set count.
+  frequencyCount: z.union([z.literal(""), z.coerce.number().int().min(1, "How often must be 1 or more.").max(31, "How often can be at most 31.")]).default("").transform(value => (value === "" ? null : value)),
+  frequencyPeriod: z.enum(["day", "week", "month"]).default("week"),
+  setupNotes: optional(1000),
 });
+
+/* A period only means something with a count. */
+const withPeriod = <T extends { frequencyCount: number | null; frequencyPeriod: "day" | "week" | "month" }>(goal: T) => ({ ...goal, frequencyPeriod: goal.frequencyCount ? goal.frequencyPeriod : null });
 
 export async function addGoal(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
   const parsed = goalSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
-  const [goal] = await db.insert(schema.planGoals).values(parsed.data).returning({ id: schema.planGoals.id });
+  const [goal] = await db.insert(schema.planGoals).values(withPeriod(parsed.data)).returning({ id: schema.planGoals.id });
   await audit(user.id, "create", "goal", goal.id);
   revalidatePath(`/app/individuals/${parsed.data.individualId}`);
   return {};
@@ -84,7 +92,7 @@ export async function updateGoal(goalId: string, _p: FormState, formData: FormDa
   if (!uuid.safeParse(goalId).success) return { error: "This goal no longer exists." };
   const parsed = goalSchema.omit({ individualId: true }).safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
-  const [goal] = await db.update(schema.planGoals).set(parsed.data).where(eq(schema.planGoals.id, goalId)).returning({ individualId: schema.planGoals.individualId });
+  const [goal] = await db.update(schema.planGoals).set(withPeriod(parsed.data)).where(eq(schema.planGoals.id, goalId)).returning({ individualId: schema.planGoals.individualId });
   if (!goal) return { error: "This goal no longer exists." };
   await audit(user.id, "update", "goal", goalId);
   revalidatePath(`/app/individuals/${goal.individualId}`);
