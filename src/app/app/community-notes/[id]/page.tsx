@@ -3,10 +3,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, PenLine, Users } from "lucide-react";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar } from "@/components/app/ui";
+import { NoteReviewPanel } from "@/components/logs/NoteReviewPanel";
 import { durationWords } from "@/lib/community-note";
 import { fmt, initials } from "@/lib/format";
 import { clockLabel } from "@/lib/log-note";
+import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
+import { noteReview } from "@/server/queries/note-review";
+import { getSettings } from "@/server/settings";
 import { communityNoteRecord } from "@/server/queries/community-notes";
 
 export const metadata = { title: "Community Participation note" };
@@ -21,13 +25,14 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
 }
 
 /* One signed Community Participation note, laid out for review and printing. */
-export default async function CommunityNotePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
-  await requireUser();
+export default async function CommunityNotePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; edited?: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, edited } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const record = await communityNoteRecord(id);
+  const [record, settings, now] = await Promise.all([communityNoteRecord(id), getSettings(), requestTime()]);
   if (!record) notFound();
+  const review = await noteReview("community", id, user, settings, now);
   const { note } = record;
 
   return (
@@ -45,6 +50,8 @@ export default async function CommunityNotePage({ params, searchParams }: { para
           <Link href={`/app/community-notes/new?individual=${note.individualId}`} className="btn-ghost btn-sm">Another for {record.first}</Link>
         </div>
       )}
+
+      {review && <NoteReviewPanel kind="community" id={id} review={review} edited={Boolean(edited)} />}
 
       <div className="card p-6 sm:p-8">
         <div className="mb-4 flex items-center gap-4 border-b border-line pb-5">

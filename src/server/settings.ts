@@ -86,6 +86,30 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(500),
     fallback: 60,
   },
+  note_review_roles: {
+    label: "Login roles that review and approve notes (admin, coordinator, nurse, dsp). Home managers review their own home too.",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator"],
+  },
+  note_review_checks: {
+    label: "What flags a note for a closer look (late, no_punch, outside_punch, attention, resubmitted)",
+    kind: "list",
+    schema: z.array(z.enum(["late", "no_punch", "outside_punch", "attention", "resubmitted"])),
+    fallback: ["late", "no_punch", "outside_punch", "attention", "resubmitted"],
+  },
+  note_punch_tolerance_minutes: {
+    label: "A note's times may differ from the clock punch by up to this many minutes before it is flagged (0 to 240)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(240),
+    fallback: 15,
+  },
+  note_bulk_flagged: {
+    label: "Bulk approval of flagged notes (skip or allow)",
+    kind: "text",
+    schema: z.enum(["skip", "allow"]),
+    fallback: "skip",
+  },
   cp_note_min_chars: {
     label: "The note on a Community Participation note must be at least this many characters (0 to 500)",
     kind: "number",

@@ -176,6 +176,13 @@
       "when": 1792013819169,
       "tag": "0024_military_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792014180051,
+      "tag": "0025_jittery_lockjaw",
+      "breakpoints": true
     }
   ]
 }

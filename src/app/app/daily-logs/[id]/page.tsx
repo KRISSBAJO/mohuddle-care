@@ -4,20 +4,24 @@ import { ArrowLeft, ClipboardList, ShieldAlert } from "lucide-react";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar } from "@/components/app/ui";
 import { LogNoteView } from "@/components/logs/LogNoteView";
+import { NoteReviewPanel } from "@/components/logs/NoteReviewPanel";
 import { initials } from "@/lib/format";
+import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
+import { noteReview } from "@/server/queries/note-review";
 import { logRecord } from "@/server/queries/logs";
 import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "Daily log" };
 
-export default async function DailyLogPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
-  await requireUser();
+export default async function DailyLogPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; edited?: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, edited } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [record, settings] = await Promise.all([logRecord(id), getSettings()]);
+  const [record, settings, now] = await Promise.all([logRecord(id), getSettings(), requestTime()]);
   if (!record) notFound();
+  const review = await noteReview("daily", id, user, settings, now);
   const { log } = record;
   const personHref = `/app/individuals/${log.individualId}`;
 
@@ -42,6 +46,8 @@ export default async function DailyLogPage({ params, searchParams }: { params: P
           </div>
         </div>
       )}
+
+      {review && <NoteReviewPanel kind="daily" id={id} review={review} edited={Boolean(edited)} />}
 
       <div className="card p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-4 border-b border-line pb-5">

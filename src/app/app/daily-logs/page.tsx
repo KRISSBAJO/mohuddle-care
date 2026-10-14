@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardCheck, ClipboardList, Clock, Home as HomeIcon, Plus, Search, Users } from "lucide-react";
+import { ArrowRight, ClipboardCheck, ClipboardList, Clock, Home as HomeIcon, Plus, Search, ShieldCheck, Undo2, Users } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
 import { Select } from "@/components/app/Select";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
 import { CoverageLegend, DaySquare, MoodBadge, dayHead } from "@/components/logs/LogBrowserParts";
 import { OwedShifts } from "@/components/logs/OwedShifts";
+import { ReviewTable } from "@/components/logs/ReviewTable";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { addDays, dateKey, fmt, label, zonedTime } from "@/lib/format";
 import { coverage, percent } from "@/lib/log-browser";
-import { canManage } from "@/server/auth";
+import { canManage, type SessionUser } from "@/server/auth";
+import { requestTime } from "@/server/clock";
+import { myReturned, reviewQueue, reviewWaiting } from "@/server/queries/note-review";
+import { KIND_WORDS } from "@/lib/note-review";
 import { requireUser } from "@/server/guard";
 import { listHomes } from "@/server/queries/hub";
 import { allNotes, homesOverview, moodFilters, notePageSizes, noteSorts, type MoodFilter, type NoteSort } from "@/server/queries/log-browser";
@@ -23,6 +27,7 @@ const VIEWS = [
   ["homes", "By home", HomeIcon],
   ["notes", "All notes", ClipboardList],
   ["owed", "Notes owed", ClipboardCheck],
+  ["review", "Review", ShieldCheck],
 ] as const;
 type View = (typeof VIEWS)[number][0];
 
@@ -32,14 +37,22 @@ export default async function DailyLogsPage({ searchParams }: { searchParams: Pr
   const manager = canManage(user);
   const view: View = VIEWS.some(([value]) => value === query.view) ? (query.view as View) : "homes";
   const selected = query.day && /^\d{4}-\d{2}-\d{2}$/.test(query.day) ? query.day : undefined;
+  const [settings, now, homes] = await Promise.all([getSettings(), requestTime(), listHomes()]);
+  // Reviewers are the chosen roles and home managers; everyone else sees only notes sent back to them.
+  const reviewer = settings.note_review_roles.includes(user.role) || homes.some(home => user.staffId !== null && home.managerStaffId === user.staffId);
+  const waiting = reviewer ? await reviewWaiting(user, settings, now) : (await myReturned(user.staffId)).length;
 
   return (
     <>
       <PageHeader
         eyebrow="Daily logs"
-        title={view === "owed" ? (manager ? "Notes owed by staff" : "Notes I owe") : view === "notes" ? "All daily notes" : "Daily logs by home"}
+        title={view === "review" ? (reviewer ? "Review notes" : "Notes sent back to me") : view === "owed" ? (manager ? "Notes owed by staff" : "Notes I owe") : view === "notes" ? "All daily notes" : "Daily logs by home"}
         description={
-          view === "owed"
+          view === "review"
+            ? reviewer
+              ? "Approve notes, send them back with what to fix, or edit them with a reason. Flags point out the ones worth a closer look."
+              : "A reviewer sent these back with what to fix. Open one, fix it and resubmit."
+            : view === "owed"
             ? "Everyone who works a shift writes a note for each person living at that home. Gaps show here until they are written."
             : view === "notes"
               ? "Every signed shift note in one list. Search, filter and sort, then open any note."
@@ -60,12 +73,70 @@ export default async function DailyLogsPage({ searchParams }: { searchParams: Pr
             aria-current={view === value ? "page" : undefined}
             className={cn("flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold", view === value ? "bg-white text-ink shadow-sm" : "text-mute hover:text-ink")}
           >
-            <Icon className="h-4 w-4" /> {value === "owed" && !manager ? "Notes I owe" : text}
+            <Icon className="h-4 w-4" /> {value === "owed" && !manager ? "Notes I owe" : value === "review" && !reviewer ? "Sent back" : text}
+            {value === "review" && waiting > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-bold text-white">{waiting}</span>}
           </Link>
         ))}
       </nav>
-      {view === "owed" ? <OwedView user={user} manager={manager} day={selected} home={query.home} /> : view === "notes" ? <NotesView query={query} /> : <HomesView />}
+      {view === "review" ? <ReviewView user={user} query={query} reviewer={reviewer} /> : view === "owed" ? <OwedView user={user} manager={manager} day={selected} home={query.home} /> : view === "notes" ? <NotesView query={query} /> : <HomesView />}
     </>
+  );
+}
+
+const REVIEW_STATUS = [["submitted", "To review"], ["returned", "Sent back"], ["approved", "Approved"], ["all", "Any status"]] as const;
+const REVIEW_KIND = [["all", "All note types"], ["daily", "Shift notes"], ["community", "Community Participation"]] as const;
+
+/* Notes waiting for review, with filters and bulk approval, and the viewer's own notes sent back to them. */
+async function ReviewView({ user, query, reviewer }: { user: SessionUser; query: Search; reviewer: boolean }) {
+  const [settings, now, homes, returned] = await Promise.all([getSettings(), requestTime(), listHomes(), myReturned(user.staffId)]);
+  const today = dateKey(new Date(now));
+  const status = REVIEW_STATUS.find(([value]) => value === query.status)?.[0] ?? "submitted";
+  const kind = REVIEW_KIND.find(([value]) => value === query.kind)?.[0] ?? "all";
+  const to = isDay(query.to) || today;
+  const from = isDay(query.from) || addDays(to, -13);
+  const flagged = query.flagged === "1";
+  const rows = !reviewer ? [] : await reviewQueue(user, { status, kind, homeId: query.home ?? "", flagged, from: from > to ? to : from, to }, settings, now);
+
+  return (
+    <div className="space-y-6">
+      {returned.length > 0 && (
+        <Panel title={`Sent back to you (${returned.length})`}>
+          <ul className="divide-y divide-line/60">
+            {returned.map(note => (
+              <li key={note.id}>
+                <Link href={note.kind === "daily" ? `/app/daily-logs/${note.id}/edit` : `/app/community-notes/${note.id}/edit`} className="flex items-start gap-3 px-5 py-3 text-sm hover:bg-panel/60">
+                  <Undo2 className="mt-0.5 h-4 w-4 shrink-0 text-flag" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{note.first} {note.last}</span> · {KIND_WORDS[note.kind]} · {fmt.day(note.day)}
+                    <span className="block text-xs text-mute">{note.reason}</span>
+                  </span>
+                  <span className="text-xs font-semibold text-brand">Fix it</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+      {!reviewer && returned.length === 0 && (
+        <Panel>
+          <Empty>Nothing sent back to you. Notes you write go to a reviewer for approval.</Empty>
+        </Panel>
+      )}
+      {reviewer && (
+      <Panel>
+        <AutoSubmitForm className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:flex-wrap lg:items-center">
+          <input type="hidden" name="view" value="review" />
+          <Select name="status" dataDefault="submitted" defaultValue={status} aria-label="Filter by status" className="lg:w-auto" options={REVIEW_STATUS.map(([value, text]) => ({ value, label: text }))} />
+          <Select name="kind" dataDefault="all" defaultValue={kind} aria-label="Filter by note type" className="lg:w-auto" options={REVIEW_KIND.map(([value, text]) => ({ value, label: text }))} />
+          <Select name="home" defaultValue={query.home ?? ""} aria-label="Filter by home" className="lg:w-auto" emptyLabel="All homes" searchable options={homes.map(home => ({ value: home.id, label: home.name }))} />
+          <label className="flex items-center gap-2 text-xs text-mute">From <input type="date" name="from" defaultValue={from} max={today} className="field w-auto py-2" /></label>
+          <label className="flex items-center gap-2 text-xs text-mute">To <input type="date" name="to" defaultValue={to} max={today} className="field w-auto py-2" /></label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="flagged" value="1" defaultChecked={flagged} className="h-4 w-4 accent-brand" /> Flagged only</label>
+        </AutoSubmitForm>
+        {rows.length === 0 ? <Empty>{status === "submitted" ? "Nothing waiting for your review in these dates." : "No notes match."}</Empty> : <ReviewTable rows={rows} skipFlagged={settings.note_bulk_flagged === "skip"} />}
+      </Panel>
+      )}
+    </div>
   );
 }
 

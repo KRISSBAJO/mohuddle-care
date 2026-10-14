@@ -32,6 +32,10 @@ const GROUPS: Group[] = [
       { key: "log_locations", title: "Where support was given", help: "The choices for where each shift happened." },
       { key: "cp_note_min_chars", title: "Shortest Community Participation note", help: "The note box on a Community Participation note. 0 turns the check off.", unit: "characters", min: 0, max: 500 },
       { key: "cp_cost_centers", title: "Community Participation cost centers", help: "Optional. Leave empty to hide the cost center box." },
+      { key: "note_review_roles", title: "Who reviews notes", help: "They approve notes, send them back to the writer, and edit them with a reason. Home managers review notes for their own home too. Nobody approves their own note.", roles: true },
+      { key: "note_review_checks", title: "What flags a note", help: "Flagged notes are marked in the review list so they get a closer look.", choices: [["late", "Written after the day"], ["no_punch", "No clock punch for those times"], ["outside_punch", "Times outside the clock punch"], ["attention", "Behaviour, seizure or low mood"], ["resubmitted", "Sent back and resubmitted"]] },
+      { key: "note_punch_tolerance_minutes", title: "Times may differ from the punch by", help: "More than this between the note's times and the clock punch flags the note.", unit: "minutes", min: 0, max: 240 },
+      { key: "note_bulk_flagged", title: "Bulk approval", help: "Whether approving many notes at once also approves the flagged ones.", options: [["skip", "Leave flagged notes to approve one by one"], ["allow", "Approve flagged notes too"]] },
     ],
   },
   {

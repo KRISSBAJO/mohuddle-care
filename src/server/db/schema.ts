@@ -281,6 +281,12 @@ export const dailyLogs = pgTable("daily_logs", {
   sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
   signedName: text("signed_name").notNull().default(""),
   signedAt: timestamp("signed_at", { withTimezone: true }),
+  // Review: every note starts as submitted; a reviewer approves it or returns it to the writer.
+  reviewStatus: text("review_status").$type<"submitted" | "returned" | "approved">().notNull().default("submitted"),
+  reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  returnReason: text("return_reason").notNull().default(""),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -343,9 +349,31 @@ export const communityNotes = pgTable(
     withStaffId: uuid("with_staff_id").references(() => staff.id, { onDelete: "set null" }),
     signedName: text("signed_name").notNull().default(""),
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    // Review: every note starts as submitted; a reviewer approves it or returns it to the writer.
+    reviewStatus: text("review_status").$type<"submitted" | "returned" | "approved">().notNull().default("submitted"),
+    reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    returnReason: text("return_reason").notNull().default(""),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  table => [index("community_notes_person").on(table.individualId, table.noteDate)],
+  table => [index("community_notes_person").on(table.individualId, table.noteDate), index("community_notes_review").on(table.reviewStatus)],
+);
+
+/* Everything that happened to a note after it was signed: edits with what changed, returns, resubmissions and approvals. */
+export const noteEvents = pgTable(
+  "note_events",
+  {
+    id: id(),
+    noteKind: text("note_kind").$type<"daily" | "community">().notNull(),
+    noteId: uuid("note_id").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").$type<"edited" | "returned" | "resubmitted" | "approved" | "reopened">().notNull(),
+    note: text("note").notNull().default(""),
+    changes: jsonb("changes").$type<{ field: string; before: string; after: string }[]>().notNull().default(emptyList()),
+    createdAt: createdAt(),
+  },
+  table => [index("note_events_note").on(table.noteKind, table.noteId)],
 );
 
 /* Data on each plan goal for one shift: offered or not, how much help, and how it went. */
