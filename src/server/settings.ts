@@ -176,6 +176,24 @@ export const settingDefs = {
     schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
     fallback: ["admin", "coordinator"],
   },
+  notify_roles_weight: {
+    label: "Login roles told about weight outside the range or changing fast (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator", "nurse"],
+  },
+  weight_change_percent: {
+    label: "Tell someone when weight changes by this percent or more (1 to 50)",
+    kind: "number",
+    schema: z.coerce.number().min(1).max(50),
+    fallback: 5,
+  },
+  weight_change_days: {
+    label: "Over this many days (7 to 365)",
+    kind: "number",
+    schema: z.coerce.number().int().min(7).max(365),
+    fallback: 30,
+  },
   notify_roles_incidents: {
     label: "Login roles told about incidents (admin, coordinator, nurse, dsp)",
     kind: "list",

@@ -183,6 +183,13 @@
       "when": 1792014180051,
       "tag": "0025_jittery_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792015232351,
+      "tag": "0026_chubby_mockingbird",
+      "breakpoints": true
     }
   ]
 }

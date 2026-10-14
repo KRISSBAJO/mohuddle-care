@@ -6,12 +6,13 @@ import { fmt, label } from "@/lib/format";
 import type { schema } from "@/server/db";
 import { personHealth } from "@/server/queries/person";
 import { MoreLink, moodTone } from "./parts";
+import { PersonWeightPanel } from "./PersonWeightPanel";
 
 type Person = typeof schema.individuals.$inferSelect;
 const severityTone = { low: "neutral", moderate: "warn", high: "bad", critical: "bad" } as const;
 
 /* Health in one place: allergies and diagnoses, what staff observed, behaviour, and medication exceptions. */
-export async function PersonHealthTab({ id, person, manager }: { id: string; person: Person; manager: boolean }) {
+export async function PersonHealthTab({ id, person, manager, planEditor }: { id: string; person: Person; manager: boolean; planEditor: boolean }) {
   const data = await personHealth(id);
   const base = `/app/individuals/${id}`;
   const doses = data.doseCounts;
@@ -47,6 +48,8 @@ export async function PersonHealthTab({ id, person, manager }: { id: string; per
         </div>
       </div>
       {manager && !person.allergies && !person.diagnoses && <p className="text-xs text-mute">Coordinators add allergies and diagnoses with Edit details at the top of the page.</p>}
+
+      <PersonWeightPanel person={person} manager={manager} planEditor={planEditor} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Health observations from daily logs">

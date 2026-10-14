@@ -40,10 +40,14 @@ const GROUPS: Group[] = [
   },
   {
     id: "medication",
-    title: "Medication",
+    title: "Medication and health",
     icon: Pill,
     intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
-    items: [{ key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 }],
+    items: [
+      { key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 },
+      { key: "weight_change_percent", title: "Weight change worth telling", help: "A gain or loss of this much, compared with the earliest weight in the period below.", unit: "%", min: 1, max: 50 },
+      { key: "weight_change_days", title: "Weight change period", help: "How far back to compare.", unit: "days", min: 7, max: 365 },
+    ],
   },
   {
     id: "incidents",
@@ -160,6 +164,7 @@ const GROUPS: Group[] = [
       { key: "notify_roles_appointments", title: "Appointments", help: "New, moved, cancelled and undocumented visits, follow-ups to book, and medication changes from a visit.", roles: true },
       { key: "notify_roles_notes", title: "Overdue daily notes", help: "When a staff member's notes pass their deadline.", roles: true },
       { key: "notify_roles_incidents", title: "Incidents", help: "Every new incident, and reportable incidents near or past their filing deadline.", roles: true },
+      { key: "notify_roles_weight", title: "Weight", help: "A weight outside the person's suggested range, or a fast change (set under Medication and health).", roles: true },
     ],
   },
   {

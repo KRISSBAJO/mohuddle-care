@@ -169,6 +169,10 @@ export const individuals = pgTable("individuals", {
   likes: text("likes").notNull().default(""),
   // Their Medicaid waiver, for state reports such as the Reportable Event Form.
   waiverType: text("waiver_type").notNull().default(""),
+  // For the weight chart: height for BMI, and the suggested weight range from their doctor or plan.
+  heightInches: real("height_inches"),
+  weightLow: real("weight_low"),
+  weightHigh: real("weight_high"),
   active: boolean("active").notNull().default(true),
   // Set when support ends. The record and its history stay; active is false while discharged.
   dischargedAt: date("discharged_at"),
@@ -374,6 +378,27 @@ export const noteEvents = pgTable(
     createdAt: createdAt(),
   },
   table => [index("note_events_note").on(table.noteKind, table.noteId)],
+);
+
+/* One weighing, signed by whoever recorded it. Height and BMI are kept as they were that day. */
+export const weightRecords = pgTable(
+  "weight_records",
+  {
+    id: id(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    recordedOn: date("recorded_on").notNull(),
+    pounds: real("pounds").notNull(),
+    heightInches: real("height_inches"),
+    bmi: real("bmi"),
+    comments: text("comments").notNull().default(""),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    signedName: text("signed_name").notNull().default(""),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [index("weight_records_person").on(table.individualId, table.recordedOn)],
 );
 
 /* Data on each plan goal for one shift: offered or not, how much help, and how it went. */
