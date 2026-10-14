@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import type { SchedHome, SchedShift, SchedStaff, ScheduleRules } from "@/lib/schedule";
+import { activePatterns } from "@/server/queries/patterns";
 import { db, schema } from "@/server/db";
 import { getSettings } from "@/server/settings";
 
@@ -14,7 +15,7 @@ export async function scheduleData(start: string) {
   const settings = await getSettings();
   const today = dateKey();
   const homes = await db
-    .select({ id: schema.homes.id, name: schema.homes.name, type: schema.homes.type, staffedKinds: schema.homes.staffedKinds, openDays: schema.homes.openDays })
+    .select({ id: schema.homes.id, name: schema.homes.name, type: schema.homes.type, staffedPatterns: schema.homes.staffedPatterns, openDays: schema.homes.openDays })
     .from(schema.homes)
     .where(eq(schema.homes.active, true))
     .orderBy(asc(schema.homes.name));
@@ -30,6 +31,7 @@ export async function scheduleData(start: string) {
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     kind: row.kind,
+    patternId: row.patternId,
     status: row.status,
     note: row.note,
   }));
@@ -61,7 +63,7 @@ export async function scheduleData(start: string) {
     coverageMinimum: settings.shift_coverage_minimum,
     overtimeHours: settings.overtime_weekly_hours,
     minRestHours: settings.min_rest_hours,
-    times: { day: settings.shift_day_hours, evening: settings.shift_evening_hours, overnight: settings.shift_overnight_hours },
+    patterns: await activePatterns(),
   };
   return { homes: homes as SchedHome[], shifts, staff, former, rules, today };
 }

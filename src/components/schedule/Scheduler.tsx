@@ -29,16 +29,19 @@ import { addDays, fmt, label, zonedTime } from "@/lib/format";
 import {
   analyzeWeek,
   counts,
+  kindFor as kindOfPattern,
   compactRange,
   coverageKey,
   formatHours,
   isoWeekday,
-  requiredKinds,
+  patternHours,
+  requiredPatterns,
   scheduleCsv,
   shiftDay,
   shiftHours,
   shiftTimeRange,
   weekdayLabel,
+  windowFor,
   type Issue,
   type SchedHome,
   type SchedShift,
@@ -236,7 +239,7 @@ export function Scheduler(props: Props) {
   };
 
   const exportCsv = () => {
-    const csv = scheduleCsv(weekShifts.filter(visible), homes, [...staff, ...props.former.map(p => ({ ...p, role: "", homeId: null, expiredCredentials: [] }))]);
+    const csv = scheduleCsv(weekShifts.filter(visible), homes, [...staff, ...props.former.map(p => ({ ...p, role: "", homeId: null, expiredCredentials: [] }))], rules.patterns);
     const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -260,8 +263,7 @@ export function Scheduler(props: Props) {
   const openIssue = (issue: Issue) => {
     if (issue.shiftId) return setEditing({ shiftId: issue.shiftId });
     if (issue.type === "coverage" && issue.homeId && issue.day && manager) {
-      const kind = issue.key.split("-").pop() as ShiftKind;
-      return setEditing({ homeId: issue.homeId, day: issue.day, kind });
+      return setEditing({ homeId: issue.homeId, day: issue.day, patternId: issue.patternId ?? null });
     }
     if (issue.staffId) {
       setView("staff");
@@ -351,8 +353,8 @@ export function Scheduler(props: Props) {
         {shownHomes.map(home => {
           let need = 0;
           let have = 0;
-          for (const day of days) for (const kind of requiredKinds(home, day)) {
-            const c = analysis.coverage.get(coverageKey(home.id, day, kind));
+          for (const day of days) for (const pattern of requiredPatterns(home, day, rules.patterns)) {
+            const c = analysis.coverage.get(coverageKey(home.id, day, pattern.id));
             need += c?.required ?? 0;
             have += Math.min(c?.filled ?? 0, c?.required ?? 0);
           }
@@ -369,7 +371,9 @@ export function Scheduler(props: Props) {
               </div>
               {days.map(day => {
                 const cell = shifts.filter(shift => shift.homeId === home.id && shiftDay(shift) === day).sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
-                const missingKinds = day >= today ? requiredKinds(home, day).filter(kind => !cell.some(shift => shift.kind === kind && counts(shift))) : [];
+                // Patterns this home needs that day whose hours are not fully staffed yet.
+                const missingPatterns =
+                  day >= today ? requiredPatterns(home, day, rules.patterns).filter(pattern => (analysis.coverage.get(coverageKey(home.id, day, pattern.id))?.filled ?? 0) < rules.coverageMinimum) : [];
                 const closedDay = !home.openDays.includes(isoWeekday(day));
                 const key = `cell-${home.id}-${day}`;
                 return (
@@ -387,20 +391,21 @@ export function Scheduler(props: Props) {
                   >
                     {cell.map(shift => shiftCard(shift))}
                     {manager &&
-                      missingKinds.map(kind => (
+                      missingPatterns.map(pattern => (
                         <button
-                          key={kind}
+                          key={pattern.id}
                           type="button"
-                          onClick={() => setEditing({ homeId: home.id, day, kind })}
+                          onClick={() => setEditing({ homeId: home.id, day, patternId: pattern.id })}
+                          title={`${pattern.name} ${pattern.start}–${pattern.end} is not fully staffed`}
                           className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-flag/50 px-2 py-1.5 text-[11px] font-semibold text-flag hover:bg-flag-soft/50"
                         >
-                          <Plus className="h-3 w-3" /> {label("shiftKind", kind)}
+                          <Plus className="h-3 w-3 shrink-0" /> <span className="truncate">{pattern.name}</span>
                         </button>
                       ))}
-                    {manager && missingKinds.length === 0 && day >= today && (
+                    {manager && missingPatterns.length === 0 && day >= today && (
                       <button
                         type="button"
-                        onClick={() => setEditing({ homeId: home.id, day, kind: "day" })}
+                        onClick={() => setEditing({ homeId: home.id, day, patternId: null })}
                         className="flex w-full items-center justify-center rounded-lg py-1 text-[11px] text-dim opacity-0 transition hover:bg-panel hover:text-mute focus:opacity-100 group-hover/cell:opacity-100"
                         aria-label={`Add another shift at ${home.name} on ${weekdayLabel(day)}`}
                       >
@@ -523,14 +528,15 @@ export function Scheduler(props: Props) {
               if (lane) lane.push(shift);
               else lanes.push([shift]);
             }
-            const missing = focusDay >= today ? requiredKinds(home, focusDay).filter(kind => (analysis.coverage.get(coverageKey(home.id, focusDay, kind))?.filled ?? 0) < rules.coverageMinimum) : [];
+            const needed = requiredPatterns(home, focusDay, rules.patterns);
+            const missing = focusDay >= today ? needed.filter(pattern => (analysis.coverage.get(coverageKey(home.id, focusDay, pattern.id))?.filled ?? 0) < rules.coverageMinimum) : [];
             return (
               <div key={home.id} className="grid grid-cols-[170px_1fr] border-t border-line/70">
                 <div className="py-2 pr-3">
                   <p className="text-sm font-bold">{home.name}</p>
                   {missing.length > 0 ? (
-                    <p className="text-[11px] font-semibold text-flag">Needs {missing.map(kind => label("shiftKind", kind).toLowerCase()).join(", ")}</p>
-                  ) : requiredKinds(home, focusDay).length ? (
+                    <p className="text-[11px] font-semibold text-flag">Needs {missing.map(pattern => pattern.name).join(", ")}</p>
+                  ) : needed.length ? (
                     <p className="text-[11px] text-sage">Covered</p>
                   ) : (
                     <p className="text-[11px] text-mute">No set staffing</p>
@@ -674,9 +680,12 @@ export function Scheduler(props: Props) {
         <section className="card overflow-hidden" aria-label="Schedule">
           {view === "homes" ? homesView : view === "staff" ? staffView : dayView}
           <div className="no-print flex flex-wrap items-center gap-4 border-t border-line px-4 py-2.5 text-[11px] text-mute">
-            {(["day", "evening", "overnight"] as const).map(kind => (
-              <span key={kind} className="flex items-center gap-1.5"><span className={cn("h-2.5 w-2.5 rounded-sm", KIND_STYLE[kind].dot)} /> {label("shiftKind", kind)} {rules.times[kind]}</span>
+            {rules.patterns.map(pattern => (
+              <span key={pattern.id} className="flex items-center gap-1.5">
+                <span className={cn("h-2.5 w-2.5 rounded-sm", KIND_STYLE[kindOfPattern(pattern.start)].dot)} /> {pattern.name} {compactRange(windowFor("2026-01-05", patternHours(pattern)))}
+              </span>
             ))}
+            {manager && <Link href="/app/settings/shifts" className="font-semibold text-brand hover:text-brand-deep">Edit shift patterns</Link>}
             <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-dashed border-flag" /> Open</span>
             <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-sage" /> Confirmed</span>
             <span className="flex items-center gap-1"><XCircle className="h-3 w-3 text-flag" /> Double-booked</span>
@@ -760,7 +769,7 @@ export function Scheduler(props: Props) {
 
       {editing && (
         <ShiftEditor
-          key={"shiftId" in editing ? editing.shiftId : `${editing.homeId}-${editing.day}-${editing.kind}`}
+          key={"shiftId" in editing ? editing.shiftId : `${editing.homeId}-${editing.day}-${editing.patternId}`}
           target={editing}
           shifts={shifts}
           homes={homes}

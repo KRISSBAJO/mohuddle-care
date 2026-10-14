@@ -5,12 +5,23 @@ import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/
 import { daysBetween, fmt, initials, label } from "@/lib/format";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
+import { requestTime } from "@/server/clock";
 import { todayOverview } from "@/server/queries/dashboard";
+import { OwedShifts } from "@/components/logs/OwedShifts";
+import { notesOwed, owedTotals } from "@/server/queries/notes-owed";
 
 export default async function TodayPage({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
   const user = await requireUser();
   const { denied } = await searchParams;
-  const o = await todayOverview();
+  const manager = canManage(user);
+  const since = new Date((await requestTime()) - 36 * 3_600_000);
+  const [o, myOwed, allOwed] = await Promise.all([
+    todayOverview(),
+    user.staffId ? notesOwed({ from: since, staffId: user.staffId }) : Promise.resolve([]),
+    manager ? notesOwed({ from: since }) : Promise.resolve([]),
+  ]);
+  const myMissing = owedTotals(myOwed).missing;
+  const teamTotals = owedTotals(allOwed);
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", hourCycle: "h23" }).format(new Date()));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const completion = o.census ? Math.round(o.loggedCount / o.census * 100) : 0;
@@ -70,6 +81,39 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
+          {user.staffId && myOwed.length > 0 && (
+            <Panel
+              title={myMissing ? `Your shift notes · ${myMissing} still to write` : "Your shift notes · all written"}
+              action={<Link href="/app/daily-logs?view=owed" className="text-xs font-semibold text-brand">All my notes <ArrowRight className="inline h-3 w-3" /></Link>}
+            >
+              <OwedShifts shifts={[...myOwed].reverse()} myStaffId={user.staffId} empty="No shifts in the last day and a half." />
+            </Panel>
+          )}
+          {manager && (
+            <Panel
+              title="Shift notes across homes"
+              action={<Link href="/app/daily-logs?view=owed" className="text-xs font-semibold text-brand">Who owes notes <ArrowRight className="inline h-3 w-3" /></Link>}
+            >
+              <div className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
+                {[
+                  ["Written", `${teamTotals.written} of ${teamTotals.expected}`, "text-sage"],
+                  ["Still to write", String(teamTotals.missing), teamTotals.missing ? "text-[#8a5a10]" : ""],
+                  ["Overdue", String(teamTotals.overdue), teamTotals.overdue ? "text-flag" : "text-sage"],
+                ].map(([title, value, tone]) => (
+                  <div key={title} className="px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
+                    <p className={`font-display text-xl font-bold ${tone}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+              <OwedShifts
+                shifts={[...allOwed].reverse().filter(shift => shift.state === "overdue")}
+                myStaffId={user.staffId}
+                showComplete={false}
+                empty="No overdue notes from the last day and a half."
+              />
+            </Panel>
+          )}
           <Panel title="On shift right now" action={<Link href="/app/schedule" className="text-xs font-semibold text-brand">Schedule <ArrowRight className="inline h-3 w-3" /></Link>}>
             {o.onShift.length === 0 ? (
               <Empty>No shift is running at this moment.</Empty>

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { mayManageLogin } from "@/lib/account-policy";
 import { db, schema } from "@/server/db";
+import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationFields, staffSchema, uuid } from "@/server/forms";
 import { requireManager } from "@/server/guard";
 import type { FormState } from "./auth";
@@ -188,7 +189,7 @@ export async function updateHome(id: string, _previous: FormState, formData: For
   if (!parsed.success) return firstError(parsed.error);
   const placed = await residentsIn(id);
   if (parsed.data.capacity < placed) return { error: `${placed} people live here, so capacity cannot be lower than that.` };
-  await db.update(schema.homes).set(parsed.data).where(eq(schema.homes.id, id));
+  await db.update(schema.homes).set(await normaliseStaffing(parsed.data)).where(eq(schema.homes.id, id));
   await db.insert(schema.auditLog).values({ userId: user.id, action: "update", entity: "home", entityId: id });
   revalidatePath("/app/homes");
   revalidatePath(`/app/homes/${id}`);

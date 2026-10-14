@@ -6,12 +6,13 @@ import { PageHeader } from "@/components/app/ui";
 import { createHome } from "@/server/actions/hub";
 import { requireManager } from "@/server/guard";
 import { listStaff } from "@/server/queries/hub";
+import { activePatterns } from "@/server/queries/patterns";
 
 export const metadata = { title: "Add a home" };
 
 export default async function NewHomePage() {
   await requireManager();
-  const staff = await listStaff();
+  const [staff, patterns] = await Promise.all([listStaff(), activePatterns()]);
 
   return (
     <div className="max-w-6xl">
@@ -26,7 +27,7 @@ export default async function NewHomePage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <ActionForm action={createHome} submitLabel="Create home" className="card p-6">
-          <HomeFormFields staff={staff} includeManagement />
+          <HomeFormFields staff={staff} patterns={patterns} includeManagement />
         </ActionForm>
 
         <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">

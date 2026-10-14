@@ -8,6 +8,7 @@ import {
   clockOf,
   describeTime,
   formatHours,
+  isoWeekday,
   rankCandidates,
   shiftDay,
   windowFor,
@@ -15,11 +16,10 @@ import {
   type SchedShift,
   type SchedStaff,
   type ScheduleRules,
-  type ShiftKind,
 } from "@/lib/schedule";
 import { changeShiftStatus, deleteShift, saveShift } from "@/server/actions/schedule";
 
-export type EditorTarget = { shiftId: string } | { homeId: string; day: string; kind: ShiftKind };
+export type EditorTarget = { shiftId: string } | { homeId: string; day: string; patternId: string | null };
 
 type Props = {
   target: EditorTarget;
@@ -40,12 +40,18 @@ const FINAL = new Set(["completed", "missed"]);
 export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, manager, myStaffId, onClose, onDone }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const existing = "shiftId" in target ? shifts.find(shift => shift.id === target.shiftId) ?? null : null;
-  const initialKind: ShiftKind = existing?.kind ?? ("kind" in target ? target.kind : "day");
+  const initialDay = existing ? shiftDay(existing) : "day" in target ? target.day : week.from;
+  // A new shift starts from the pattern asked for, or the first pattern that runs that weekday.
+  const initialPattern =
+    existing?.patternId ?? ("patternId" in target && target.patternId ? target.patternId : rules.patterns.find(pattern => pattern.weekdays.includes(isoWeekday(initialDay)))?.id ?? null);
+  const startPattern = rules.patterns.find(pattern => pattern.id === initialPattern);
   const [homeId, setHomeId] = useState(existing?.homeId ?? ("homeId" in target ? target.homeId : homes[0]?.id ?? ""));
-  const [day, setDay] = useState(existing ? shiftDay(existing) : "day" in target ? target.day : week.from);
-  const [kind, setKind] = useState<ShiftKind>(initialKind);
-  const [start, setStart] = useState(existing ? clockOf(existing.startsAt) : rules.times[initialKind].slice(0, 5));
-  const [end, setEnd] = useState(existing ? clockOf(existing.endsAt) : rules.times[initialKind].slice(6));
+  const [day, setDay] = useState(initialDay);
+  const [patternId, setPatternId] = useState<string | null>(existing ? existing.patternId : startPattern?.id ?? null);
+  const [start, setStart] = useState(existing ? clockOf(existing.startsAt) : startPattern?.start ?? "09:00");
+  const [end, setEnd] = useState(existing ? clockOf(existing.endsAt) : startPattern?.end ?? "17:00");
+  const pattern = rules.patterns.find(option => option.id === patternId) ?? null;
+  const weekday = isoWeekday(day);
   const [staffId, setStaffId] = useState<string | null>(existing?.staffId ?? null);
   const [note, setNote] = useState(existing?.note ?? "");
   const [query, setQuery] = useState("");
@@ -90,7 +96,7 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
   const save = () => {
     if (!slot) return setError("Choose a start and end time.");
     if (chosen?.check.blocked) return setError(`${chosen.person.firstName} cannot take this shift. ${chosen.check.blocked}.`);
-    run(() => saveShift({ id: existing?.id, homeId, day, start, end, kind, staffId, note }), existing ? "Shift saved" : "Shift added");
+    run(() => saveShift({ id: existing?.id, homeId, day, start, end, patternId, staffId, note }), existing ? "Shift saved" : "Shift added");
   };
 
   const homeName = homes.find(home => home.id === (existing?.homeId ?? homeId))?.name ?? "Closed home";
@@ -110,10 +116,10 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
         <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div>
             <h2 id="shift-editor-title" className="text-lg font-bold">
-              {existing ? `${homeName} · ${label("shiftKind", existing.kind)} shift` : "Add a shift"}
+              {existing ? `${homeName} · ${rules.patterns.find(option => option.id === existing.patternId)?.name ?? `${label("shiftKind", existing.kind)} shift`}` : "Add a shift"}
             </h2>
             <p className="mt-1 text-xs text-mute">
-              {existing ? `${describeTime(existing)} · ${label("shiftStatus", existing.status)}` : "Times start from the standard hours in Settings. Change them for a one-off."}
+              {existing ? `${describeTime(existing)} · ${label("shiftStatus", existing.status)}` : "Pick a shift pattern, or set custom times for a one-off."}
             </p>
           </div>
           <button type="button" className="rounded-lg p-1.5 text-mute hover:bg-panel hover:text-ink" aria-label="Close" onClick={() => dialog.current?.close()}>
@@ -155,19 +161,29 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
                   <input id="se-day" type="date" className="field" value={day} onChange={event => event.target.value && setDay(event.target.value)} />
                 </div>
                 <div>
-                  <label htmlFor="se-kind" className="label">Shift</label>
+                  <label htmlFor="se-kind" className="label">Shift pattern</label>
                   <select
                     id="se-kind"
                     className="field"
-                    value={kind}
+                    value={patternId ?? ""}
                     onChange={event => {
-                      const next = event.target.value as ShiftKind;
-                      setKind(next);
-                      setStart(rules.times[next].slice(0, 5));
-                      setEnd(rules.times[next].slice(6));
+                      const next = rules.patterns.find(option => option.id === event.target.value) ?? null;
+                      setPatternId(next?.id ?? null);
+                      if (next) {
+                        setStart(next.start);
+                        setEnd(next.end);
+                      }
                     }}
                   >
-                    {(["day", "evening", "overnight"] as const).map(k => <option key={k} value={k}>{label("shiftKind", k)}</option>)}
+                    <optgroup label="Runs on this day">
+                      {rules.patterns.filter(option => option.weekdays.includes(weekday)).map(option => <option key={option.id} value={option.id}>{option.name} · {option.start}–{option.end}</option>)}
+                    </optgroup>
+                    {rules.patterns.some(option => !option.weekdays.includes(weekday)) && (
+                      <optgroup label="Other days">
+                        {rules.patterns.filter(option => !option.weekdays.includes(weekday)).map(option => <option key={option.id} value={option.id}>{option.name} · {option.start}–{option.end}</option>)}
+                      </optgroup>
+                    )}
+                    <option value="">Custom times</option>
                   </select>
                 </div>
                 <div>
@@ -182,6 +198,8 @@ export function ShiftEditor({ target, shifts, homes, staff, names, rules, week, 
               <p className="text-xs text-mute">
                 {slot ? `${formatHours(length)} shift${end <= start ? ", ending the next morning" : ""}.` : "Choose a start and end time."}
                 {length > 16 && <span className="font-semibold text-flag"> Shifts can be at most 16 hours.</span>}
+                {pattern && (start !== pattern.start || end !== pattern.end) && <span> Times differ from {pattern.name}; it stays labelled as that pattern.</span>}
+                {pattern && !pattern.weekdays.includes(weekday) && <span className="text-[#8a5a10]"> {pattern.name} does not normally run on this day.</span>}
               </p>
               <div>
                 <label htmlFor="se-note" className="label">Note</label>

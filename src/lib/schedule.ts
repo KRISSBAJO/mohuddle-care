@@ -14,8 +14,19 @@ export type SchedShift = {
   startsAt: string;
   endsAt: string;
   kind: ShiftKind;
+  patternId: string | null;
   status: ShiftStatus;
   note: string;
+};
+
+/* A named shift time set by admins, such as "Weekend day 07:00-19:00" on Saturdays and Sundays. */
+export type ShiftPattern = {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+  /* ISO weekdays: 1 = Monday ... 7 = Sunday, counted on the day the shift starts. */
+  weekdays: number[];
 };
 
 export type SchedStaff = {
@@ -31,8 +42,8 @@ export type SchedHome = {
   id: string;
   name: string;
   type: string;
-  /* Shifts that must always be staffed, and the weekdays the home runs (1 = Monday ... 7 = Sunday). */
-  staffedKinds: ShiftKind[];
+  /* Patterns that must always be staffed (null means every pattern), and the weekdays the home runs. */
+  staffedPatterns: string[] | null;
   openDays: number[];
 };
 
@@ -40,7 +51,8 @@ export type ScheduleRules = {
   coverageMinimum: number;
   overtimeHours: number;
   minRestHours: number;
-  times: Record<ShiftKind, string>;
+  /* Active shift patterns, in display order. */
+  patterns: ShiftPattern[];
 };
 
 export type Issue = {
@@ -51,6 +63,7 @@ export type Issue = {
   shiftId?: string;
   staffId?: string;
   homeId?: string;
+  patternId?: string;
   day?: string;
 };
 
@@ -77,9 +90,40 @@ export function windowFor(day: string, hours: string): { startsAt: string; endsA
 
 export const isoWeekday = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay() || 7;
 
-/* The shifts a home needs staffed on a day, from its own settings. None on days it does not run. */
-export const requiredKinds = (home: SchedHome, day?: string): ShiftKind[] =>
-  day && !home.openDays.includes(isoWeekday(day)) ? [] : home.staffedKinds;
+export const patternHours = (pattern: Pick<ShiftPattern, "start" | "end">) => `${pattern.start}-${pattern.end}`;
+
+/* The colour group of a shift, from the hour it starts: morning starts are day, afternoon evening, the rest overnight. */
+export function kindFor(start: string): ShiftKind {
+  if (start >= "05:00" && start < "14:00") return "day";
+  if (start >= "14:00" && start < "21:00") return "evening";
+  return "overnight";
+}
+
+/* Patterns that run on a day of the week. */
+export const patternsOn = (patterns: ShiftPattern[], day: string) => patterns.filter(pattern => pattern.weekdays.includes(isoWeekday(day)));
+
+/* The patterns a home needs staffed on a day. None on days the home does not run. */
+export function requiredPatterns(home: SchedHome, day: string, patterns: ShiftPattern[]): ShiftPattern[] {
+  if (!home.openDays.includes(isoWeekday(day))) return [];
+  return patternsOn(patterns, day).filter(pattern => home.staffedPatterns === null || home.staffedPatterns.includes(pattern.id));
+}
+
+/*
+ * How many people cover a window at its thinnest point. Two people on 7-3 and 3-11 cover a 7-11 window
+ * once; one person on 7-3 leaves 3-11 uncovered, so the answer is 0. Custom shifts count like any other.
+ */
+export function staffedThrough(window: { startsAt: string; endsAt: string }, shifts: Pick<SchedShift, "startsAt" | "endsAt" | "staffId" | "status">[]) {
+  const from = time(window.startsAt);
+  const to = time(window.endsAt);
+  const working = shifts.filter(shift => shift.staffId && counts(shift as SchedShift) && time(shift.startsAt) < to && time(shift.endsAt) > from);
+  const points = [...new Set([from, ...working.flatMap(shift => [time(shift.startsAt), time(shift.endsAt)]).filter(point => point > from && point < to)])].sort((a, b) => a - b);
+  let thinnest = Infinity;
+  for (const point of points) {
+    const here = working.filter(shift => time(shift.startsAt) <= point && time(shift.endsAt) > point).length;
+    thinnest = Math.min(thinnest, here);
+  }
+  return Number.isFinite(thinnest) ? thinnest : 0;
+}
 
 export function hoursByStaff(shifts: SchedShift[], from: string, to: string) {
   const totals = new Map<string, number>();
@@ -165,7 +209,7 @@ export type WeekAnalysis = {
   issues: Issue[];
 };
 
-export const coverageKey = (homeId: string, day: string, kind: ShiftKind) => `${homeId}|${day}|${kind}`;
+export const coverageKey = (homeId: string, day: string, patternId: string) => `${homeId}|${day}|${patternId}`;
 
 /* Every problem in a week, for the issues panel and the warning marks on the grid. */
 export function analyzeWeek(
@@ -267,21 +311,24 @@ export function analyzeWeek(
 
   const coverage = new Map<string, { required: number; filled: number; shifts: number }>();
   for (const home of homes) {
+    const atHome = shifts.filter(shift => shift.homeId === home.id && counts(shift));
     for (const day of days) {
-      for (const kind of requiredKinds(home, day)) {
-        const here = visible.filter(shift => shift.homeId === home.id && shift.kind === kind && shiftDay(shift) === day && counts(shift));
-        const filled = here.filter(shift => shift.staffId).length;
-        coverage.set(coverageKey(home.id, day, kind), { required: rules.coverageMinimum, filled, shifts: here.length });
+      for (const pattern of requiredPatterns(home, day, rules.patterns)) {
+        const window = windowFor(day, patternHours(pattern));
+        const here = atHome.filter(shift => overlaps(shift, window));
+        const filled = staffedThrough(window, here);
+        coverage.set(coverageKey(home.id, day, pattern.id), { required: rules.coverageMinimum, filled, shifts: here.length });
         if (filled >= rules.coverageMinimum || day < today) continue;
         const missing = rules.coverageMinimum - filled;
         const soon = day <= addDays(today, 1);
         issues.push({
-          key: `coverage-${home.id}-${day}-${kind}`,
+          key: `coverage-${home.id}-${day}-${pattern.id}`,
           severity: soon ? "high" : "medium",
           type: "coverage",
-          text: `${homeName.get(home.id)} ${kind} on ${weekdayLabel(day)} needs ${missing} more ${missing === 1 ? "person" : "people"}`,
-          shiftId: here.find(shift => !shift.staffId)?.id,
+          text: `${homeName.get(home.id)} ${pattern.name} (${compactRange(window)}) on ${weekdayLabel(day)} needs ${missing} more ${missing === 1 ? "person" : "people"}`,
+          shiftId: visible.find(shift => shift.homeId === home.id && !shift.staffId && overlaps(shift, window))?.id,
           homeId: home.id,
+          patternId: pattern.id,
           day,
         });
       }
@@ -328,7 +375,8 @@ export function clockOf(iso: string) {
 }
 
 /* Spreadsheet export of a week. Values are quoted so commas in notes cannot break columns. */
-export function scheduleCsv(shifts: SchedShift[], homes: SchedHome[], staff: SchedStaff[]) {
+export function scheduleCsv(shifts: SchedShift[], homes: SchedHome[], staff: SchedStaff[], patterns: ShiftPattern[] = []) {
+  const patternName = new Map(patterns.map(pattern => [pattern.id, pattern.name]));
   const homeName = new Map(homes.map(home => [home.id, home.name]));
   const personName = new Map(staff.map(person => [person.id, `${person.firstName} ${person.lastName}`]));
   const quote = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -337,7 +385,7 @@ export function scheduleCsv(shifts: SchedShift[], homes: SchedHome[], staff: Sch
     rows.push([
       shiftDay(shift),
       homeName.get(shift.homeId) ?? "",
-      shift.kind,
+      (shift.patternId && patternName.get(shift.patternId)) || `Custom (${shift.kind})`,
       clockOf(shift.startsAt),
       clockOf(shift.endsAt),
       String(Math.round(shiftHours(shift) * 100) / 100),

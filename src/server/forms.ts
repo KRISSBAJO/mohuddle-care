@@ -64,7 +64,7 @@ export const homeSchema = z.object({
   licenseNumber: optional(60),
   openedOn: optionalDate,
   notes: optional(2000),
-  staffedKinds: z.array(z.enum(["day", "evening", "overnight"])).max(3).optional(),
+  staffedPatterns: z.array(z.uuid()).max(50).optional(),
   openDays: z.array(z.coerce.number().int().min(1).max(7)).max(7).optional(),
 });
 
@@ -72,10 +72,10 @@ export const homeSchema = z.object({
 export function homeFormValues(formData: FormData) {
   const values: Record<string, unknown> = Object.fromEntries(formData.entries());
   if (formData.get("staffingFields")) {
-    values.staffedKinds = formData.getAll("staffedKinds").map(String);
+    values.staffedPatterns = [...new Set(formData.getAll("staffedPatterns").map(String))];
     values.openDays = [...new Set(formData.getAll("openDays").map(Number))].sort();
   } else {
-    delete values.staffedKinds;
+    delete values.staffedPatterns;
     delete values.openDays;
   }
   return values;

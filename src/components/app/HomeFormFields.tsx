@@ -2,6 +2,7 @@ import { Building2, CalendarClock, MapPin, NotebookPen, UserRound } from "lucide
 import { HomeStaffingFields } from "@/components/app/HomeStaffingFields";
 import { Field } from "@/components/app/ui";
 import { labels } from "@/lib/format";
+import type { ShiftPattern } from "@/lib/schedule";
 import type { schema } from "@/server/db";
 
 type Home = typeof schema.homes.$inferSelect;
@@ -28,7 +29,7 @@ function Section({ icon: Icon, title, hint, children }: { icon: typeof MapPin; t
  * Every field of a home, in sections. Used by "Add a home" and by the Details tab, so both always
  * send the full set and nothing is saved empty by accident.
  */
-export function HomeFormFields({ home, staff, includeManagement = false, minCapacity = 1 }: { home?: Home; staff?: Staff[]; includeManagement?: boolean; minCapacity?: number }) {
+export function HomeFormFields({ home, staff, patterns, includeManagement = false, minCapacity = 1 }: { home?: Home; staff?: Staff[]; patterns: ShiftPattern[]; includeManagement?: boolean; minCapacity?: number }) {
   return (
     <div className="grid gap-6">
       <Section icon={Building2} title="The home" hint="What it is called and the kind of support it gives.">
@@ -63,7 +64,7 @@ export function HomeFormFields({ home, staff, includeManagement = false, minCapa
       </Section>
 
       <Section icon={CalendarClock} title="Staffing needs" hint="The schedule warns you about a gap only for these shifts on these days.">
-        <HomeStaffingFields staffedKinds={home?.staffedKinds} openDays={home?.openDays} prefix={home ? "edit-home" : "new-home"} />
+        <HomeStaffingFields patterns={patterns} staffedPatterns={home ? home.staffedPatterns : null} openDays={home?.openDays} prefix={home ? "edit-home" : "new-home"} />
       </Section>
 
       {includeManagement && staff && (

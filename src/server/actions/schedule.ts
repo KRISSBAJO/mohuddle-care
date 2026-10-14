@@ -4,11 +4,11 @@ import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { addDays, weekStart, zonedTime } from "@/lib/format";
-import { requiredKinds, shiftDay, windowFor, type ShiftKind } from "@/lib/schedule";
+import { kindFor, patternHours, requiredPatterns, shiftDay, windowFor, type SchedHome } from "@/lib/schedule";
 import { assertShiftUpdate } from "@/lib/shift-policy";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { getSettings } from "@/server/settings";
+import { activePatterns } from "@/server/queries/patterns";
 
 export type ScheduleResult = { error?: string; id?: string; created?: number; skipped?: number; unassigned?: number };
 
@@ -17,16 +17,10 @@ const FINAL = ["completed", "missed"] as const;
 const uuid = z.uuid();
 const day = z.iso.date();
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
-const kind = z.enum(["day", "evening", "overnight"]);
 
 function done(): void {
   revalidatePath("/app/schedule");
   revalidatePath("/app");
-}
-
-async function templateTimes(): Promise<Record<ShiftKind, string>> {
-  const settings = await getSettings();
-  return { day: settings.shift_day_hours, evening: settings.shift_evening_hours, overnight: settings.shift_overnight_hours };
 }
 
 /* The same person cannot be in two places. Checked inside the transaction that saves. */
@@ -63,7 +57,7 @@ const shiftInput = z.object({
   day,
   start: clock,
   end: clock,
-  kind,
+  patternId: uuid.nullable().default(null),
   staffId: uuid.nullable(),
   note: z.string().trim().max(300).default(""),
 });
@@ -73,7 +67,7 @@ export async function saveShift(input: z.input<typeof shiftInput>): Promise<Sche
   const user = await requireManager();
   const parsed = shiftInput.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the shift details." };
-  const { id, homeId, staffId, note } = parsed.data;
+  const { id, homeId, staffId, note, patternId } = parsed.data;
   if (parsed.data.start === parsed.data.end) return { error: "A shift cannot start and end at the same time." };
   const window = windowFor(parsed.data.day, `${parsed.data.start}-${parsed.data.end}`);
   const startsAt = new Date(window.startsAt);
@@ -95,7 +89,11 @@ export async function saveShift(input: z.input<typeof shiftInput>): Promise<Sche
         const clash = await clashFor(tx, staffId, startsAt, endsAt, id);
         if (clash) throw new Error("That person is already working at that time.");
       }
-      const values = { homeId, staffId, kind: parsed.data.kind, startsAt, endsAt, note, status };
+      if (patternId) {
+        const [pattern] = await tx.select({ id: schema.shiftPatterns.id }).from(schema.shiftPatterns).where(eq(schema.shiftPatterns.id, patternId)).limit(1);
+        if (!pattern) throw new Error("That shift pattern was removed. Choose another or use custom times.");
+      }
+      const values = { homeId, staffId, kind: kindFor(parsed.data.start), patternId, startsAt, endsAt, note, status };
       if (id) {
         await tx.update(schema.shifts).set(values).where(eq(schema.shifts.id, id));
         await tx.insert(schema.auditLog).values({ userId: user.id, action: "shift:update", entity: "shift", entityId: id });
@@ -195,27 +193,25 @@ export async function changeShiftStatus(shiftId: string, status: string): Promis
  * Adds the standard shifts for chosen homes, days and shift types in one go. A shift that already
  * exists for the same home, type and start time is skipped, so running it twice is harmless.
  */
-export async function bulkCreateShifts(input: { homeIds: string[]; days: string[]; kinds: string[]; staffId?: string | null }): Promise<ScheduleResult> {
+export async function bulkCreateShifts(input: { homeIds: string[]; days: string[]; patternIds: string[]; staffId?: string | null }): Promise<ScheduleResult> {
   const user = await requireManager();
   const parsed = z
     .object({
       homeIds: z.array(uuid).min(1, "Choose at least one home.").max(50),
       days: z.array(day).min(1, "Choose at least one day.").max(31),
-      kinds: z.array(kind).min(1, "Choose at least one shift type.").max(3),
+      patternIds: z.array(uuid).min(1, "Choose at least one shift pattern.").max(50),
       staffId: uuid.nullable().optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check your choices." };
-  const times = await templateTimes();
+  const patterns = (await activePatterns()).filter(pattern => parsed.data.patternIds.includes(pattern.id));
   const homes = await db.select().from(schema.homes).where(and(inArray(schema.homes.id, parsed.data.homeIds), eq(schema.homes.active, true)));
   const wanted = homes.flatMap(home =>
     parsed.data.days.flatMap(d =>
-      parsed.data.kinds
-        .filter(k => requiredKinds(home, d).includes(k))
-        .map(k => ({ homeId: home.id, kind: k, ...windowFor(d, times[k]) })),
+      requiredPatterns(home as SchedHome, d, patterns).map(pattern => ({ homeId: home.id, patternId: pattern.id, kind: kindFor(pattern.start), ...windowFor(d, patternHours(pattern)) })),
     ),
   );
-  if (!wanted.length) return { error: "None of the chosen homes need those shifts on those days. Change what a home needs on its page under Homes." };
+  if (!wanted.length) return { error: "None of the chosen homes need those shift patterns on those days. Check the days each pattern runs, and what each home needs on its Details tab." };
   const staffId = parsed.data.staffId ?? null;
   let created = 0;
   let skipped = 0;
@@ -228,7 +224,7 @@ export async function bulkCreateShifts(input: { homeIds: string[]; days: string[
       const [exists] = await tx
         .select({ id: schema.shifts.id })
         .from(schema.shifts)
-        .where(and(eq(schema.shifts.homeId, shift.homeId), eq(schema.shifts.kind, shift.kind), eq(schema.shifts.startsAt, startsAt)))
+        .where(and(eq(schema.shifts.homeId, shift.homeId), eq(schema.shifts.startsAt, startsAt), eq(schema.shifts.endsAt, endsAt)))
         .limit(1);
       if (exists) {
         skipped++;
@@ -237,7 +233,7 @@ export async function bulkCreateShifts(input: { homeIds: string[]; days: string[
       // Give it to the chosen person only where they are free; otherwise it is added open.
       const assign = staffId && !(await clashFor(tx, staffId, startsAt, endsAt)) ? staffId : null;
       if (staffId && !assign) unassigned++;
-      await tx.insert(schema.shifts).values({ homeId: shift.homeId, kind: shift.kind, startsAt, endsAt, staffId: assign, status: assign ? "scheduled" : "open" });
+      await tx.insert(schema.shifts).values({ homeId: shift.homeId, kind: shift.kind, patternId: shift.patternId, startsAt, endsAt, staffId: assign, status: assign ? "scheduled" : "open" });
       created++;
     }
     await tx.insert(schema.auditLog).values({ userId: user.id, action: `shift:bulk:${created}`, entity: "shift" });
@@ -281,7 +277,7 @@ export async function copyWeek(fromWeek: string, toWeek: string): Promise<Schedu
       const [exists] = await tx
         .select({ id: schema.shifts.id })
         .from(schema.shifts)
-        .where(and(eq(schema.shifts.homeId, shift.homeId), eq(schema.shifts.kind, shift.kind), eq(schema.shifts.startsAt, startsAt)))
+        .where(and(eq(schema.shifts.homeId, shift.homeId), eq(schema.shifts.startsAt, startsAt), eq(schema.shifts.endsAt, endsAt)))
         .limit(1);
       if (exists) {
         skipped++;
@@ -289,7 +285,7 @@ export async function copyWeek(fromWeek: string, toWeek: string): Promise<Schedu
       }
       const keep = shift.staffId && stillHere.has(shift.staffId) && !(await clashFor(tx, shift.staffId, startsAt, endsAt)) ? shift.staffId : null;
       if (shift.staffId && !keep) unassigned++;
-      await tx.insert(schema.shifts).values({ homeId: shift.homeId, kind: shift.kind, startsAt, endsAt, staffId: keep, status: keep ? "scheduled" : "open", note: shift.note });
+      await tx.insert(schema.shifts).values({ homeId: shift.homeId, kind: shift.kind, patternId: shift.patternId, startsAt, endsAt, staffId: keep, status: keep ? "scheduled" : "open", note: shift.note });
       created++;
     }
     await tx.insert(schema.auditLog).values({ userId: user.id, action: `shift:copy:${from}:${to}:${created}`, entity: "shift" });

@@ -8,6 +8,7 @@ import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
 import { parseMoney, zonedTime } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
+import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
 
@@ -221,7 +222,7 @@ export async function createHome(_p: FormState, formData: FormData): Promise<For
   const budgetRaw = String(formData.get("monthlyBudget") ?? "").trim();
   const monthlyBudgetCents = budgetRaw ? parseMoney(budgetRaw) : null;
   if (budgetRaw && monthlyBudgetCents === null) return { error: "Enter the monthly budget in dollars, for example 2400." };
-  const [row] = await db.insert(schema.homes).values({ ...parsed.data, managerStaffId, monthlyBudgetCents }).returning({ id: schema.homes.id });
+  const [row] = await db.insert(schema.homes).values({ ...(await normaliseStaffing(parsed.data)), managerStaffId, monthlyBudgetCents }).returning({ id: schema.homes.id });
   await audit(user.id, "create", "home", row.id);
   revalidatePath("/app/homes");
   redirect(`/app/homes/${row.id}?created=1`);

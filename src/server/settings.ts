@@ -7,13 +7,6 @@ import { db, schema } from "./db";
  * Business rules are dashboard settings stored in the database, never fixed in code.
  * This file only names them, gives a safe default, and checks what comes back.
  */
-/* "07:00-15:00". The end may be earlier than the start, meaning the next morning. */
-const shiftHours = z
-  .string()
-  .trim()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM-HH:MM, for example 07:00-15:00")
-  .refine(value => value.slice(0, 5) !== value.slice(6), "Start and end cannot be the same time");
-
 export const settingDefs = {
   credential_warning_days: {
     label: "Warn about expiring credentials this many days ahead",
@@ -44,24 +37,6 @@ export const settingDefs = {
     kind: "number",
     schema: z.coerce.number().int().min(1).max(10),
     fallback: 1,
-  },
-  shift_day_hours: {
-    label: "Day shift hours (HH:MM-HH:MM, Central time)",
-    kind: "text",
-    schema: shiftHours,
-    fallback: "07:00-15:00",
-  },
-  shift_evening_hours: {
-    label: "Evening shift hours (HH:MM-HH:MM)",
-    kind: "text",
-    schema: shiftHours,
-    fallback: "15:00-23:00",
-  },
-  shift_overnight_hours: {
-    label: "Overnight shift hours (HH:MM-HH:MM, may end the next morning)",
-    kind: "text",
-    schema: shiftHours,
-    fallback: "23:00-07:00",
   },
   overtime_weekly_hours: {
     label: "Flag staff scheduled for more than this many hours in a week",
@@ -98,6 +73,12 @@ export const settingDefs = {
       "Home safety walk",
       "Goal activity offered",
     ],
+  },
+  shift_note_grace_hours: {
+    label: "Staff must finish their daily notes within this many hours after their shift ends",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(48),
+    fallback: 2,
   },
   daily_log_summary_min_chars: {
     label: "The shift summary on a daily log must be at least this many characters (0 to 500)",

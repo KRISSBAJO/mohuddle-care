@@ -8,12 +8,13 @@ import { setHomeActive, updateHome } from "@/server/actions/editing";
 import { setHomeManagement } from "@/server/actions/homes";
 import type { schema } from "@/server/db";
 import { homeDetail } from "@/server/queries/hub";
+import { activePatterns } from "@/server/queries/patterns";
 
 type Staff = typeof schema.staff.$inferSelect;
 
 /* Coordinators only: the home's details, its manager and budget, and closing it. */
 export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff: Staff[] }) {
-  const detail = await homeDetail(homeId);
+  const [detail, patterns] = await Promise.all([homeDetail(homeId), activePatterns()]);
   if (!detail) return null;
   const { home, residents } = detail;
 
@@ -22,7 +23,7 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
       <Panel title="Details">
         <div className="p-5">
           <ActionForm action={updateHome.bind(null, home.id)} submitLabel="Save home">
-            <HomeFormFields home={home} minCapacity={Math.max(1, residents.length)} />
+            <HomeFormFields home={home} patterns={patterns} minCapacity={Math.max(1, residents.length)} />
           </ActionForm>
         </div>
       </Panel>

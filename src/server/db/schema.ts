@@ -55,6 +55,8 @@ export const homes = pgTable("homes", {
   // Which shifts must always have someone on, and which weekdays the home runs (1 = Monday ... 7 = Sunday).
   // The schedule reports a coverage gap only for these.
   staffedKinds: jsonb("staffed_kinds").$type<("day" | "evening" | "overnight")[]>().notNull().default(sql`'["day","evening","overnight"]'::jsonb`),
+  // Shift patterns this home must have staffed. Null means every active pattern, including new ones.
+  staffedPatterns: jsonb("staffed_patterns").$type<string[] | null>(),
   openDays: jsonb("open_days").$type<number[]>().notNull().default(sql`'[1,2,3,4,5,6,7]'::jsonb`),
   // The person responsible for the home day to day, usually its residential manager.
   managerStaffId: uuid("manager_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }),
@@ -161,6 +163,19 @@ export const planGoals = pgTable("plan_goals", {
   createdAt: createdAt(),
 });
 
+/* Named shift times admins set up, such as "Weekday day 07:00-15:00" or "Weekend night 19:00-07:00". */
+export const shiftPatterns = pgTable("shift_patterns", {
+  id: id(),
+  name: text("name").notNull(),
+  start: text("start_time").notNull(),
+  end: text("end_time").notNull(),
+  // ISO weekdays the pattern runs on: 1 = Monday ... 7 = Sunday. The day is the day the shift starts.
+  weekdays: jsonb("weekdays").$type<number[]>().notNull().default(sql`'[1,2,3,4,5,6,7]'::jsonb`),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
 export const shifts = pgTable("shifts", {
   id: id(),
   homeId: uuid("home_id")
@@ -169,7 +184,9 @@ export const shifts = pgTable("shifts", {
   staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  // Worked out from the start time. Only used for colour and grouping; the pattern carries the name.
   kind: shiftKind("kind").notNull(),
+  patternId: uuid("pattern_id").references(() => shiftPatterns.id, { onDelete: "set null" }),
   status: shiftStatus("status").notNull().default("scheduled"),
   note: text("note").notNull().default(""),
 });
@@ -192,6 +209,9 @@ export const dailyLogs = pgTable("daily_logs", {
   notes: text("notes").notNull().default(""),
   // A full shift note, in the shape reviewers expect from a Therap T-Log. Older logs leave these empty.
   shift: shiftKind("shift"),
+  // The scheduled shift this note is for, and its pattern name at the time of writing.
+  shiftId: uuid("shift_id").references(() => shifts.id, { onDelete: "set null" }),
+  shiftName: text("shift_name").notNull().default(""),
   timeIn: text("time_in").notNull().default(""),
   timeOut: text("time_out").notNull().default(""),
   location: text("location").notNull().default(""),

@@ -4,7 +4,9 @@ import { startTransition, useActionState, useMemo, useRef, useState } from "reac
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { fmt } from "@/lib/format";
 import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, shiftMinutes } from "@/lib/log-note";
+import { isoWeekday, kindFor, type ShiftPattern } from "@/lib/schedule";
 import { createDailyLog } from "@/server/actions/logs";
 import type { FormState } from "@/server/actions/auth";
 
@@ -16,15 +18,20 @@ export type LogPerson = {
   allergies: string;
   supportNotes: string;
   goals: { id: string; title: string; description: string }[];
-  loggedToday: Shift[];
+  homeId: string | null;
+  myRecentLogs: { shiftId: string | null; logDate: string; shift: Shift | null }[];
 };
+
+/* One of the writer's own recent shifts. */
+export type MyShift = { id: string; homeId: string; home: string; kind: Shift; name: string; day: string; start: string; end: string; current: boolean };
 
 type Props = {
   people: LogPerson[];
   initialPerson: string;
+  initialShift: string;
+  myShifts: MyShift[];
+  patterns: ShiftPattern[];
   today: string;
-  defaultShift: Shift;
-  shiftHours: Record<Shift, string>;
   locations: string[];
   adlItems: string[];
   promptLevels: string[];
@@ -34,7 +41,6 @@ type Props = {
   signer: string;
 };
 
-const SHIFT_LABEL: Record<Shift, string> = { day: "Day", evening: "Evening", overnight: "Overnight" };
 const MOODS = [
   ["great", "Great"],
   ["good", "Good"],
@@ -85,21 +91,20 @@ function Label({ htmlFor, children, optional }: { htmlFor?: string; children: Re
 
 const chip = "cursor-pointer rounded-full border border-line px-3.5 py-2 text-sm font-medium transition has-[:checked]:border-brand has-[:checked]:bg-sky has-[:checked]:text-brand-deep has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40";
 
-function hoursFor(range: string) {
-  const [start, end] = range.split("-");
-  return { start: start ?? "", end: end ?? "" };
-}
-
 /* A full shift note, in the shape reviewers expect from a Therap T-Log, with plan goal data and a signature. */
 export function DailyLogForm(props: Props) {
-  const { people, today, shiftHours, adlItems, promptLevels, requiredChecks, summaryMin } = props;
+  const { people, today, myShifts, patterns, adlItems, promptLevels, requiredChecks, summaryMin } = props;
   const form = useRef<HTMLFormElement>(null);
   const errorBox = useRef<HTMLParagraphElement>(null);
   const [personId, setPersonId] = useState(props.initialPerson);
-  const [logDate, setLogDate] = useState(today);
-  const [shift, setShift] = useState<Shift>(props.defaultShift);
-  const [times, setTimes] = useState(() => hoursFor(shiftHours[props.defaultShift]));
-  const [timesEdited, setTimesEdited] = useState(false);
+  const [shiftId, setShiftId] = useState(props.initialShift);
+  const firstShift = myShifts.find(option => option.id === props.initialShift);
+  const [logDate, setLogDate] = useState(firstShift?.day ?? today);
+  const firstPattern = patterns.find(option => option.weekdays.includes(isoWeekday(today))) ?? null;
+  const [patternId, setPatternId] = useState<string>(firstPattern?.id ?? "custom");
+  const [times, setTimes] = useState(() =>
+    firstShift ? { start: firstShift.start, end: firstShift.end } : { start: firstPattern?.start ?? "", end: firstPattern?.end ?? "" },
+  );
   const [seizure, setSeizure] = useState(false);
   const [behaviour, setBehaviour] = useState(false);
   const [offered, setOffered] = useState<Record<string, string>>({});
@@ -114,8 +119,13 @@ export function DailyLogForm(props: Props) {
   });
 
   const person = people.find(option => option.id === personId) ?? null;
-  const duplicate = person && logDate === today && person.loggedToday.includes(shift);
+  const scheduled = myShifts.find(option => option.id === shiftId) ?? null;
+  const pattern = patterns.find(option => option.id === patternId) ?? null;
+  const kind: Shift = scheduled ? scheduled.kind : times.start ? kindFor(times.start) : "day";
+  const shiftName = scheduled ? scheduled.name : pattern ? pattern.name : "Unscheduled";
+  const duplicate = person?.myRecentLogs.some(log => (scheduled ? log.shiftId === scheduled.id : !log.shiftId && log.logDate === logDate && log.shift === kind));
   const minutes = shiftMinutes(times.start, times.end);
+  const dayLabel = (day: string) => (day === today ? "Today" : `${fmt.weekday(day)} ${fmt.day(day)}`);
 
   const [state, action, pending] = useActionState<FormState, FormData>(async (previous, data) => {
     const result = await createDailyLog(previous, data);
@@ -170,48 +180,100 @@ export function DailyLogForm(props: Props) {
         </div>
 
         <Section id="shift" index={1} title="Shift details" done={filled.has("shift")}>
+          <input type="hidden" name="shiftId" value={scheduled?.id ?? ""} />
+          <input type="hidden" name="shiftName" value={shiftName} />
+          <input type="hidden" name="shift" value={kind} />
+          {myShifts.length > 0 && (
+            <div>
+              <Label htmlFor="shiftPick">Your shift</Label>
+              <select
+                id="shiftPick"
+                className="field"
+                value={shiftId}
+                onChange={event => {
+                  const next = myShifts.find(option => option.id === event.target.value);
+                  setShiftId(event.target.value);
+                  if (next) {
+                    setLogDate(next.day);
+                    setTimes({ start: next.start, end: next.end });
+                  }
+                }}
+              >
+                {myShifts.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {dayLabel(option.day)} · {option.name} {option.start}–{option.end} · {option.home}{option.current ? " (now)" : ""}
+                  </option>
+                ))}
+                <option value="">Not on the schedule</option>
+              </select>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <Label htmlFor="individualId">Person</Label>
               <select id="individualId" name="individualId" required className="field" value={personId} onChange={event => setPersonId(event.target.value)}>
                 <option value="" disabled>Choose a person</option>
-                {people.map(option => <option key={option.id} value={option.id}>{option.name}{option.home ? ` · ${option.home}` : ""}</option>)}
+                {scheduled ? (
+                  <>
+                    <optgroup label={`Living at ${scheduled.home}`}>
+                      {people.filter(option => option.homeId === scheduled.homeId).map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </optgroup>
+                    <optgroup label="Everyone else">
+                      {people.filter(option => option.homeId !== scheduled.homeId).map(option => <option key={option.id} value={option.id}>{option.name}{option.home ? ` · ${option.home}` : ""}</option>)}
+                    </optgroup>
+                  </>
+                ) : (
+                  people.map(option => <option key={option.id} value={option.id}>{option.name}{option.home ? ` · ${option.home}` : ""}</option>)
+                )}
               </select>
             </div>
             <div>
               <Label htmlFor="logDate">Date of the shift</Label>
-              <input id="logDate" name="logDate" type="date" required max={today} className="field" value={logDate} onChange={event => setLogDate(event.target.value)} />
+              {scheduled ? (
+                <>
+                  <input type="hidden" name="logDate" value={scheduled.day} />
+                  <p id="logDate" className="field bg-panel/60 text-mute">{fmt.dayLong(scheduled.day)}</p>
+                </>
+              ) : (
+                <input id="logDate" name="logDate" type="date" required max={today} className="field" value={logDate} onChange={event => setLogDate(event.target.value)} />
+              )}
             </div>
           </div>
-          <fieldset>
-            <legend className="label">Shift</legend>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(SHIFT_LABEL) as Shift[]).map(value => (
-                <label key={value} className={chip}>
-                  <input
-                    type="radio"
-                    name="shift"
-                    value={value}
-                    checked={shift === value}
-                    onChange={() => {
-                      setShift(value);
-                      if (!timesEdited) setTimes(hoursFor(shiftHours[value]));
-                    }}
-                    className="sr-only"
-                  />
-                  {SHIFT_LABEL[value]} <span className="text-xs text-dim">{shiftHours[value]}</span>
+          {!scheduled && (
+            <fieldset>
+              <legend className="label">Shift</legend>
+              <div className="flex flex-wrap gap-2">
+                {patterns.filter(option => option.weekdays.includes(isoWeekday(logDate || today))).map(option => (
+                  <label key={option.id} className={chip}>
+                    <input
+                      type="radio"
+                      name="patternPick"
+                      value={option.id}
+                      checked={patternId === option.id}
+                      onChange={() => {
+                        setPatternId(option.id);
+                        setTimes({ start: option.start, end: option.end });
+                      }}
+                      className="sr-only"
+                    />
+                    {option.name} <span className="text-xs text-dim">{option.start}–{option.end}</span>
+                  </label>
+                ))}
+                <label className={chip}>
+                  <input type="radio" name="patternPick" value="custom" checked={patternId === "custom"} onChange={() => setPatternId("custom")} className="sr-only" /> Other times
                 </label>
-              ))}
-            </div>
-          </fieldset>
+              </div>
+              {myShifts.length === 0 && <p className="mt-1.5 text-xs text-mute">You have no shift on the schedule in the last day and a half, so choose the shift you worked.</p>}
+            </fieldset>
+          )}
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="timeIn">Started supporting</Label>
-              <input id="timeIn" name="timeIn" type="time" required className="field" value={times.start} onChange={event => { setTimesEdited(true); setTimes({ ...times, start: event.target.value }); }} />
+              <Label htmlFor="timeIn">You started</Label>
+              <input id="timeIn" name="timeIn" type="time" required className="field" value={times.start} onChange={event => setTimes({ ...times, start: event.target.value })} />
             </div>
             <div>
-              <Label htmlFor="timeOut">Finished</Label>
-              <input id="timeOut" name="timeOut" type="time" required className="field" value={times.end} onChange={event => { setTimesEdited(true); setTimes({ ...times, end: event.target.value }); }} />
+              <Label htmlFor="timeOut">You finished</Label>
+              <input id="timeOut" name="timeOut" type="time" required className="field" value={times.end} onChange={event => setTimes({ ...times, end: event.target.value })} />
             </div>
             <div>
               <Label htmlFor="location">Where</Label>
@@ -226,7 +288,7 @@ export function DailyLogForm(props: Props) {
           </p>
           {duplicate && (
             <p className="flex items-start gap-2 rounded-xl bg-accent-soft px-3.5 py-2.5 text-sm text-[#8a5a10]">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {person?.name.split(" ")[0]} already has a {SHIFT_LABEL[shift].toLowerCase()} shift log today. Choose another shift, or open that log from their page.
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> You already wrote a note for {person?.name.split(" ")[0]} on this shift. Choose another person or shift, or open that note from their page.
             </p>
           )}
         </Section>

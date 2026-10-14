@@ -47,15 +47,27 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+
+  // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
+  const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
+    .insert(schema.shiftPatterns)
+    .values([
+      { name: "Weekday day", start: "07:00", end: "15:00", weekdays: [1, 2, 3, 4, 5], sortOrder: 1 },
+      { name: "Weekday evening", start: "15:00", end: "23:00", weekdays: [1, 2, 3, 4, 5], sortOrder: 2 },
+      { name: "Weekday overnight", start: "23:00", end: "07:00", weekdays: [1, 2, 3, 4, 5], sortOrder: 3 },
+      { name: "Weekend day", start: "07:00", end: "19:00", weekdays: [6, 7], sortOrder: 4 },
+      { name: "Weekend night", start: "19:00", end: "07:00", weekdays: [6, 7], sortOrder: 5 },
+    ])
+    .returning();
 
   const [hillcrest, maple, riverside, dayProgram] = await db
     .insert(schema.homes)
     .values([
       { name: "Hillcrest House", type: "group_home", address: "4120 Hillcrest Drive", city: "Nashville", capacity: 4, phone: "615-555-0141" },
-      { name: "Maple Family Home", type: "family_model", address: "88 Maple Court", city: "Murfreesboro", capacity: 2, phone: "615-555-0162", staffedKinds: [] },
-      { name: "Riverside Apartments", type: "supported_living", address: "2200 Riverside Way, Apt 4B and 4C", city: "Nashville", capacity: 3, phone: "", staffedKinds: [] },
-      { name: "Murfreesboro Pike Day Program", type: "day_program", address: "2131 Murfreesboro Pike, Suite 202A", city: "Nashville", capacity: 12, phone: "615-964-7088", staffedKinds: ["day"], openDays: [1, 2, 3, 4, 5] },
+      { name: "Maple Family Home", type: "family_model", address: "88 Maple Court", city: "Murfreesboro", capacity: 2, phone: "615-555-0162", staffedPatterns: [] },
+      { name: "Riverside Apartments", type: "supported_living", address: "2200 Riverside Way, Apt 4B and 4C", city: "Nashville", capacity: 3, phone: "", staffedPatterns: [] },
+      { name: "Murfreesboro Pike Day Program", type: "day_program", address: "2131 Murfreesboro Pike, Suite 202A", city: "Nashville", capacity: 12, phone: "615-964-7088", staffedPatterns: [weekdayDay.id], openDays: [1, 2, 3, 4, 5] },
     ])
     .returning();
 
@@ -153,20 +165,27 @@ async function main() {
     ])
     .returning();
 
-  // Shifts for this week: day, evening and overnight at the group home, supported living visits, and the day program.
+  // Shifts for this week from the patterns: three shifts a weekday and two a weekend day at the group home, supported living visits, and the day program.
   const shiftRows: (typeof schema.shifts.$inferInsert)[] = [];
   const rota = [jamal, sofia, marcus, hannah, terrence];
   for (let i = 0; i < 7; i++) {
     const day = addDays(monday, i);
     const past = day < today;
-    shiftRows.push(
-      { homeId: hillcrest.id, staffId: rota[i % 2].id, kind: "day", startsAt: zoned(day, "07:00"), endsAt: zoned(day, "15:00"), status: past ? "completed" : "scheduled" },
-      { homeId: hillcrest.id, staffId: i === 4 ? null : rota[(i + 1) % 2].id, kind: "evening", startsAt: zoned(day, "15:00"), endsAt: zoned(day, "23:00"), status: i === 4 ? "open" : past ? "completed" : "scheduled" },
-      { homeId: hillcrest.id, staffId: i === 6 ? null : marcus.id, kind: "overnight", startsAt: zoned(day, "23:00"), endsAt: zoned(addDays(day, 1), "07:00"), status: i === 6 ? "open" : past ? "completed" : "scheduled" },
-    );
     if (i < 5) {
-      shiftRows.push({ homeId: dayProgram.id, staffId: luis.id, kind: "day", startsAt: zoned(day, "07:00"), endsAt: zoned(day, "15:00"), status: past ? "completed" : "confirmed" });
-      shiftRows.push({ homeId: riverside.id, staffId: i % 2 ? hannah.id : terrence.id, kind: "evening", startsAt: zoned(day, "15:00"), endsAt: zoned(day, "23:00"), status: past ? "completed" : "scheduled" });
+      shiftRows.push(
+        { homeId: hillcrest.id, staffId: rota[i % 2].id, kind: "day", patternId: weekdayDay.id, startsAt: zoned(day, "07:00"), endsAt: zoned(day, "15:00"), status: past ? "completed" : "scheduled" },
+        { homeId: hillcrest.id, staffId: i === 4 ? null : rota[(i + 1) % 2].id, kind: "evening", patternId: weekdayEvening.id, startsAt: zoned(day, "15:00"), endsAt: zoned(day, "23:00"), status: i === 4 ? "open" : past ? "completed" : "scheduled" },
+        { homeId: hillcrest.id, staffId: marcus.id, kind: "overnight", patternId: weekdayNight.id, startsAt: zoned(day, "23:00"), endsAt: zoned(addDays(day, 1), "07:00"), status: past ? "completed" : "scheduled" },
+      );
+    } else {
+      shiftRows.push(
+        { homeId: hillcrest.id, staffId: rota[i % 2].id, kind: "day", patternId: weekendDay.id, startsAt: zoned(day, "07:00"), endsAt: zoned(day, "19:00"), status: past ? "completed" : "scheduled" },
+        { homeId: hillcrest.id, staffId: i === 6 ? null : marcus.id, kind: "evening", patternId: weekendNight.id, startsAt: zoned(day, "19:00"), endsAt: zoned(addDays(day, 1), "07:00"), status: i === 6 ? "open" : past ? "completed" : "scheduled" },
+      );
+    }
+    if (i < 5) {
+      shiftRows.push({ homeId: dayProgram.id, staffId: luis.id, kind: "day", patternId: weekdayDay.id, startsAt: zoned(day, "07:00"), endsAt: zoned(day, "15:00"), status: past ? "completed" : "confirmed" });
+      shiftRows.push({ homeId: riverside.id, staffId: i % 2 ? hannah.id : terrence.id, kind: "evening", patternId: weekdayEvening.id, startsAt: zoned(day, "15:00"), endsAt: zoned(day, "23:00"), status: past ? "completed" : "scheduled" });
     }
   }
   await db.insert(schema.shifts).values(shiftRows);

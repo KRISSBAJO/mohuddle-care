@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { analyzeWeek, checkAssignment, compactRange, rankCandidates, requiredKinds, scheduleCsv, windowFor, type SchedShift, type SchedStaff, type ScheduleRules } from "../src/lib/schedule";
+import { analyzeWeek, checkAssignment, compactRange, kindFor, rankCandidates, requiredPatterns, scheduleCsv, staffedThrough, windowFor, type SchedHome, type SchedShift, type SchedStaff, type ScheduleRules, type ShiftPattern } from "../src/lib/schedule";
 
-const rules: ScheduleRules = { coverageMinimum: 1, overtimeHours: 40, minRestHours: 8, times: { day: "07:00-15:00", evening: "15:00-23:00", overnight: "23:00-07:00" } };
+const EVERY = [1, 2, 3, 4, 5, 6, 7];
+const everyDay: ShiftPattern[] = [
+  { id: "day", name: "Day", start: "07:00", end: "15:00", weekdays: EVERY },
+  { id: "evening", name: "Evening", start: "15:00", end: "23:00", weekdays: EVERY },
+  { id: "overnight", name: "Overnight", start: "23:00", end: "07:00", weekdays: EVERY },
+];
+const rules: ScheduleRules = { coverageMinimum: 1, overtimeHours: 40, minRestHours: 8, patterns: everyDay };
+const times = { day: "07:00-15:00", evening: "15:00-23:00", overnight: "23:00-07:00" };
+const home = (extra: Partial<SchedHome> = {}): SchedHome => ({ id: "h1", name: "Hill", type: "group_home", staffedPatterns: null, openDays: EVERY, ...extra });
 const week = { from: "2026-10-12", to: "2026-10-19" };
 const days = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"];
 const person = (id: string, extra: Partial<SchedStaff> = {}): SchedStaff => ({ id, firstName: id, lastName: "Test", role: "dsp", homeId: "h1", expiredCredentials: [], ...extra });
@@ -12,9 +20,10 @@ const shift = (day: string, kind: "day" | "evening" | "overnight", staffId: stri
   homeId: "h1",
   staffId,
   kind,
+  patternId: kind,
   status: staffId ? "scheduled" : "open",
   note: "",
-  ...windowFor(day, rules.times[kind]),
+  ...windowFor(day, times[kind]),
   ...extra,
 });
 
@@ -52,7 +61,7 @@ test("the week analysis finds gaps, double-booking, short rest and overtime", ()
     shift("2026-10-14", "overnight", "bo"),
     shift("2026-10-15", "day", "bo"),
   ];
-  const result = analyzeWeek(shifts, [person("ana"), person("bo")], [{ id: "h1", name: "Hill", type: "group_home", staffedKinds: ["day", "evening", "overnight"], openDays: [1, 2, 3, 4, 5, 6, 7] }], days, rules, "2026-10-14");
+  const result = analyzeWeek(shifts, [person("ana"), person("bo")], [home()], days, rules, "2026-10-14");
   const types = result.issues.map(issue => issue.type);
   assert.ok(types.includes("double"));
   assert.ok(types.includes("rest"), "overnight then day shift leaves no rest");
@@ -63,18 +72,56 @@ test("the week analysis finds gaps, double-booking, short rest and overtime", ()
 });
 
 test("the spreadsheet export quotes cells and defuses formulas", () => {
-  const csv = scheduleCsv([shift("2026-10-14", "day", "ana", { note: '=HYPERLINK("x"), "late"' })], [{ id: "h1", name: "Hill, House", type: "group_home", staffedKinds: [], openDays: [] }], [person("ana")]);
+  const csv = scheduleCsv([shift("2026-10-14", "day", "ana", { note: '=HYPERLINK("x"), "late"' })], [home({ name: "Hill, House" })], [person("ana")], everyDay);
   const line = csv.split("\r\n")[1];
   assert.match(line, /"Hill, House"/);
   assert.match(line, /"'=HYPERLINK\(""x""\), ""late"""/);
 });
 
-test("a home only needs the shifts and days set on it", () => {
-  const program = { id: "p", name: "Program", type: "day_program", staffedKinds: ["day" as const], openDays: [1, 2, 3, 4, 5] };
-  assert.deepEqual(requiredKinds(program, "2026-10-16"), ["day"]); // Friday
-  assert.deepEqual(requiredKinds(program, "2026-10-17"), []); // Saturday
+test("a home only needs the patterns and days set on it", () => {
+  const program = home({ id: "p", name: "Program", type: "day_program", staffedPatterns: ["day"], openDays: [1, 2, 3, 4, 5] });
+  assert.deepEqual(requiredPatterns(program, "2026-10-16", everyDay).map(p => p.id), ["day"]); // Friday
+  assert.deepEqual(requiredPatterns(program, "2026-10-17", everyDay), []); // Saturday
   const result = analyzeWeek([], [], [program], days, rules, "2026-10-12");
   assert.equal(result.issues.filter(issue => issue.type === "coverage").length, 5, "weekday day shifts only");
+  assert.equal(requiredPatterns(home({ staffedPatterns: [] }), "2026-10-16", everyDay).length, 0, "an empty list means no set staffing");
+});
+
+test("weekday and weekend patterns apply on their own days", () => {
+  const split: ShiftPattern[] = [
+    { id: "wd", name: "Weekday day", start: "07:00", end: "15:00", weekdays: [1, 2, 3, 4, 5] },
+    { id: "we", name: "Weekday evening", start: "15:00", end: "23:00", weekdays: [1, 2, 3, 4, 5] },
+    { id: "wn", name: "Weekday overnight", start: "23:00", end: "07:00", weekdays: [1, 2, 3, 4, 5] },
+    { id: "sd", name: "Weekend day", start: "07:00", end: "19:00", weekdays: [6, 7] },
+    { id: "sn", name: "Weekend night", start: "19:00", end: "07:00", weekdays: [6, 7] },
+  ];
+  assert.deepEqual(requiredPatterns(home(), "2026-10-16", split).map(p => p.id), ["wd", "we", "wn"]);
+  assert.deepEqual(requiredPatterns(home(), "2026-10-17", split).map(p => p.id), ["sd", "sn"]);
+  // One person on 7am-7pm Saturday covers the weekend day; nobody on the night leaves a gap.
+  const saturday = { ...shift("2026-10-17", "day", "ana"), patternId: "sd", ...windowFor("2026-10-17", "07:00-19:00") };
+  const result = analyzeWeek([saturday], [person("ana")], [home()], days, { ...rules, patterns: split }, "2026-10-12");
+  assert.equal(result.coverage.get("h1|2026-10-17|sd")?.filled, 1);
+  assert.equal(result.coverage.get("h1|2026-10-17|sn")?.filled, 0);
+  assert.ok(result.issues.some(issue => issue.type === "coverage" && issue.patternId === "sn" && /Weekend night/.test(issue.text)));
+});
+
+test("coverage is measured by time, so split or custom shifts count", () => {
+  const window = windowFor("2026-10-17", "07:00-19:00");
+  const early = { ...windowFor("2026-10-17", "07:00-15:00"), staffId: "a", status: "scheduled" as const };
+  const late = { ...windowFor("2026-10-17", "15:00-23:00"), staffId: "b", status: "scheduled" as const };
+  assert.equal(staffedThrough(window, [early, late]), 1, "two back-to-back shifts cover the whole window once");
+  assert.equal(staffedThrough(window, [early]), 0, "15:00-19:00 is left uncovered");
+  assert.equal(staffedThrough(window, [early, late, { ...window, staffId: "c", status: "scheduled" }]), 2);
+  assert.equal(staffedThrough(window, [{ ...window, staffId: null, status: "open" }]), 0, "open shifts do not count");
+  assert.equal(staffedThrough(window, [{ ...window, staffId: "d", status: "missed" }]), 0, "missed shifts do not count");
+});
+
+test("the colour group comes from the start time", () => {
+  assert.equal(kindFor("07:00"), "day");
+  assert.equal(kindFor("15:00"), "evening");
+  assert.equal(kindFor("19:00"), "evening");
+  assert.equal(kindFor("23:00"), "overnight");
+  assert.equal(kindFor("02:30"), "overnight");
 });
 
 test("an expired credential is one warning per person, flagging each of their shifts", () => {

@@ -73,6 +73,7 @@ export function listDailyLogs(day?: string) {
       activities: schema.dailyLogs.activities,
       createdAt: schema.dailyLogs.createdAt,
       shift: schema.dailyLogs.shift,
+      shiftName: schema.dailyLogs.shiftName,
       individualId: schema.individuals.id,
       first: schema.individuals.firstName,
       last: schema.individuals.lastName,

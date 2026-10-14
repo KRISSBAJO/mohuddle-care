@@ -63,7 +63,7 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
         <div>
           <p className="font-display text-lg font-bold">{fmt.dayLong(log.logDate)}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
-            {log.shift && <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{label("shiftKind", log.shift)} shift{log.timeIn && ` · ${log.timeIn}–${log.timeOut} (${duration(shiftMinutes(log.timeIn, log.timeOut))})`}</span>}
+            {log.shift && <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{log.shiftName || `${label("shiftKind", log.shift)} shift`}{log.timeIn && ` · ${log.timeIn}–${log.timeOut} (${duration(shiftMinutes(log.timeIn, log.timeOut))})`}</span>}
             {log.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{log.location}</span>}
             <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{staff ?? "Staff"}</span>
           </p>

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { label } from "@/lib/format";
-import { requiredKinds, weekdayLabel, windowFor, type SchedHome, type SchedShift, type SchedStaff, type ScheduleRules, type ShiftKind } from "@/lib/schedule";
+import { compactRange, patternHours, requiredPatterns, weekdayLabel, windowFor, type SchedHome, type SchedShift, type SchedStaff, type ScheduleRules } from "@/lib/schedule";
 import { bulkCreateShifts } from "@/server/actions/schedule";
 
 type Props = {
@@ -18,14 +17,14 @@ type Props = {
   onDone: (message: string) => void;
 };
 
-const KINDS: ShiftKind[] = ["day", "evening", "overnight"];
+const WEEKDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/* Adds the standard shifts for many homes and days at once, skipping ones that already exist. */
+/* Adds shifts from the shift patterns for many homes and days at once, skipping ones that already exist. */
 export function BulkAddDialog({ homes, staff, shifts, days, today, rules, onClose, onDone }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [homeIds, setHomeIds] = useState<string[]>(homes.map(home => home.id));
   const [chosenDays, setChosenDays] = useState<string[]>(days.filter(day => day >= today));
-  const [kinds, setKinds] = useState<ShiftKind[]>(KINDS);
+  const [patternIds, setPatternIds] = useState<string[]>(rules.patterns.map(pattern => pattern.id));
   const [staffId, setStaffId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -38,29 +37,30 @@ export function BulkAddDialog({ homes, staff, shifts, days, today, rules, onClos
     return () => element?.removeEventListener("close", closed);
   }, [onClose]);
 
-  // The same preview the server will apply: only shift types a home uses, minus ones already there.
+  // The same preview the server will apply: patterns that run that weekday and that the home needs, minus ones already there.
   const preview = useMemo(() => {
-    const existing = new Set(shifts.map(shift => `${shift.homeId}|${shift.kind}|${Date.parse(shift.startsAt)}`));
+    const existing = new Set(shifts.map(shift => `${shift.homeId}|${Date.parse(shift.startsAt)}|${Date.parse(shift.endsAt)}`));
+    const chosen = rules.patterns.filter(pattern => patternIds.includes(pattern.id));
     let add = 0;
     let skip = 0;
     for (const home of homes.filter(h => homeIds.includes(h.id))) {
       for (const day of chosenDays) {
-        for (const kind of kinds.filter(k => requiredKinds(home, day).includes(k))) {
-          const { startsAt } = windowFor(day, rules.times[kind]);
-          if (existing.has(`${home.id}|${kind}|${Date.parse(startsAt)}`)) skip++;
+        for (const pattern of requiredPatterns(home, day, chosen)) {
+          const { startsAt, endsAt } = windowFor(day, patternHours(pattern));
+          if (existing.has(`${home.id}|${Date.parse(startsAt)}|${Date.parse(endsAt)}`)) skip++;
           else add++;
         }
       }
     }
     return { add, skip };
-  }, [homes, homeIds, chosenDays, kinds, shifts, rules]);
+  }, [homes, homeIds, chosenDays, patternIds, shifts, rules]);
 
   const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter(item => item !== value) : [...list, value]);
 
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const result = await bulkCreateShifts({ homeIds, days: chosenDays, kinds, staffId: staffId || null });
+      const result = await bulkCreateShifts({ homeIds, days: chosenDays, patternIds, staffId: staffId || null });
       if (result.error) return setError(result.error);
       const parts = [`Added ${result.created} ${result.created === 1 ? "shift" : "shifts"}`];
       if (result.skipped) parts.push(`${result.skipped} already existed`);
@@ -85,7 +85,7 @@ export function BulkAddDialog({ homes, staff, shifts, days, today, rules, onClos
         <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div>
             <h2 id="bulk-title" className="text-lg font-bold">Add shifts</h2>
-            <p className="mt-1 text-xs text-mute">Standard hours from Settings. Shifts that already exist are skipped, so this is safe to run twice.</p>
+            <p className="mt-1 text-xs text-mute">Shift patterns from Settings, on the days each one runs. Shifts that already exist are skipped, so this is safe to run twice.</p>
           </div>
           <button type="button" className="rounded-lg p-1.5 text-mute hover:bg-panel hover:text-ink" aria-label="Close" onClick={() => dialog.current?.close()}>
             <X className="h-4 w-4" />
@@ -126,16 +126,21 @@ export function BulkAddDialog({ homes, staff, shifts, days, today, rules, onClos
           </fieldset>
           <div className="grid gap-5 sm:grid-cols-2">
             <fieldset>
-              <legend className="label">Shift types</legend>
+              <legend className="label">Shift patterns</legend>
               <div className="grid gap-2">
-                {KINDS.map(kind => (
-                  <label key={kind} className={box}>
-                    <input type="checkbox" className="h-4 w-4 accent-[#1b6fa8]" checked={kinds.includes(kind)} onChange={() => setKinds(toggle(kinds, kind))} />
-                    {label("shiftKind", kind)} <span className="text-xs text-mute">{rules.times[kind]}</span>
+                {rules.patterns.map(pattern => (
+                  <label key={pattern.id} className={box}>
+                    <input type="checkbox" className="h-4 w-4 accent-[#1b6fa8]" checked={patternIds.includes(pattern.id)} onChange={() => setPatternIds(toggle(patternIds, pattern.id))} />
+                    <span className="min-w-0">
+                      {pattern.name}
+                      <span className="block text-xs text-mute">
+                        {compactRange(windowFor("2026-01-05", patternHours(pattern)))} · {pattern.weekdays.length === 7 ? "every day" : pattern.weekdays.map(day => WEEKDAY[day - 1]).join(", ")}
+                      </span>
+                    </span>
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-mute">Each home only gets the shifts and days it needs, as set on its page under Homes.</p>
+              <p className="mt-2 text-[11px] text-mute">Each home only gets the patterns and days it needs, as set on its Details tab under Homes.</p>
             </fieldset>
             <div>
               <label htmlFor="bulk-staff" className="label">Give them to</label>

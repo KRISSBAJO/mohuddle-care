@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
-import { DailyLogForm, type LogPerson } from "@/components/logs/DailyLogForm";
+import { DailyLogForm, type LogPerson, type MyShift } from "@/components/logs/DailyLogForm";
 import { PageHeader } from "@/components/app/ui";
 import { dateKey } from "@/lib/format";
+import { clockOf } from "@/lib/schedule";
+import { activePatterns } from "@/server/queries/patterns";
 import { requestTime } from "@/server/clock";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
@@ -13,26 +15,16 @@ export const metadata = { title: "New daily log" };
 
 type Shift = "day" | "evening" | "overnight";
 
-/* The shift whose hours include this moment, from the shift hours in Settings. */
-function currentShift(now: number, hours: Record<Shift, string>): Shift {
-  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
-  for (const shift of ["day", "evening", "overnight"] as const) {
-    const [start, end] = hours[shift].split("-");
-    const inside = start < end ? clock >= start && clock < end : clock >= start || clock < end;
-    if (inside) return shift;
-  }
-  return "day";
-}
-
-export default async function NewDailyLogPage({ searchParams }: { searchParams: Promise<{ individual?: string }> }) {
+export default async function NewDailyLogPage({ searchParams }: { searchParams: Promise<{ individual?: string; shift?: string }> }) {
   const user = await requireUser();
-  const { individual } = await searchParams;
+  const { individual, shift: shiftParam } = await searchParams;
   const today = dateKey();
-  const [settings, now, people] = await Promise.all([
+  const [settings, now, patterns, people] = await Promise.all([
     getSettings(),
     requestTime(),
+    activePatterns(),
     db
-      .select({ id: schema.individuals.id, firstName: schema.individuals.firstName, lastName: schema.individuals.lastName, allergies: schema.individuals.allergies, supportNotes: schema.individuals.supportNotes, home: schema.homes.name })
+      .select({ id: schema.individuals.id, firstName: schema.individuals.firstName, lastName: schema.individuals.lastName, allergies: schema.individuals.allergies, supportNotes: schema.individuals.supportNotes, home: schema.homes.name, homeId: schema.individuals.homeId })
       .from(schema.individuals)
       .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
       .where(eq(schema.individuals.active, true))
@@ -46,9 +38,37 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
           .from(schema.planGoals)
           .where(and(inArray(schema.planGoals.individualId, ids), eq(schema.planGoals.status, "active")))
           .orderBy(asc(schema.planGoals.createdAt)),
-        db.select({ individualId: schema.dailyLogs.individualId, shift: schema.dailyLogs.shift }).from(schema.dailyLogs).where(and(inArray(schema.dailyLogs.individualId, ids), eq(schema.dailyLogs.logDate, today))),
+        // This writer's own notes from the last two days, so the form can warn before a duplicate.
+        user.staffId
+          ? db
+              .select({ individualId: schema.dailyLogs.individualId, shiftId: schema.dailyLogs.shiftId, logDate: schema.dailyLogs.logDate, shift: schema.dailyLogs.shift })
+              .from(schema.dailyLogs)
+              .where(and(eq(schema.dailyLogs.staffId, user.staffId), gte(schema.dailyLogs.logDate, dateKey(new Date(now - 2 * 86_400_000)))))
+          : [],
       ])
     : [[], []];
+
+  // The writer's shifts that started in the last 36 hours or start within the next 2: the ones a note can be for.
+  const shiftRows = user.staffId
+    ? await db
+        .select({ id: schema.shifts.id, homeId: schema.shifts.homeId, home: schema.homes.name, kind: schema.shifts.kind, startsAt: schema.shifts.startsAt, endsAt: schema.shifts.endsAt, pattern: schema.shiftPatterns.name })
+        .from(schema.shifts)
+        .innerJoin(schema.homes, eq(schema.homes.id, schema.shifts.homeId))
+        .leftJoin(schema.shiftPatterns, eq(schema.shiftPatterns.id, schema.shifts.patternId))
+        .where(and(eq(schema.shifts.staffId, user.staffId), ne(schema.shifts.status, "missed"), gte(schema.shifts.startsAt, new Date(now - 36 * 3_600_000)), lt(schema.shifts.startsAt, new Date(now + 2 * 3_600_000))))
+        .orderBy(desc(schema.shifts.startsAt))
+    : [];
+  const myShifts: MyShift[] = shiftRows.map(row => ({
+    id: row.id,
+    homeId: row.homeId,
+    home: row.home,
+    kind: row.kind,
+    name: row.pattern ?? "Custom shift",
+    day: dateKey(row.startsAt),
+    start: clockOf(row.startsAt.toISOString()),
+    end: clockOf(row.endsAt.toISOString()),
+    current: row.startsAt.getTime() <= now && row.endsAt.getTime() > now,
+  }));
 
   const options: LogPerson[] = people.map(person => ({
     id: person.id,
@@ -57,10 +77,18 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
     allergies: person.allergies,
     supportNotes: person.supportNotes,
     goals: goals.filter(goal => goal.individualId === person.id).map(({ id, title, description }) => ({ id, title, description })),
-    loggedToday: todays.filter(row => row.individualId === person.id && row.shift).map(row => row.shift as Shift),
+    homeId: person.homeId,
+    myRecentLogs: todays.filter(row => row.individualId === person.id).map(row => ({ shiftId: row.shiftId, logDate: row.logDate, shift: row.shift as Shift | null })),
   }));
-  const shiftHours = { day: settings.shift_day_hours, evening: settings.shift_evening_hours, overnight: settings.shift_overnight_hours };
   const initialPerson = options.some(person => person.id === individual) ? (individual as string) : "";
+  // Start on the shift asked for, else the writer's shift at this person's home, else their current or latest shift.
+  const personHome = options.find(person => person.id === initialPerson)?.homeId;
+  const initialShift =
+    myShifts.find(shift => shift.id === shiftParam)?.id ??
+    myShifts.find(shift => personHome && shift.homeId === personHome)?.id ??
+    myShifts.find(shift => shift.current)?.id ??
+    myShifts[0]?.id ??
+    "";
 
   return (
     <div className="max-w-6xl">
@@ -70,15 +98,16 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
       <PageHeader
         eyebrow="Daily logs"
         title="Write a shift note"
-        description={`One note per person per shift, due by ${settings.daily_log_due_hour}:00. It covers personal care, meals, sleep, health, plan goals, activities and behaviour, and you sign it when you save.`}
+        description={`Everyone who works a shift writes a note for each person they supported, within ${settings.shift_note_grace_hours} hours of the shift ending. It covers personal care, meals, sleep, health, plan goals, activities and behaviour, and you sign it when you save.`}
       />
       <div className="mt-6">
         <DailyLogForm
           people={options}
           initialPerson={initialPerson}
+          initialShift={initialShift}
+          myShifts={myShifts}
+          patterns={patterns}
           today={today}
-          defaultShift={currentShift(now, shiftHours)}
-          shiftHours={shiftHours}
           locations={settings.log_locations}
           adlItems={settings.adl_items}
           promptLevels={settings.prompt_levels}
