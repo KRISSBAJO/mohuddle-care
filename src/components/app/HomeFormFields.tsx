@@ -60,6 +60,20 @@ export function HomeFormFields({ home, staff, patterns, includeManagement = fals
           </Field>
           <Field label="ZIP code" htmlFor="home-zip"><input id="home-zip" name="zip" inputMode="numeric" maxLength={10} className="field" defaultValue={home?.zip} placeholder="37217" /></Field>
         </div>
+        <Field label="State region" htmlFor="home-region" hint="The DIDD regional office for incident reports.">
+          <Select
+            id="home-region"
+            name="region"
+            className="sm:max-w-xs"
+            defaultValue={home?.region ?? ""}
+            emptyLabel="Not set"
+            options={[
+              { value: "east", label: "East (ETRO)" },
+              { value: "middle", label: "Middle (MTRO)" },
+              { value: "west", label: "West (WTRO)" },
+            ]}
+          />
+        </Field>
         <Field label="House phone" htmlFor="home-phone"><input id="home-phone" name="phone" type="tel" maxLength={40} className="field sm:max-w-xs" defaultValue={home?.phone} /></Field>
       </Section>
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Phone, Pill, Receipt, Settings2, ShieldAlert, Wrench } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Select } from "@/components/app/Select";
 import { Badge, Field } from "@/components/app/ui";
@@ -81,6 +81,7 @@ export default async function HomePage({ params, searchParams }: { params: Promi
         </div>
         {home.active && (
           <div className="flex flex-wrap gap-2">
+            <Link href={`/app/incidents/new?home=${id}`} className="btn-ghost btn-sm"><ShieldAlert className="h-4 w-4" /> Report incident</Link>
             <ModalForm
               action={reportIssue.bind(null, id)}
               title={`Report an issue at ${home.name}`}

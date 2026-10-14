@@ -26,7 +26,7 @@ export default async function EditIndividualPage({ params }: { params: Promise<{
         action={updateIndividual.bind(null, id)}
         homes={homes}
         person={detail.person}
-        lists={{ communication: settings.communication_options, mobility: settings.mobility_options, diet: settings.diet_options }}
+        lists={{ communication: settings.communication_options, mobility: settings.mobility_options, diet: settings.diet_options, waivers: settings.waiver_types }}
       />
     </div>
   );

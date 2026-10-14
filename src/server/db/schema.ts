@@ -69,6 +69,8 @@ export const homes = pgTable("homes", {
   openedOn: date("opened_on"),
   // Practical notes for staff: parking, how to get in, quiet hours. Never door codes or passwords.
   notes: text("notes").notNull().default(""),
+  // The state's regional office for the home: east, middle or west. Used on incident reports.
+  region: text("region").notNull().default(""),
   // Where the home is, for checking staff are there when they clock in and out.
   latitude: real("latitude"),
   longitude: real("longitude"),
@@ -165,6 +167,8 @@ export const individuals = pgTable("individuals", {
   mobility: text("mobility").notNull().default(""),
   diet: text("diet").notNull().default(""),
   likes: text("likes").notNull().default(""),
+  // Their Medicaid waiver, for state reports such as the Reportable Event Form.
+  waiverType: text("waiver_type").notNull().default(""),
   active: boolean("active").notNull().default(true),
   // Set when support ends. The record and its history stay; active is false while discharged.
   dischargedAt: date("discharged_at"),
@@ -385,6 +389,35 @@ export const incidents = pgTable("incidents", {
   stateFiledAt: timestamp("state_filed_at", { withTimezone: true }),
   stateReference: text("state_reference").notNull().default(""),
   stateFiledBy: uuid("state_filed_by").references(() => users.id, { onDelete: "set null" }),
+  // The state's Reportable Event Form. Older incidents leave these empty.
+  responsibleProvider: text("responsible_provider").notNull().default(""),
+  reportingProvider: text("reporting_provider").notNull().default(""),
+  personAlias: text("person_alias").notNull().default(""),
+  waiverType: text("waiver_type").notNull().default(""),
+  mco: text("mco").notNull().default(""),
+  mcoNumber: text("mco_number").notNull().default(""),
+  eventLocation: text("event_location").notNull().default(""),
+  eventAddress: text("event_address").notNull().default(""),
+  eventCity: text("event_city").notNull().default(""),
+  eventState: text("event_state").notNull().default(""),
+  eventZip: text("event_zip").notNull().default(""),
+  eventRegion: text("event_region").notNull().default(""),
+  // When the time of the event is unknown, when it was discovered instead.
+  occurredUnknown: boolean("occurred_unknown").notNull().default(false),
+  discoveredAt: timestamp("discovered_at", { withTimezone: true }),
+  witnessType: text("witness_type").$type<"" | "witnessed" | "discovered">().notNull().default(""),
+  witnessedBy: text("witnessed_by").notNull().default(""),
+  eventTypes: jsonb("event_types").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  otherEventText: text("other_event_text").notNull().default(""),
+  injuredParties: jsonb("injured_parties").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  interventions: jsonb("interventions").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  prnGivenBy: text("prn_given_by").notNull().default(""),
+  injury: text("injury").$type<"" | "yes" | "no">().notNull().default(""),
+  injuryDetails: text("injury_details").notNull().default(""),
+  involvement: jsonb("involvement").$type<Record<string, "yes" | "no">>().notNull().default(sql`'{}'::jsonb`),
+  notifications: jsonb("notifications").$type<{ party: string; at: string | null; name: string; comments: string }[]>().notNull().default(sql`'[]'::jsonb`),
+  // The most urgent tier among the event types: tier1, tier2, reportable, or empty.
+  tier: text("tier").$type<"" | "tier1" | "tier2" | "reportable">().notNull().default(""),
   createdAt: createdAt(),
 });
 

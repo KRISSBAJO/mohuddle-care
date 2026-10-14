@@ -2,27 +2,15 @@
 
 import { and, eq, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { homeManagerOf, notify, recipients } from "@/server/notify";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { parseMoney, zonedTime } from "@/lib/format";
-import { getSettings, saveSetting, settingDefs, type SettingKey } from "@/server/settings";
+import { parseMoney } from "@/lib/format";
+import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
-
-const localDateTime = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Enter a date and time.")
-  .transform(value => zonedTimeFromInput(value));
-
-function zonedTimeFromInput(value: string): Date {
-  // datetime-local gives Central wall-clock time. Convert it to an instant.
-  const [day, time] = value.split("T");
-  return zonedTime(day, time);
-}
 
 async function audit(userId: string, action: string, entity: string, entityId = "") {
   await db.insert(schema.auditLog).values({ userId, action, entity, entityId });
@@ -52,6 +40,7 @@ const individualSchema = z.object({
   mobility: optional(500),
   diet: optional(500),
   likes: optional(1000),
+  waiverType: optional(80),
 });
 
 export async function updateIndividual(id: string, _p: FormState, formData: FormData): Promise<FormState> {
@@ -136,49 +125,6 @@ export async function recordMedication(adminId: string, status: "given" | "refus
 }
 
 /* ---------- Incidents ---------- */
-
-const incidentSchema = z.object({
-  individualId: optionalUuid,
-  homeId: optionalUuid,
-  occurredAt: localDateTime,
-  category: z.enum(schema.incidentCategory.enumValues),
-  severity: z.enum(schema.incidentSeverity.enumValues),
-  description: z.string().trim().min(10, "Describe what happened in at least a sentence.").max(5000),
-  actionsTaken: optional(3000),
-  reportable: z.literal("on").optional().transform(Boolean),
-});
-
-export async function createIncident(_p: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  const parsed = incidentSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return firstError(parsed.error);
-  const [row] = await db
-    .insert(schema.incidents)
-    .values({ ...parsed.data, reportedBy: user.staffId })
-    .returning({ id: schema.incidents.id });
-  await audit(user.id, "create", "incident", row.id);
-  // Coordinators and the home manager hear about every incident as soon as it is reported.
-  {
-    const settings = await getSettings();
-    const [person] = parsed.data.individualId
-      ? await db.select({ first: schema.individuals.firstName, last: schema.individuals.lastName, homeId: schema.individuals.homeId }).from(schema.individuals).where(eq(schema.individuals.id, parsed.data.individualId)).limit(1)
-      : [];
-    const homeId = parsed.data.homeId ?? person?.homeId ?? null;
-    const to = await recipients({ roles: settings.notify_roles_incidents, staffIds: [await homeManagerOf(homeId)], except: user.id });
-    await notify(to, {
-      kind: "incident:reported",
-      title: `${parsed.data.reportable ? "Reportable incident" : "Incident"} reported${person ? ` for ${person.first} ${person.last}` : ""}`,
-      body: `${parsed.data.category.replace("_", " ")}, ${parsed.data.severity} severity. ${parsed.data.description.slice(0, 200)}`,
-      href: `/app/incidents/${row.id}`,
-      tone: parsed.data.severity === "high" || parsed.data.severity === "critical" || parsed.data.reportable ? "bad" : "warn",
-      dedupeKey: `incident:reported:${row.id}`,
-    });
-  }
-  revalidatePath("/app/incidents");
-  revalidatePath("/app");
-  revalidatePath("/app/individuals/[id]", "page");
-  redirect(`/app/incidents/${row.id}`);
-}
 
 /* ---------- Tasks ---------- */
 

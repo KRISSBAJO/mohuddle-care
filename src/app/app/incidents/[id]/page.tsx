@@ -22,6 +22,8 @@ import { canManage } from "@/server/auth";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { incidentRecord } from "@/server/queries/incidents";
+import { getSettings } from "@/server/settings";
+import { ReportableEventView } from "@/components/incidents/ReportableEventView";
 
 export const metadata = { title: "Incident" };
 
@@ -53,7 +55,7 @@ function span(ms: number) {
 export default async function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const [record, now] = await Promise.all([incidentRecord(id), requestTime()]);
+  const [record, now, settings] = await Promise.all([incidentRecord(id), requestTime(), getSettings()]);
   if (!record) notFound();
   const { incident, person, home, reporter, filedBy, deadline, hours, timeline, others } = record;
   const manager = canManage(user);
@@ -141,6 +143,8 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
           <Panel title="What happened" action={<span className="text-[11px] text-dim">Original report, kept as written</span>}>
             <p className="whitespace-pre-line p-5 text-sm leading-relaxed">{incident.description}</p>
           </Panel>
+
+          <ReportableEventView incident={incident} parties={settings.incident_notify_parties} now={now} tier1Hours={settings.incident_tier1_hours} />
 
           <Panel
             title="What was done"

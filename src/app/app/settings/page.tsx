@@ -40,6 +40,19 @@ const GROUPS: Group[] = [
     items: [{ key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 }],
   },
   {
+    id: "incidents",
+    title: "Incident reports",
+    icon: ShieldAlert,
+    intro: "The lists on the Reportable Event Form, and how fast tier 1 events must reach the state.",
+    items: [
+      { key: "incident_tier1_hours", title: "Tier 1 to DIDD Investigations within", help: "Tier 1 events also need the form filed within the incident filing time.", unit: "hours", min: 1, max: 24 },
+      { key: "incident_notify_parties", title: "Notification list", help: "Each row on the form's notification table: who was told, when, and any comments." },
+      { key: "incident_locations", title: "Event locations", help: "Where the event happened." },
+      { key: "waiver_types", title: "Waiver types", help: "The person's waiver, recorded on the form." },
+      { key: "mco_options", title: "Managed care organisations", help: "The person's health plan, filled in from their insurance where it can be." },
+    ],
+  },
+  {
     id: "time",
     title: "Time clock",
     icon: Timer,

@@ -1,49 +1,40 @@
-import { ActionForm } from "@/components/app/ActionForm";
-import { Select } from "@/components/app/Select";
-import { Field, PageHeader } from "@/components/app/ui";
-import { labels } from "@/lib/format";
-import { createIncident } from "@/server/actions/hub";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/app/ui";
+import { ReportableEventForm } from "@/components/incidents/ReportableEventForm";
+import { dateKey } from "@/lib/format";
+import { submitReportableEvent } from "@/server/actions/incidents";
 import { requireUser } from "@/server/guard";
-import { listHomes, listIndividuals } from "@/server/queries/hub";
-import { getSettings } from "@/server/settings";
+import { incidentFormData } from "@/server/queries/incident-form";
 
 export const metadata = { title: "Report an incident" };
 
-function nowLocal() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date());
-  const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
-}
+const isUuid = (value?: string) => Boolean(value && /^[0-9a-f-]{36}$/.test(value));
+const clock = () => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 
-export default async function NewIncidentPage({ searchParams }: { searchParams: Promise<{ individual?: string }> }) {
-  await requireUser();
-  const { individual } = await searchParams;
-  const [people, homes, settings] = await Promise.all([listIndividuals(), listHomes(), getSettings()]);
+/*
+ * The Reportable Event Form. Opened from a person, they are already chosen and their details filled
+ * in; opened from a home, only that home's residents are offered and the address is the home's.
+ */
+export default async function NewIncidentPage({ searchParams }: { searchParams: Promise<{ individual?: string; home?: string }> }) {
+  const user = await requireUser();
+  const { individual, home } = await searchParams;
+  const data = await incidentFormData();
+  const person = isUuid(individual) ? data.people.find(item => item.id === individual) ?? null : null;
+  const homeRow = !person && isUuid(home) ? data.homes.find(item => item.id === home) ?? null : null;
+  const back = person ? { href: `/app/individuals/${person.id}?tab=incidents`, text: `Back to ${person.name.split(" ")[0]}` } : homeRow ? { href: `/app/homes/${homeRow.id}`, text: `Back to ${homeRow.name}` } : { href: "/app/incidents", text: "All incidents" };
+
   return (
-    <div className="max-w-3xl">
-      <PageHeader eyebrow="Incidents" title="Report an incident" description={`Write it while it is fresh. If it is reportable, the office must file it with the state within ${settings.incident_report_hours} hours.`} />
-      <ActionForm action={createIncident} submitLabel="Submit report" className="card p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Person involved" htmlFor="individualId">
-            <Select id="individualId" name="individualId" defaultValue={individual ?? ""} emptyLabel="No specific person" searchable options={people.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />
-          </Field>
-          <Field label="Home or location" htmlFor="homeId">
-            <Select id="homeId" name="homeId" defaultValue="" emptyLabel="Elsewhere or not applicable" searchable options={homes.map(home => ({ value: home.id, label: home.name }))} />
-          </Field>
-          <Field label="When it happened" htmlFor="occurredAt"><input id="occurredAt" name="occurredAt" type="datetime-local" required className="field" defaultValue={nowLocal()} /></Field>
-          <Field label="Category" htmlFor="category">
-            <Select id="category" name="category" defaultValue={Object.keys(labels.incidentCategory)[0]} options={Object.entries(labels.incidentCategory).map(([value, text]) => ({ value, label: text }))} />
-          </Field>
-          <Field label="Severity" htmlFor="severity">
-            <Select id="severity" name="severity" defaultValue="low" options={Object.entries(labels.incidentSeverity).map(([value, text]) => ({ value, label: text }))} />
-          </Field>
-          <label className="flex items-center gap-2.5 self-end rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-flag has-[:checked]:bg-flag-soft">
-            <input type="checkbox" name="reportable" className="h-4 w-4 accent-[#d2543f]" /> Reportable to the state
-          </label>
-        </div>
-        <Field label="What happened" htmlFor="description" hint="Facts only: what you saw and heard, in order. No opinions about why."><textarea id="description" name="description" rows={5} required className="field" /></Field>
-        <Field label="What was done" htmlFor="actionsTaken"><textarea id="actionsTaken" name="actionsTaken" rows={3} className="field" placeholder="First aid given, nurse called, guardian informed at 3:40pm" /></Field>
-      </ActionForm>
+    <div className="max-w-4xl">
+      <Link href={back.href} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
+        <ArrowLeft className="h-3.5 w-3.5" /> {back.text}
+      </Link>
+      <PageHeader
+        eyebrow={person ? `Incident · ${person.name}` : homeRow ? `Incident · ${homeRow.name}` : "Incidents"}
+        title="Reportable Event Form"
+        description={`Write it while it is fresh. Tier 1 events must reach DIDD Investigations within ${data.tier1Hours} hours; reportable events are filed within ${data.fileHours} hours.`}
+      />
+      <ReportableEventForm action={submitReportableEvent} data={data} lockedPersonId={person?.id ?? null} homeId={homeRow?.id ?? null} reporter={user.name} today={dateKey()} nowTime={clock()} />
     </div>
   );
 }

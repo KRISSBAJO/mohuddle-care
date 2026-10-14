@@ -61,6 +61,7 @@ export const homeSchema = z.object({
   phone: optional(40),
   zip: z.union([z.literal(""), z.string().trim().regex(/^\d{5}(-\d{4})?$/, "Use a 5-digit ZIP code, for example 37217.")]).default(""),
   county: optional(60),
+  region: z.enum(["", "east", "middle", "west"]).default(""),
   licenseNumber: optional(60),
   openedOn: optionalDate,
   notes: optional(2000),

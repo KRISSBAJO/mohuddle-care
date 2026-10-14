@@ -12,7 +12,7 @@ type Home = { id: string; name: string };
  * The fields for changing a person's details. Every field must be here: one left out would be saved
  * as empty. Adding a person uses the step-by-step form instead.
  */
-export function IndividualFields({ homes, person, prefix = "person", lists }: { homes: Home[]; person?: Individual; prefix?: string; lists?: { communication: string[]; mobility: string[]; diet: string[] } }) {
+export function IndividualFields({ homes, person, prefix = "person", lists }: { homes: Home[]; person?: Individual; prefix?: string; lists?: { communication: string[]; mobility: string[]; diet: string[]; waivers?: string[] } }) {
   const id = (name: string) => `${prefix}-${name}`;
   return (
     <>
@@ -38,6 +38,9 @@ export function IndividualFields({ homes, person, prefix = "person", lists }: { 
         <Field label="How they communicate" htmlFor={id("communication")}><input id={id("communication")} name="communication" maxLength={500} list={id("communication-list")} className="field" defaultValue={person?.communication} /></Field>
         <Field label="Mobility" htmlFor={id("mobility")}><input id={id("mobility")} name="mobility" maxLength={500} list={id("mobility-list")} className="field" defaultValue={person?.mobility} /></Field>
         <Field label="Diet" htmlFor={id("diet")}><input id={id("diet")} name="diet" maxLength={500} list={id("diet-list")} className="field" defaultValue={person?.diet} /></Field>
+        <Field label="Waiver" htmlFor={id("waiver")}>
+          <Select id={id("waiver")} name="waiverType" defaultValue={person?.waiverType ?? ""} emptyLabel="Not recorded" options={[...new Set([...(person?.waiverType ? [person.waiverType] : []), ...(lists?.waivers ?? [])])].map(item => ({ value: item, label: item }))} />
+        </Field>
       </div>
       {lists && (
         <>
@@ -65,7 +68,7 @@ export function IndividualForm({
   action: (previous: FormState, formData: FormData) => Promise<FormState>;
   homes: Home[];
   person?: Individual;
-  lists?: { communication: string[]; mobility: string[]; diet: string[] };
+  lists?: { communication: string[]; mobility: string[]; diet: string[]; waivers?: string[] };
 }) {
   return (
     <ActionForm action={action} submitLabel={person ? "Save changes" : "Add person"} className="card p-6">

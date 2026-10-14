@@ -169,6 +169,26 @@ export async function sweepNotifications(force = false) {
         dedupeKey: `incident:${overdue ? "filing-overdue" : "filing-soon"}:${incident.id}`,
       });
     }
+    // Tier 1 events not yet reported to DIDD Investigations, close to or past their deadline.
+    const tier1 = await db
+      .select({ id: schema.incidents.id, occurredAt: schema.incidents.occurredAt, discoveredAt: schema.incidents.discoveredAt, homeId: schema.incidents.homeId, notifications: schema.incidents.notifications, first: schema.individuals.firstName })
+      .from(schema.incidents)
+      .leftJoin(schema.individuals, eq(schema.individuals.id, schema.incidents.individualId))
+      .where(and(eq(schema.incidents.tier, "tier1"), ne(schema.incidents.status, "closed"), gte(schema.incidents.occurredAt, new Date(now - 3 * 86_400_000))));
+    for (const incident of tier1) {
+      if (incident.notifications.some(item => /investigat|didd/i.test(item.party))) continue;
+      const deadline = (incident.discoveredAt ?? incident.occurredAt).getTime() + settings.incident_tier1_hours * 3_600_000;
+      const overdue = deadline < now;
+      sent += await notify(await recipients({ roles: settings.notify_roles_incidents, staffIds: [await managerOf(incident.homeId)] }), {
+        kind: overdue ? "incident:tier1-overdue" : "incident:tier1-due",
+        title: overdue ? `Tier 1 event${incident.first ? ` for ${incident.first}` : ""} not yet reported to DIDD Investigations` : `Tier 1 event: report to DIDD Investigations by ${fmt.time(new Date(deadline))}`,
+        body: "Call DIDD Investigations, then record it in the incident's notifications.",
+        href: `/app/incidents/${incident.id}`,
+        tone: "bad",
+        dedupeKey: `incident:${overdue ? "tier1-overdue" : "tier1-due"}:${incident.id}`,
+      });
+    }
+
     // Documents near or past their expiry date: the staff member it belongs to and the document reviewers.
     const docs = await db
       .select({
