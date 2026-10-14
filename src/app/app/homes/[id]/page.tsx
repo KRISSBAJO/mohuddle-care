@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ClipboardList, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, CalendarDays, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Badge, Field } from "@/components/app/ui";
 import { HomeDetailsTab } from "@/components/homes/HomeDetailsTab";
@@ -8,6 +8,7 @@ import { HomeExpensesTab } from "@/components/homes/HomeExpensesTab";
 import { HomeIssuesTab } from "@/components/homes/HomeIssuesTab";
 import { HomeMedsTab } from "@/components/homes/HomeMedsTab";
 import { HomeOverviewTab } from "@/components/homes/HomeOverviewTab";
+import { HomeScheduleTab } from "@/components/homes/HomeScheduleTab";
 import { cn } from "@/lib/cn";
 import { dateKey, label, labels } from "@/lib/format";
 import { mayManageHome } from "@/lib/home-policy";
@@ -25,11 +26,12 @@ const TABS = [
   ["medications", "Medications", Pill],
   ["expenses", "Expenses", Receipt],
   ["issues", "Issues", Wrench],
+  ["schedule", "Schedule", CalendarDays],
   ["details", "Details", Settings2],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-type Search = { tab?: string; day?: string; month?: string; show?: string; created?: string };
+type Search = { tab?: string; day?: string; month?: string; show?: string; created?: string; week?: string };
 
 export default async function HomePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -164,15 +166,13 @@ export default async function HomePage({ params, searchParams }: { params: Promi
             {value === "medications" && hub.meds.late > 0 && <span className="chip bg-flag-soft px-1.5 py-0 text-flag">{hub.meds.late}</span>}
           </Link>
         ))}
-        <Link href={`/app/schedule?home=${id}`} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-mute hover:text-ink">
-          <ClipboardList className="h-4 w-4" /> Schedule
-        </Link>
       </nav>
 
       {tab === "overview" && <HomeOverviewTab hub={hub} homeId={id} />}
       {tab === "medications" && <HomeMedsTab homeId={id} day={day} lateMinutes={settings.med_late_minutes} />}
       {tab === "expenses" && <HomeExpensesTab homeId={id} home={home} month={month} user={user} />}
       {tab === "issues" && <HomeIssuesTab homeId={id} home={home} show={query.show} user={user} staff={staff} />}
+      {tab === "schedule" && <HomeScheduleTab homeId={id} week={query.week} manager={manager} />}
       {tab === "details" && manager && <HomeDetailsTab homeId={id} staff={staff} />}
     </div>
   );
