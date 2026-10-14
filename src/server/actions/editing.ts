@@ -61,7 +61,7 @@ export async function changeMedication(id: string, _previous: FormState, formDat
   });
   if (!individualId) return { error: "This medication was already stopped or changed. Refresh the page." };
   revalidateMedication(individualId);
-  redirect(`/app/individuals/${individualId}?saved=medication`);
+  redirect(`/app/individuals/${individualId}?tab=medications&saved=medication`);
 }
 
 export async function stopMedication(id: string, _previous: FormState, formData: FormData): Promise<FormState> {
@@ -80,7 +80,7 @@ export async function stopMedication(id: string, _previous: FormState, formData:
   });
   if (!individualId) return { error: "This medication was already stopped. Refresh the page." };
   revalidateMedication(individualId);
-  redirect(`/app/individuals/${individualId}?saved=medication`);
+  redirect(`/app/individuals/${individualId}?tab=medications&saved=medication`);
 }
 
 /* ---------- Staff ---------- */

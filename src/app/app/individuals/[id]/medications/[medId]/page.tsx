@@ -16,7 +16,7 @@ export default async function MedicationPage({ params }: { params: Promise<{ id:
   const row = await medicationDetail(medId);
   if (!row || row.med.individualId !== id) notFound();
   const { med } = row;
-  const back = `/app/individuals/${id}`;
+  const back = `/app/individuals/${id}?tab=medications`;
 
   if (!med.active) {
     return (

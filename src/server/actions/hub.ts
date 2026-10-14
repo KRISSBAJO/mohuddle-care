@@ -77,8 +77,8 @@ export async function addGoal(_p: FormState, formData: FormData): Promise<FormSt
   const user = await requireUser();
   const parsed = goalSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return firstError(parsed.error);
-  await db.insert(schema.planGoals).values(parsed.data);
-  await audit(user.id, "create", "goal", parsed.data.individualId);
+  const [goal] = await db.insert(schema.planGoals).values(parsed.data).returning({ id: schema.planGoals.id });
+  await audit(user.id, "create", "goal", goal.id);
   revalidatePath(`/app/individuals/${parsed.data.individualId}`);
   return {};
 }
@@ -88,6 +88,19 @@ export async function setGoalStatus(goalId: string, individualId: string, status
   await db.update(schema.planGoals).set({ status }).where(eq(schema.planGoals.id, goalId));
   await audit(user.id, `goal:${status}`, "goal", goalId);
   revalidatePath(`/app/individuals/${individualId}`);
+}
+
+/* Rewords a goal or moves its target date. The goal keeps its history in daily logs. */
+export async function updateGoal(goalId: string, _p: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  if (!uuid.safeParse(goalId).success) return { error: "This goal no longer exists." };
+  const parsed = goalSchema.omit({ individualId: true }).safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return firstError(parsed.error);
+  const [goal] = await db.update(schema.planGoals).set(parsed.data).where(eq(schema.planGoals.id, goalId)).returning({ individualId: schema.planGoals.individualId });
+  if (!goal) return { error: "This goal no longer exists." };
+  await audit(user.id, "update", "goal", goalId);
+  revalidatePath(`/app/individuals/${goal.individualId}`);
+  return {};
 }
 
 /* ---------- Daily logs ---------- */
@@ -152,6 +165,7 @@ export async function recordMedication(adminId: string, status: "given" | "refus
   revalidatePath("/app/medications");
   revalidatePath("/app/homes/[id]", "page");
   revalidatePath("/app");
+  revalidatePath("/app/individuals/[id]", "page");
 }
 
 /* ---------- Incidents ---------- */
@@ -178,6 +192,7 @@ export async function createIncident(_p: FormState, formData: FormData): Promise
   await audit(user.id, "create", "incident", row.id);
   revalidatePath("/app/incidents");
   revalidatePath("/app");
+  revalidatePath("/app/individuals/[id]", "page");
   redirect(`/app/incidents/${row.id}`);
 }
 
@@ -200,6 +215,7 @@ export async function createTask(_p: FormState, formData: FormData): Promise<For
   await db.insert(schema.tasks).values(parsed.data);
   await audit(user.id, "create", "task");
   revalidatePath("/app/tasks");
+  revalidatePath("/app/individuals/[id]", "page");
   revalidatePath("/app");
   return {};
 }
@@ -209,6 +225,7 @@ export async function completeTask(id: string) {
   await db.update(schema.tasks).set({ status: "done", completedAt: new Date() }).where(eq(schema.tasks.id, id));
   await audit(user.id, "complete", "task", id);
   revalidatePath("/app/tasks");
+  revalidatePath("/app/individuals/[id]", "page");
   revalidatePath("/app");
 }
 

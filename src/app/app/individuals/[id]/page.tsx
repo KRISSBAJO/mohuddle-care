@@ -1,271 +1,238 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ClipboardList, Phone } from "lucide-react";
-import { ConfirmAction } from "@/components/app/ConfirmAction";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  ClipboardList,
+  FileText,
+  HeartPulse,
+  Home,
+  LayoutDashboard,
+  ListChecks,
+  Phone,
+  Pill,
+  ShieldAlert,
+  Target,
+  UserRound,
+} from "lucide-react";
 import { IndividualFields } from "@/components/app/IndividualForm";
 import { ModalForm } from "@/components/app/ModalForm";
-import { Avatar, Badge, Empty, Field, PageHeader, Panel } from "@/components/app/ui";
+import { PrintButton } from "@/components/app/PrintButton";
+import { Avatar, Badge } from "@/components/app/ui";
+import { PersonCarePlanTab } from "@/components/person/PersonCarePlanTab";
+import { PersonHealthTab } from "@/components/person/PersonHealthTab";
+import { PersonIncidentsTab } from "@/components/person/PersonIncidentsTab";
+import { PersonLogsTab } from "@/components/person/PersonLogsTab";
+import { PersonMedicationsTab } from "@/components/person/PersonMedicationsTab";
+import { PersonOverviewTab } from "@/components/person/PersonOverviewTab";
+import { PersonProfileTab } from "@/components/person/PersonProfileTab";
+import { PersonTasksTab } from "@/components/person/PersonTasksTab";
+import { cn } from "@/lib/cn";
 import { age, dateKey, fmt, initials, label } from "@/lib/format";
-import { dischargeIndividual, readmitIndividual } from "@/server/actions/editing";
-import { addGoal, addMedication, setGoalStatus, updateIndividual } from "@/server/actions/hub";
+import { updateIndividual } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
-import { individualDetail, listHomes } from "@/server/queries/hub";
+import { listHomes } from "@/server/queries/hub";
+import { personHeader } from "@/server/queries/person";
+import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "Person" };
 
-const moodTone = { great: "good", good: "good", okay: "neutral", low: "warn", distressed: "bad" } as const;
+const TABS = [
+  ["overview", "Overview", LayoutDashboard],
+  ["plan", "Care plan", Target],
+  ["medications", "Medications", Pill],
+  ["health", "Health", HeartPulse],
+  ["logs", "Daily logs", ClipboardList],
+  ["incidents", "Incidents", ShieldAlert],
+  ["tasks", "Tasks", ListChecks],
+  ["profile", "Profile & history", UserRound],
+] as const;
+export type PersonTab = (typeof TABS)[number][0];
 
-export default async function IndividualPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
+type Search = Record<string, string | undefined>;
+
+export default async function IndividualPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const user = await requireUser();
   const { id } = await params;
-  const { saved } = await searchParams;
+  const query = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [detail, homes] = await Promise.all([individualDetail(id), listHomes()]);
-  if (!detail) notFound();
-  const { person, home, goals, meds, stoppedMeds, logs, incidents } = detail;
-  const years = age(person.dob);
+  const settings = await getSettings();
+  const [header, homes] = await Promise.all([personHeader(id, settings.med_late_minutes), listHomes()]);
+  if (!header) notFound();
+  const { person, home, manager: homeManager, counts } = header;
+  const tab: PersonTab = TABS.some(([value]) => value === query.tab) ? (query.tab as PersonTab) : "overview";
   const manager = canManage(user);
   const active = person.active;
-  const activeGoals = goals.filter(goal => goal.status === "active").length;
-  const openIncidents = incidents.filter(incident => incident.status !== "closed").length;
+  const years = age(person.dob);
   const today = dateKey();
-  const lastLog = logs[0]?.logDate ?? null;
+  const base = `/app/individuals/${id}`;
+  const href = (next: PersonTab) => (next === "overview" ? base : `${base}?tab=${next}`);
+  const logToday = counts.lastLog === today;
+
+  const badges: Partial<Record<PersonTab, { n: number; tone: string }>> = {
+    medications: counts.dosesLate ? { n: counts.dosesLate, tone: "bg-flag-soft text-flag" } : counts.activeMeds ? { n: counts.activeMeds, tone: "bg-panel text-mute" } : undefined,
+    plan: counts.activeGoals ? { n: counts.activeGoals, tone: "bg-sky text-brand-deep" } : undefined,
+    incidents: counts.openIncidents ? { n: counts.openIncidents, tone: "bg-accent-soft text-[#8a5a10]" } : undefined,
+    tasks: counts.overdueTasks ? { n: counts.overdueTasks, tone: "bg-flag-soft text-flag" } : counts.openTasks ? { n: counts.openTasks, tone: "bg-panel text-mute" } : undefined,
+  };
 
   return (
-    <>
-      <Link href="/app/individuals" className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
+    <div className="max-w-7xl">
+      <Link href="/app/individuals" className="no-print mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
         <ArrowLeft className="h-3.5 w-3.5" /> All people
       </Link>
-      <PageHeader
-        eyebrow={label("serviceType", person.serviceType)}
-        title={`${person.firstName} ${person.lastName}`}
-        description={[years !== null ? `${years} years old` : null, home ? `${person.active ? "Lives" : "Lived"} at ${home.name}` : "Not in a Milestone home", person.admittedAt ? `Supported since ${fmt.day(person.admittedAt)}` : null].filter(Boolean).join(" · ")}
-        action={
-          <div className="flex flex-wrap gap-2">
+
+      <section className="card mb-5 overflow-hidden">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-4">
+            <Avatar initials={initials(person.firstName, person.lastName)} size="lg" tone={active ? "brand" : "neutral"} />
+            <div className="min-w-0">
+              <p className="eyebrow">{label("serviceType", person.serviceType)}</p>
+              <h1 className="mt-1 flex flex-wrap items-center gap-2.5 text-3xl font-bold">
+                {person.firstName} {person.lastName}
+                {active ? <Badge tone="good">Supported now</Badge> : <Badge tone="neutral">Support ended</Badge>}
+              </h1>
+              <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-mute">
+                {years !== null && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <dt className="sr-only">Age</dt>
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    <dd>{years} years · born {fmt.day(person.dob)}, {person.dob?.slice(0, 4)}</dd>
+                  </div>
+                )}
+                <div className="inline-flex items-center gap-1.5">
+                  <dt className="sr-only">Home</dt>
+                  <Home className="h-3.5 w-3.5" />
+                  <dd>{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-ink hover:text-brand">{home.name}</Link> : "Not in a Milestone home"}</dd>
+                </div>
+                {homeManager && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <dt>Home manager</dt>
+                    <dd>
+                      <Link href={`/app/staff/${homeManager.id}`} className="font-semibold text-ink hover:text-brand">{homeManager.firstName} {homeManager.lastName}</Link>
+                      {homeManager.phone && <a href={`tel:${homeManager.phone}`} className="ml-1.5 inline-flex items-center gap-1 text-brand"><Phone className="h-3 w-3" />{homeManager.phone}</a>}
+                    </dd>
+                  </div>
+                )}
+                {person.admittedAt && (
+                  <div>
+                    <dt className="sr-only">Supported since</dt>
+                    <dd>Supported since {fmt.dayLong(person.admittedAt)}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          </div>
+          <div className="no-print flex flex-wrap gap-2 lg:justify-end">
+            {active && <Link href={`/app/daily-logs/new?individual=${id}`} className="btn-brand btn-sm"><ClipboardList className="h-3.5 w-3.5" /> Daily log</Link>}
+            {active && <Link href={`/app/incidents/new?individual=${id}`} className="btn-ghost btn-sm"><AlertTriangle className="h-3.5 w-3.5" /> Report incident</Link>}
             {manager && (
-              <ModalForm
-                action={updateIndividual.bind(null, id)}
-                title={`Edit ${person.firstName}'s details`}
-                triggerLabel="Edit details"
-                triggerIcon="pencil"
-                triggerTone="ghost"
-                submitLabel="Save details"
-              >
+              <ModalForm action={updateIndividual.bind(null, id)} title={`Edit ${person.firstName}'s details`} triggerLabel="Edit details" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save details">
                 <IndividualFields homes={homes} person={person} prefix="edit-person" />
               </ModalForm>
             )}
-            {active && <Link href={`/app/incidents/new?individual=${id}`} className="btn-ghost btn-sm"><AlertTriangle className="h-3.5 w-3.5" /> Incident</Link>}
-            {active && <Link href={`/app/daily-logs/new?individual=${id}`} className="btn-brand btn-sm"><ClipboardList className="h-3.5 w-3.5" /> Daily log</Link>}
+            <PrintButton />
           </div>
-        }
-      />
-      {saved === "log" && <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Daily log saved. Thank you.</p>}
+        </div>
+
+        {/* The things nobody should miss, on every tab. */}
+        <div className="grid gap-px border-t border-line bg-line sm:grid-cols-2">
+          <div className={cn("flex items-start gap-2.5 px-5 py-3 text-sm sm:px-6", person.allergies ? "bg-flag-soft" : "bg-white")}>
+            <ShieldAlert className={cn("mt-0.5 h-4 w-4 shrink-0", person.allergies ? "text-flag" : "text-dim")} />
+            <p>
+              <span className="font-semibold">Allergies: </span>
+              <span className={person.allergies ? "font-semibold text-flag" : "text-mute"}>{person.allergies || "None known"}</span>
+            </p>
+          </div>
+          <div className="flex items-start gap-2.5 bg-white px-5 py-3 text-sm sm:px-6">
+            <Phone className="mt-0.5 h-4 w-4 shrink-0 text-dim" />
+            <p>
+              <span className="font-semibold">In an emergency: </span>
+              {person.emergencyContact || person.guardianName ? (
+                <>
+                  {person.emergencyContact || person.guardianName}
+                  {(person.emergencyPhone || person.guardianPhone) && (
+                    <a href={`tel:${person.emergencyPhone || person.guardianPhone}`} className="ml-1.5 font-semibold text-brand">{person.emergencyPhone || person.guardianPhone}</a>
+                  )}
+                </>
+              ) : (
+                <span className="text-mute">No contact on file{manager ? ". Add one with Edit details." : "."}</span>
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {query.saved === "log" && <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Daily log saved. Thank you.</p>}
+      {query.saved === "created" && (
+        <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">
+          {person.firstName} has been added. Next, use Edit details for support notes and contacts, then add goals and medications.
+        </p>
+      )}
+      {query.saved === "medication" && <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Medication updated. The medication record follows from now on.</p>}
       {!active && (
-        <p className="mb-6 rounded-xl bg-panel px-4 py-3 text-sm font-medium text-mute">
+        <p className="mb-5 rounded-xl bg-panel px-4 py-3 text-sm font-medium text-mute">
           Support ended{person.dischargedAt ? ` on ${fmt.dayLong(person.dischargedAt)}` : ""}.{person.dischargeReason && ` ${person.dischargeReason.replace(/[.!?]?$/, ".")}`} Their records stay on file.
         </p>
       )}
 
-      {saved === "created" && (
-        <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">
-          {person.firstName} has been added. Next, use Edit details for support notes and contacts, then add goals and medications.
-        </p>
-      )}
-      {saved === "medication" && <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Medication updated. The medication record follows from now on.</p>}
-
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {[
-          ["Active goals", String(activeGoals), "neutral"],
-          ["Medications", String(meds.length), "neutral"],
-          ["Last daily log", lastLog ? (lastLog === today ? "Today" : fmt.day(lastLog)) : "Never", lastLog === today ? "good" : "warn"],
-          ["Open incidents", String(openIncidents), openIncidents ? "warn" : "good"],
-        ].map(([title, value, tone]) => (
-          <div key={title} className="card p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
-            <p className={`mt-1 font-display text-2xl font-bold ${tone === "warn" ? "text-[#8a5a10]" : tone === "good" ? "text-sage" : ""}`}>{value}</p>
-          </div>
+          {
+            title: "Medications today",
+            value: counts.dosesToday ? `${counts.dosesDone}/${counts.dosesToday}` : "None",
+            hint: counts.dosesLate ? `${counts.dosesLate} late` : counts.dosesToday ? (counts.dosesDone === counts.dosesToday ? "All recorded" : "On time so far") : `${counts.activeMeds} active orders`,
+            tone: counts.dosesLate ? "bad" : counts.dosesToday && counts.dosesDone === counts.dosesToday ? "good" : "neutral",
+            tab: "medications" as const,
+          },
+          {
+            title: "Last daily log",
+            value: counts.lastLog ? (logToday ? "Today" : fmt.day(counts.lastLog)) : "Never",
+            hint: logToday ? "Written" : active ? "Today's log not written yet" : "",
+            tone: logToday ? "good" : active ? "warn" : "neutral",
+            tab: "logs" as const,
+          },
+          { title: "Plan goals", value: String(counts.activeGoals), hint: `${counts.metGoals} met so far`, tone: "neutral", tab: "plan" as const },
+          { title: "Open incidents", value: String(counts.openIncidents), hint: `${counts.incidents} on record`, tone: counts.openIncidents ? "warn" : "good", tab: "incidents" as const },
+          { title: "Open tasks", value: String(counts.openTasks), hint: counts.overdueTasks ? `${counts.overdueTasks} overdue` : "Nothing overdue", tone: counts.overdueTasks ? "bad" : "neutral", tab: "tasks" as const },
+        ].map(stat => (
+          <Link key={stat.title} href={href(stat.tab)} className="card block p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{stat.title}</p>
+            <p className={cn("mt-1 font-display text-2xl font-bold", stat.tone === "warn" && "text-[#8a5a10]", stat.tone === "good" && "text-sage", stat.tone === "bad" && "text-flag")}>{stat.value}</p>
+            {stat.hint && <p className="mt-0.5 text-xs text-mute">{stat.hint}</p>}
+          </Link>
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          <Panel title="How to support this person well">
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <Avatar initials={initials(person.firstName, person.lastName)} size="lg" />
-                <p className="whitespace-pre-line text-sm leading-relaxed">{person.supportNotes || "No support notes yet. Coordinators add these with Edit details."}</p>
-              </div>
-              <dl className="mt-5 grid gap-4 border-t border-line pt-5 text-sm sm:grid-cols-2">
-                <div><dt className="label">Allergies</dt><dd className={person.allergies ? "font-semibold text-flag" : ""}>{person.allergies || "None known"}</dd></div>
-                <div><dt className="label">Diagnoses</dt><dd>{person.diagnoses || "—"}</dd></div>
-                <div><dt className="label">Guardian</dt><dd>{person.guardianName || "—"} {person.guardianPhone && <a href={`tel:${person.guardianPhone}`} className="ml-1 inline-flex items-center gap-1 text-brand"><Phone className="h-3 w-3" />{person.guardianPhone}</a>}</dd></div>
-                <div><dt className="label">Emergency contact</dt><dd>{person.emergencyContact || "—"} {person.emergencyPhone && <a href={`tel:${person.emergencyPhone}`} className="ml-1 inline-flex items-center gap-1 text-brand"><Phone className="h-3 w-3" />{person.emergencyPhone}</a>}</dd></div>
-              </dl>
-            </div>
-          </Panel>
+      <nav className="no-print z-10 mb-6 flex flex-wrap gap-1 rounded-xl bg-panel p-1 lg:sticky lg:top-0 lg:flex-nowrap lg:overflow-x-auto" aria-label={`${person.firstName}'s record`}>
+        {TABS.map(([value, text, Icon]) => {
+          const badge = badges[value];
+          return (
+            <Link
+              key={value}
+              href={href(value)}
+              aria-current={tab === value ? "page" : undefined}
+              className={cn("flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition", tab === value ? "bg-white text-ink shadow-sm" : "text-mute hover:text-ink")}
+            >
+              <Icon className="h-4 w-4" /> {text}
+              {badge?.n ? <span className={cn("chip px-1.5 py-0", badge.tone)}>{badge.n}</span> : null}
+            </Link>
+          );
+        })}
+      </nav>
 
-          <Panel title="Recent daily logs">
-            {logs.length === 0 ? (
-              <Empty>No logs yet.</Empty>
-            ) : (
-              <ul className="divide-y divide-line/60">
-                {logs.map(log => (
-                  <li key={log.id} className="px-5 py-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">{fmt.dayLong(log.logDate)}</p>
-                      <Badge tone={moodTone[log.mood]}>{label("mood", log.mood)}</Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-mute">{log.activities || log.notes || "No narrative written."}</p>
-                    {log.goalProgress && <p className="mt-1 text-xs text-sage">Goals: {log.goalProgress}</p>}
-                    {log.health && <p className="mt-1 text-xs text-plum">Health: {log.health}</p>}
-                    <p className="mt-1 text-xs text-dim">{log.staff ?? "Staff"}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
+      <p className="print-only mb-4 flex items-center gap-2 text-sm text-mute"><FileText className="h-4 w-4" /> {TABS.find(([value]) => value === tab)?.[1]} · printed {fmt.dayLong(today)}</p>
 
-          <Panel title="Incidents">
-            {incidents.length === 0 ? (
-              <Empty>No incidents recorded.</Empty>
-            ) : (
-              <ul className="divide-y divide-line/60">
-                {incidents.map(incident => (
-                  <li key={incident.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                    <Link href={`/app/incidents/${incident.id}`} className="font-semibold hover:text-brand">{label("incidentCategory", incident.category)} · {fmt.dateTime(incident.occurredAt)}</Link>
-                    <Badge tone={incident.status === "closed" ? "good" : "warn"}>{label("incidentStatus", incident.status)}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-        </div>
-
-        <div className="space-y-6">
-          <Panel
-            title="Plan goals"
-            action={
-              active ? (
-                <ModalForm action={addGoal} title="Add a plan goal" description="Write it in the person's own words where you can." triggerLabel="Add goal" triggerTone="ghost" submitLabel="Add goal">
-                  <input type="hidden" name="individualId" value={id} />
-                  <Field label="Goal" htmlFor="add-goal-title"><input id="add-goal-title" name="title" required minLength={3} maxLength={160} className="field" placeholder="Ride the bus to day program independently" /></Field>
-                  <Field label="Details" htmlFor="add-goal-description"><textarea id="add-goal-description" name="description" rows={3} maxLength={1000} className="field" /></Field>
-                  <Field label="Target date" htmlFor="add-goal-target"><input id="add-goal-target" name="targetDate" type="date" className="field" /></Field>
-                </ModalForm>
-              ) : undefined
-            }
-          >
-            {goals.length === 0 ? <Empty>No goals yet.</Empty> : (
-              <ul className="divide-y divide-line/60">
-                {goals.map(goal => (
-                  <li key={goal.id} className="px-5 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">{goal.title}</p>
-                        {goal.description && <p className="text-xs text-mute">{goal.description}</p>}
-                        {goal.targetDate && <p className="text-xs text-dim">Target {fmt.day(goal.targetDate)}</p>}
-                      </div>
-                      <Badge tone={goal.status === "met" ? "good" : goal.status === "paused" ? "neutral" : "brand"}>{goal.status}</Badge>
-                    </div>
-                    {goal.status === "active" && (
-                      <div className="mt-2 flex gap-3 text-xs">
-                        <form action={setGoalStatus.bind(null, goal.id, id, "met")}><button className="font-semibold text-sage">Mark met</button></form>
-                        <form action={setGoalStatus.bind(null, goal.id, id, "paused")}><button className="font-semibold text-mute">Pause</button></form>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-          </Panel>
-
-          <Panel
-            title="Medications"
-            action={
-              manager && active ? (
-                <ModalForm action={addMedication} title="Add a medication" description="Doses start from now. Earlier times today are not added as late." triggerLabel="Add medication" triggerTone="ghost" submitLabel="Add medication">
-                  <input type="hidden" name="individualId" value={id} />
-                  <Field label="Name" htmlFor="add-med-name"><input id="add-med-name" name="name" required minLength={2} maxLength={120} className="field" /></Field>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Dose" htmlFor="add-med-dose"><input id="add-med-dose" name="dose" required maxLength={80} className="field" placeholder="10 mg" /></Field>
-                    <Field label="Route" htmlFor="add-med-route"><input id="add-med-route" name="route" maxLength={40} className="field" defaultValue="oral" /></Field>
-                  </div>
-                  <Field label="Times" htmlFor="add-med-times" hint="24-hour, separated by commas"><input id="add-med-times" name="times" required className="field" placeholder="08:00, 20:00" /></Field>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Prescriber" htmlFor="add-med-prescriber"><input id="add-med-prescriber" name="prescriber" maxLength={120} className="field" /></Field>
-                    <Field label="Instructions" htmlFor="add-med-instructions"><input id="add-med-instructions" name="instructions" maxLength={1000} className="field" placeholder="With food" /></Field>
-                  </div>
-                </ModalForm>
-              ) : undefined
-            }
-          >
-            {meds.length === 0 ? <Empty>No active medications.</Empty> : (
-              <ul className="divide-y divide-line/60">
-                {meds.map(med => (
-                  <li key={med.id} className="flex items-start justify-between gap-3 px-5 py-3 text-sm">
-                    <div>
-                      <p className="font-semibold">{med.name} <span className="font-normal text-mute">{med.dose}, {med.route}</span></p>
-                      <p className="text-xs text-mute">{med.times.join(", ")}{med.instructions && ` · ${med.instructions}`}</p>
-                      {med.prescriber && <p className="text-xs text-dim">{med.prescriber}{med.startedAt ? ` · since ${fmt.day(med.startedAt)}` : ""}</p>}
-                    </div>
-                    {manager && <Link href={`/app/individuals/${id}/medications/${med.id}`} className="shrink-0 text-xs font-semibold text-brand">Change or stop</Link>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {stoppedMeds.length > 0 && (
-              <details className="border-t border-line">
-                <summary className="cursor-pointer px-5 py-3 text-xs font-semibold text-mute">Stopped and earlier orders ({stoppedMeds.length})</summary>
-                <ul className="divide-y divide-line/60 pb-2">
-                  {stoppedMeds.map(med => (
-                    <li key={med.id} className="px-5 py-2.5 text-xs text-mute">
-                      <p><span className="font-semibold text-ink">{med.name}</span> {med.dose}, {med.times.join(", ")}</p>
-                      <p>{med.stoppedAt ? `Stopped ${fmt.dateTime(med.stoppedAt)}` : "Stopped"}{med.stopReason && ` · ${med.stopReason}`}</p>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-
-          </Panel>
-
-          {manager && (
-            <Panel title="Care status">
-              <div className="space-y-3 p-5 text-sm">
-                {active ? (
-                  <>
-                    <p className="text-mute">
-                      When support ends, {person.firstName} leaves the daily lists, their place in a home is freed and upcoming
-                      medication doses stop. Logs, goals and incidents stay on record.
-                    </p>
-                    <ModalForm
-                      action={dischargeIndividual.bind(null, id)}
-                      title={`End support for ${person.firstName}`}
-                      description="This can be undone later with Readmit."
-                      triggerLabel="End support"
-                      triggerIcon="none"
-                      triggerTone="ghost"
-                      submitLabel="End support"
-                    >
-                      <Field label="Last day of support" htmlFor="discharge-date"><input id="discharge-date" name="date" type="date" required className="field" defaultValue={today} /></Field>
-                      <Field label="Reason" htmlFor="discharge-reason" hint="For example moved to another provider or moved out of state.">
-                        <textarea id="discharge-reason" name="reason" rows={3} required minLength={3} maxLength={500} className="field" />
-                      </Field>
-                    </ModalForm>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-mute">Readmitting lists {person.firstName} again. If their old place is taken or the home is closed, they come back without a home so you can choose one.</p>
-                    <ConfirmAction action={readmitIndividual.bind(null, id)} label="Readmit" confirm={`Readmit ${person.firstName} ${person.lastName}?`} />
-                  </>
-                )}
-              </div>
-            </Panel>
-          )}
-        </div>
-      </div>
-    </>
+      {tab === "overview" && <PersonOverviewTab id={id} person={person} home={home} lateMinutes={settings.med_late_minutes} />}
+      {tab === "plan" && <PersonCarePlanTab id={id} person={person} />}
+      {tab === "medications" && <PersonMedicationsTab id={id} person={person} manager={manager} end={query.end} days={query.days} lateMinutes={settings.med_late_minutes} />}
+      {tab === "health" && <PersonHealthTab id={id} person={person} manager={manager} />}
+      {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} />}
+      {tab === "incidents" && <PersonIncidentsTab id={id} person={person} />}
+      {tab === "tasks" && <PersonTasksTab id={id} person={person} />}
+      {tab === "profile" && <PersonProfileTab id={id} person={person} home={home} manager={manager} />}
+    </div>
   );
 }
