@@ -161,28 +161,6 @@ export function shiftsForWeek(weekStartDay: string) {
     .orderBy(asc(schema.shifts.startsAt));
 }
 
-export function listIncidents(status?: "open" | "under_review" | "closed") {
-  const query = db
-    .select({
-      id: schema.incidents.id,
-      occurredAt: schema.incidents.occurredAt,
-      category: schema.incidents.category,
-      severity: schema.incidents.severity,
-      status: schema.incidents.status,
-      reportable: schema.incidents.reportable,
-      description: schema.incidents.description,
-      first: schema.individuals.firstName,
-      last: schema.individuals.lastName,
-      home: schema.homes.name,
-    })
-    .from(schema.incidents)
-    .leftJoin(schema.individuals, eq(schema.individuals.id, schema.incidents.individualId))
-    .leftJoin(schema.homes, eq(schema.homes.id, schema.incidents.homeId))
-    .orderBy(desc(schema.incidents.occurredAt))
-    .limit(100);
-  return status ? query.where(eq(schema.incidents.status, status)) : query;
-}
-
 export async function incidentDetail(id: string) {
   const rows = await db
     .select({
