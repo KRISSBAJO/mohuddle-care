@@ -12,11 +12,11 @@ export function ScribeDemo() {
     ["Behaviour", "Cried and shouted for about five minutes when the TV channel changed. Staff offered space and headphones; she calmed."],
   ];
   return (
-    <div className="mh-demo relative rounded-[28px] bg-white p-5 text-[#173e35] shadow-[0_40px_80px_-30px_rgba(0,0,0,.45)] sm:p-6" aria-label="Example: a spoken note filling in a daily note" role="img">
+    <div className="mh-demo relative rounded-[28px] bg-white p-5 text-[#173e35] shadow-[0_40px_70px_-34px_rgba(23,62,53,.45)] sm:p-6" aria-label="Example: a spoken note filling in a daily note" role="img">
       <div className="flex items-center gap-3 rounded-2xl bg-[#f3f6ef] px-4 py-3">
         <span className="mh-demo-mic grid h-9 w-9 place-items-center rounded-full bg-[#ab3c2b] text-white"><Mic className="h-4 w-4" /></span>
-        <div className="flex h-8 flex-1 items-center gap-[3px]" aria-hidden="true">
-          {Array.from({ length: 34 }, (_, i) => <span key={i} className="mh-demo-bar w-[3px] rounded-full bg-[#286b55]" style={{ animationDelay: `${(i % 9) * 0.11}s` }} />)}
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-[3px] overflow-hidden" aria-hidden="true">
+          {Array.from({ length: 34 }, (_, i) => <span key={i} className="mh-demo-bar w-[3px] shrink-0 rounded-full bg-[#286b55]" style={{ animationDelay: `${(i % 9) * 0.11}s` }} />)}
         </div>
         <span className="text-xs font-semibold tabular-nums text-[#5b6b7a]">1:48</span>
       </div>

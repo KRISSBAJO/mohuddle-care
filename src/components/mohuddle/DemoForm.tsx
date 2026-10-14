@@ -8,14 +8,14 @@ export function DemoForm() {
   const [state, action, pending] = useActionState<EnquiryState, FormData>(submitEnquiry, { ok: false });
   if (state.ok) {
     return (
-      <div className="rounded-3xl bg-white/10 p-8 text-center">
-        <p className="text-2xl font-bold">Thank you.</p>
-        <p className="mt-2 text-white/70">We will be in touch within one working day to find a time.</p>
+      <div className="rounded-3xl bg-white p-8 text-center shadow-[0_30px_60px_-30px_rgba(23,62,53,.35)] ring-1 ring-[#e3e8dc]">
+        <p className="text-2xl font-bold text-[#173e35]">Thank you.</p>
+        <p className="mt-2 text-[#5b6b62]">We will be in touch within one working day to find a time.</p>
       </div>
     );
   }
   return (
-    <form action={action} className="grid gap-3 rounded-3xl bg-white p-6 text-[#173e35] shadow-2xl sm:grid-cols-2 sm:p-8">
+    <form action={action} className="grid gap-3 rounded-3xl bg-white p-6 text-[#173e35] shadow-[0_30px_60px_-30px_rgba(23,62,53,.35)] ring-1 ring-[#e3e8dc] sm:grid-cols-2 sm:p-8">
       <input type="hidden" name="kind" value="demo" />
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <label className="grid gap-1 text-sm font-medium">Your name<input name="name" required minLength={2} maxLength={120} autoComplete="name" className="field" /></label>
