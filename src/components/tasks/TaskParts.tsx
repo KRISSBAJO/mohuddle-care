@@ -1,6 +1,7 @@
 import { Field } from "@/components/app/ui";
 import { dateKey, labels } from "@/lib/format";
 import type { schema } from "@/server/db";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 type Task = typeof schema.tasks.$inferSelect;
 type Option = { id: string; name: string };
@@ -36,10 +37,7 @@ export function TaskFields({
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Who does it" htmlFor={`${prefix}-assignee`}>
-          <select id={`${prefix}-assignee`} name="assignedTo" className="field" defaultValue={task?.assignedTo ?? defaults.assignedTo ?? ""}>
-            <option value="">Nobody yet</option>
-            {staff.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
-          </select>
+          <SearchSelect id={`${prefix}-assignee`} name="assignedTo" defaultValue={task?.assignedTo ?? defaults.assignedTo ?? ""} emptyLabel="Nobody yet" placeholder="Search staff" options={staff.map(member => ({ value: member.id, label: member.name }))} />
         </Field>
         <Field label="Priority" htmlFor={`${prefix}-priority`}>
           <select id={`${prefix}-priority`} name="priority" className="field" defaultValue={task?.priority ?? "normal"}>
@@ -55,10 +53,7 @@ export function TaskFields({
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Person" htmlFor={`${prefix}-person`}>
-          <select id={`${prefix}-person`} name="individualId" className="field" defaultValue={task?.individualId ?? defaults.individualId ?? ""}>
-            <option value="">None</option>
-            {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
-          </select>
+          <SearchSelect id={`${prefix}-person`} name="individualId" defaultValue={task?.individualId ?? defaults.individualId ?? ""} emptyLabel="None" placeholder="Search people" options={people.map(person => ({ value: person.id, label: person.name }))} />
         </Field>
         <Field label="Home" htmlFor={`${prefix}-home`}>
           <select id={`${prefix}-home`} name="homeId" className="field" defaultValue={task?.homeId ?? defaults.homeId ?? ""}>

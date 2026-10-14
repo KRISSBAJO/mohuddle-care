@@ -159,7 +159,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <nav className="flex flex-wrap gap-2" aria-label="Quick actions">
           <Link href="/app/daily-logs/new" className="btn-brand btn-sm"><ClipboardList className="h-4 w-4" /> Write a note</Link>
           <Link href="/app/medications" className="btn-ghost btn-sm"><Pill className="h-4 w-4" /> Med rounds</Link>
-          <Link href="/app/appointments?book=1" className="btn-ghost btn-sm"><Stethoscope className="h-4 w-4" /> Book visit</Link>
+          <Link href="/app/appointments/new" className="btn-ghost btn-sm"><Stethoscope className="h-4 w-4" /> Book visit</Link>
           <Link href="/app/incidents/new" className="btn-ghost btn-sm"><AlertTriangle className="h-4 w-4" /> Incident</Link>
         </nav>
       </header>

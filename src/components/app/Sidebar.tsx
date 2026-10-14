@@ -25,27 +25,50 @@ import {
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/marketing/Logo";
 
-const items = [
-  { href: "/app", label: "Today", icon: LayoutDashboard, exact: true },
-  { href: "/app/individuals", label: "People we support", icon: Users },
-  { href: "/app/daily-logs", label: "Daily logs", icon: ClipboardList },
-  { href: "/app/medications", label: "Medications", icon: Pill },
-  { href: "/app/appointments", label: "Appointments", icon: Stethoscope },
-  { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
-  { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
-  { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/app/homes", label: "Homes", icon: Home },
-  { href: "/app/staff", label: "Staff", icon: UserRound },
-  { href: "/app/documents", label: "Documents", icon: FolderOpen, manager: true },
-  { href: "/app/my-documents", label: "My documents", icon: FolderLock },
-  { href: "/app/enquiries", label: "Website messages", icon: Inbox, manager: true },
-  { href: "/app/settings", label: "Settings", icon: Settings, manager: true },
+type Item = { href: string; label: string; icon: typeof Home; exact?: boolean; manager?: boolean };
+
+/* The menu in groups, so 15 links read as five short lists. */
+const groups: { title: string; items: Item[] }[] = [
+  { title: "", items: [{ href: "/app", label: "Today", icon: LayoutDashboard, exact: true }] },
+  {
+    title: "Care",
+    items: [
+      { href: "/app/individuals", label: "People we support", icon: Users },
+      { href: "/app/daily-logs", label: "Daily notes", icon: ClipboardList },
+      { href: "/app/medications", label: "Medications", icon: Pill },
+      { href: "/app/appointments", label: "Appointments", icon: Stethoscope },
+      { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
+      { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
+      { href: "/app/homes", label: "Homes", icon: Home },
+      { href: "/app/staff", label: "Staff", icon: UserRound },
+    ],
+  },
+  {
+    title: "Files",
+    items: [
+      { href: "/app/documents", label: "Document center", icon: FolderOpen, manager: true },
+      { href: "/app/my-documents", label: "My documents", icon: FolderLock },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { href: "/app/enquiries", label: "Website messages", icon: Inbox, manager: true },
+      { href: "/app/settings", label: "Settings", icon: Settings, manager: true },
+    ],
+  },
 ];
 
 export function Sidebar({ user, manager, signOut }: { user: { name: string; role: string }; manager: boolean; signOut: () => Promise<void> }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const visible = items.filter(item => !item.manager || manager);
+  const visible = groups.map(group => ({ ...group, items: group.items.filter(item => !item.manager || manager) })).filter(group => group.items.length);
 
   // The phone menu is a drawer over the page: Escape closes it and the page behind does not scroll.
   useEffect(() => {
@@ -61,35 +84,55 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
   }, [open]);
 
   const nav = (
-    <nav className="flex flex-1 flex-col gap-0.5" aria-label="Hub">
-      {visible.map(item => {
-        const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-              active ? "hub-nav-active bg-accent text-ink" : "text-white/65 hover:bg-white/8 hover:text-white",
-            )}
-            aria-current={active ? "page" : undefined}
-          >
-            <item.icon className="h-4 w-4" aria-hidden="true" />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="hub-nav flex flex-1 flex-col gap-4 overflow-y-auto pr-1" aria-label="Hub">
+      {visible.map(group => (
+        <div key={group.title || "home"}>
+          {group.title && <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">{group.title}</p>}
+          <ul className="space-y-0.5">
+            {group.items.map(item => {
+              const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition",
+                      active ? "bg-white/[0.09] text-white" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+                    )}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    <span className={cn("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition", active ? "bg-accent" : "bg-transparent")} aria-hidden="true" />
+                    <item.icon className={cn("h-[17px] w-[17px] shrink-0", active ? "text-accent" : "text-white/45 group-hover:text-white/80")} aria-hidden="true" />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 
+  const initials = user.name
+    .split(" ")
+    .map(part => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const account = (
-    <div className="mt-auto border-t border-white/10 pt-4">
-      <Link href="/app/account" onClick={() => setOpen(false)} className="block truncate text-sm font-semibold text-white hover:underline">{user.name}</Link>
-      <p className="text-xs capitalize text-white/50">{user.role} · <Link href="/app/account" onClick={() => setOpen(false)} className="hover:text-white">My account</Link></p>
-      <form action={signOut} className="mt-3">
-        <button type="submit" className="flex items-center gap-2 text-xs font-medium text-white/60 hover:text-white">
-          <LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Sign out
+    <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
+      <Link href="/app/account" onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-sm font-bold text-ink" aria-label="My account">
+        {initials}
+      </Link>
+      <Link href="/app/account" onClick={() => setOpen(false)} className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-white">{user.name}</span>
+        <span className="block text-[11px] capitalize text-white/45">{user.role}</span>
+      </Link>
+      <form action={signOut}>
+        <button type="submit" className="rounded-lg p-2 text-white/50 transition hover:bg-white/10 hover:text-white" aria-label="Sign out" title="Sign out">
+          <LogOut className="h-4 w-4" aria-hidden="true" />
         </button>
       </form>
     </div>
@@ -98,13 +141,11 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
   return (
     <>
       <aside className="hub-sidebar hidden shrink-0 flex-col text-white lg:flex">
-        <Link href="/app" className="mb-6 flex items-center gap-2.5 px-2">
+        <Link href="/app" className="mb-7 flex items-center gap-2.5 px-2">
           <Logo className="h-8 w-8" />
-          <span><span className="block font-display text-xl font-semibold">Milestone</span><span className="mt-1 block text-[9px] uppercase tracking-[0.22em] text-white/50">Care operations</span></span>
+          <span><span className="block font-display text-lg font-semibold leading-none">Milestone</span><span className="mt-1 block text-[9px] uppercase tracking-[0.22em] text-white/40">Care hub</span></span>
         </Link>
-        <p className="hub-nav-label">YOUR WORKSPACE</p>
         {nav}
-        <div className="my-5 rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-xs font-medium text-accent">Every detail is care.</p><p className="mt-2 text-[11px] leading-relaxed text-white/55">The small things you do today make someone’s tomorrow better.</p></div>
         {account}
       </aside>
 

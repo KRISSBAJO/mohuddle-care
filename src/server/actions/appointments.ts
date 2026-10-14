@@ -125,7 +125,7 @@ export async function updateAppointment(id: string, _previous: FormState, formDa
     }
   }
   refresh(id, existing.individualId);
-  return {};
+  redirect(`/app/appointments/${id}`);
 }
 
 /* Cancelled or missed, with the reason. Both stay on record. */

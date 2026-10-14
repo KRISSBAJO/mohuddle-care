@@ -10,6 +10,7 @@ import { deleteIssue, updateIssue } from "@/server/actions/homes";
 import type { SessionUser } from "@/server/auth";
 import type { schema } from "@/server/db";
 import { homeIssueList } from "@/server/queries/homes";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 type Home = typeof schema.homes.$inferSelect;
 type Staff = typeof schema.staff.$inferSelect;
@@ -114,10 +115,7 @@ export async function HomeIssuesTab({ homeId, home, show, user, staff }: { homeI
                       {runs ? (
                         <>
                           <Field label="Assigned to" htmlFor={`as-${issue.id}`}>
-                            <select id={`as-${issue.id}`} name="assignedTo" className="field" defaultValue={issue.assignedTo ?? ""}>
-                              <option value="">Nobody yet</option>
-                              {staff.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
-                            </select>
+                            <SearchSelect id={`as-${issue.id}`} name="assignedTo" defaultValue={issue.assignedTo ?? ""} emptyLabel="Nobody yet" placeholder="Search staff" options={staff.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />
                           </Field>
                           <Field label="Fix by" htmlFor={`du-${issue.id}`}><input id={`du-${issue.id}`} name="dueOn" type="date" className="field" defaultValue={issue.dueOn ?? ""} /></Field>
                         </>

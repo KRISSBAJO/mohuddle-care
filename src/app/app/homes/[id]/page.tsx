@@ -19,6 +19,7 @@ import { requireUser } from "@/server/guard";
 import { listStaff } from "@/server/queries/hub";
 import { homeHub } from "@/server/queries/homes";
 import { getSettings } from "@/server/settings";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 export const metadata = { title: "Home" };
 
@@ -100,10 +101,7 @@ export default async function HomePage({ params, searchParams }: { params: Promi
               {runsHome ? (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Assign to" htmlFor="issue-assign">
-                    <select id="issue-assign" name="assignedTo" className="field" defaultValue={home.managerStaffId ?? ""}>
-                      <option value="">Nobody yet</option>
-                      {staff.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
-                    </select>
+                    <SearchSelect id="issue-assign" name="assignedTo" defaultValue={home.managerStaffId ?? ""} emptyLabel="Nobody yet" placeholder="Search staff" options={staff.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />
                   </Field>
                   <Field label="Fix by" htmlFor="issue-due"><input id="issue-due" name="dueOn" type="date" className="field" /></Field>
                 </div>

@@ -11,6 +11,7 @@ import { homeDetail } from "@/server/queries/hub";
 import { activePatterns } from "@/server/queries/patterns";
 import { configAbove, requirementsAt } from "@/server/queries/note-requirements";
 import { NoteRequirementsEditor } from "@/components/logs/NoteRequirementsEditor";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 type Staff = typeof schema.staff.$inferSelect;
 
@@ -35,12 +36,7 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
           <div className="p-5">
             <ActionForm action={setHomeManagement.bind(null, home.id)} submitLabel="Save">
               <Field label="Home manager" htmlFor="home-manager" hint="They can approve this home's expenses and manage its issues.">
-                <select id="home-manager" name="managerStaffId" className="field" defaultValue={home.managerStaffId ?? ""}>
-                  <option value="">Not set</option>
-                  {staff.map(person => (
-                    <option key={person.id} value={person.id}>{person.firstName} {person.lastName} · {labels.staffRole[person.role]}</option>
-                  ))}
-                </select>
+                <SearchSelect id="home-manager" name="managerStaffId" defaultValue={home.managerStaffId ?? ""} emptyLabel="Not set" placeholder="Search staff" options={staff.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}`, hint: labels.staffRole[person.role as keyof typeof labels.staffRole] }))} />
               </Field>
               <Field label="Monthly budget (USD)" htmlFor="home-budget" hint="Leave empty for no budget.">
                 <input id="home-budget" name="monthlyBudget" inputMode="decimal" className="field" defaultValue={home.monthlyBudgetCents !== null ? (home.monthlyBudgetCents / 100).toFixed(2) : ""} placeholder="2400.00" />

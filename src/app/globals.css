@@ -165,7 +165,8 @@
 
 /* Operations workspace: persistent navigation, clear priority, compact readable data. */
 .hub-shell { background: #f3f5f0; }
-.hub-sidebar { background: #173e35; position: sticky; top: 0; height: 100dvh; width: 250px; padding: 26px 18px; }
+.hub-sidebar { background: linear-gradient(180deg, #153a32 0%, #11302a 100%); position: sticky; top: 0; height: 100dvh; width: 244px; padding: 22px 14px 16px; border-right: 1px solid #ffffff0f; }
+.hub-nav { scrollbar-width: thin; scrollbar-color: #ffffff22 transparent; }
 .hub-sidebar .hub-nav-active { background: #dcef98; color: #173e35; box-shadow: 0 4px 12px #071d1614; }
 .hub-sidebar .hub-nav-active:hover { background: #dcef98; }
 .hub-nav-label { color: #a7c1b5; font-size: 9px; font-weight: 600; letter-spacing: .18em; margin: 4px 12px 14px; }

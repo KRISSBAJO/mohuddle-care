@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { compactRange, patternHours, requiredPatterns, weekdayLabel, windowFor, type SchedHome, type SchedShift, type SchedStaff, type ScheduleRules } from "@/lib/schedule";
 import { bulkCreateShifts } from "@/server/actions/schedule";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 type Props = {
   homes: SchedHome[];
@@ -144,10 +145,7 @@ export function BulkAddDialog({ homes, staff, shifts, days, today, rules, onClos
             </fieldset>
             <div>
               <label htmlFor="bulk-staff" className="label">Give them to</label>
-              <select id="bulk-staff" className="field" value={staffId} onChange={event => setStaffId(event.target.value)}>
-                <option value="">Nobody yet (leave open)</option>
-                {staff.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
-              </select>
+              <SearchSelect id="bulk-staff" name="bulkStaff" defaultValue={staffId} emptyLabel="Nobody yet (leave open)" placeholder="Search staff" onChange={setStaffId} options={staff.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />
               <p className="mt-2 text-[11px] text-mute">Where they are already working, the shift is added open instead.</p>
             </div>
           </div>

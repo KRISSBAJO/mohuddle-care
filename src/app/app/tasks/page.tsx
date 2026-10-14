@@ -14,6 +14,7 @@ import { requireUser } from "@/server/guard";
 import { listHomes, listIndividuals, listStaff } from "@/server/queries/hub";
 import { searchTasks, taskCounts, taskViews, type TaskFilters, type TaskView } from "@/server/queries/tasks";
 import { getSettings } from "@/server/settings";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 export const metadata = { title: "Tasks" };
 
@@ -149,18 +150,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dim" />
           <input name="q" defaultValue={filters.q} placeholder="Search tasks" className="field py-2 pl-9" aria-label="Search tasks" />
         </div>
-        <select name="person" defaultValue={filters.person} className="field py-2" aria-label="Person">
-          <option value="">Any person</option>
-          {options.people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
-        </select>
+        <SearchSelect name="person" defaultValue={filters.person} emptyLabel="Any person" submitOnChange placeholder="Person" options={options.people.map(person => ({ value: person.id, label: person.name }))} />
         <select name="home" defaultValue={filters.home} className="field py-2" aria-label="Home">
           <option value="">Any home</option>
           {options.homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
         </select>
-        <select name="assignee" defaultValue={filters.assignee} className="field py-2" aria-label="Assigned to">
-          <option value="">Anyone</option>
-          {options.staff.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
-        </select>
+        <SearchSelect name="assignee" defaultValue={filters.assignee} emptyLabel="Anyone" submitOnChange placeholder="Assigned to" options={options.staff.map(member => ({ value: member.id, label: member.name }))} />
         <select name="priority" defaultValue={filters.priority} className="field py-2" aria-label="Priority">
           <option value="">Any priority</option>
           {Object.entries({ high: "High", normal: "Normal", low: "Low" }).map(([value, text]) => <option key={value} value={value}>{text}</option>)}

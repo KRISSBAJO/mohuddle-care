@@ -1,24 +1,21 @@
-import { AppointmentFields, AppointmentList } from "@/components/appointments/AppointmentParts";
-import { ModalForm } from "@/components/app/ModalForm";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { AppointmentList } from "@/components/appointments/AppointmentParts";
 import { Panel } from "@/components/app/ui";
-import { addDays, dateKey } from "@/lib/format";
-import { bookAppointment } from "@/server/actions/appointments";
 import { requestTime } from "@/server/clock";
 import type { schema } from "@/server/db";
 import { listAppointments } from "@/server/queries/appointments";
-import { listStaff } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 
 type Person = typeof schema.individuals.$inferSelect;
 
 /* One person's appointments: what needs documenting, what is booked, follow-ups to book, and the history. */
 export async function PersonAppointmentsTab({ id, person }: { id: string; person: Person }) {
-  const [toDocument, upcoming, followups, past, staff, settings, now] = await Promise.all([
+  const [toDocument, upcoming, followups, past, settings, now] = await Promise.all([
     listAppointments({ view: "document", personId: id }),
     listAppointments({ view: "upcoming", personId: id }),
     listAppointments({ view: "followup", personId: id }),
     listAppointments({ view: "past", personId: id, limit: 30 }),
-    listStaff(),
     getSettings(),
     requestTime(),
   ]);
@@ -32,9 +29,7 @@ export async function PersonAppointmentsTab({ id, person }: { id: string; person
           <p className="text-sm text-mute">Doctor, dentist, therapy and lab visits, with what was said and what happens next.</p>
         </div>
         {person.active && (
-          <ModalForm action={bookAppointment} title={`Book an appointment for ${person.firstName}`} triggerLabel="Book appointment" submitLabel="Book appointment">
-            <AppointmentFields types={settings.appointment_types} staff={staff} prefix="person-book" defaults={{ individualId: id, date: addDays(dateKey(), 7) }} />
-          </ModalForm>
+          <Link href={`/app/appointments/new?individual=${id}`} className="btn-brand btn-sm"><Plus className="h-4 w-4" /> Book appointment</Link>
         )}
       </div>
 

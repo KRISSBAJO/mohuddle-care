@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { AppointmentFields, AppointmentList } from "@/components/appointments/AppointmentParts";
-import { ModalForm } from "@/components/app/ModalForm";
+import { Plus } from "lucide-react";
+import { AppointmentList } from "@/components/appointments/AppointmentParts";
 import { PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { addDays, dateKey } from "@/lib/format";
-import { bookAppointment } from "@/server/actions/appointments";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { appointmentCounts, appointmentViews, listAppointments, type AppointmentView } from "@/server/queries/appointments";
-import { listHomes, listIndividuals, listStaff } from "@/server/queries/hub";
+import { listHomes } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "Appointments" };
@@ -21,12 +19,10 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const query = await searchParams;
   const view: AppointmentView = query.view && query.view in appointmentViews ? (query.view as AppointmentView) : "upcoming";
   const homeId = query.home && /^[0-9a-f-]{36}$/.test(query.home) ? query.home : undefined;
-  const [rows, counts, homes, people, staff, settings, now] = await Promise.all([
+  const [rows, counts, homes, settings, now] = await Promise.all([
     listAppointments({ view, homeId, q: query.q }),
     appointmentCounts({ homeId }),
     listHomes(),
-    listIndividuals(),
-    listStaff(),
     getSettings(),
     requestTime(),
   ]);
@@ -51,9 +47,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         title="Doctor and therapy appointments"
         description={`Book visits, choose who goes, and document what was said. Escorts are reminded ${settings.appointment_reminder_days} days before, and visits must be documented within ${settings.appointment_document_hours} hours.`}
         action={
-          <ModalForm action={bookAppointment} title="Book an appointment" triggerLabel="Book appointment" submitLabel="Book appointment" startOpen={query.book === "1"}>
-            <AppointmentFields types={settings.appointment_types} staff={staff} people={people.map(person => ({ id: person.id, name: `${person.firstName} ${person.lastName}` }))} prefix="book" defaults={{ date: addDays(dateKey(), 7) }} />
-          </ModalForm>
+          <Link href="/app/appointments/new" className="btn-brand"><Plus className="h-4 w-4" /> Book appointment</Link>
         }
       />
       <div className="mb-5 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">

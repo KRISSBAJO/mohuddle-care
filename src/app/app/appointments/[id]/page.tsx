@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, CheckCircle2, Clock, ExternalLink, MapPin, Phone, Pill, Repeat, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
-import { AppointmentFields } from "@/components/appointments/AppointmentParts";
+import { ArrowLeft, CalendarClock, CheckCircle2, Clock, ExternalLink, MapPin, Pencil, Phone, Pill, Repeat, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ModalForm } from "@/components/app/ModalForm";
 import { PrintButton } from "@/components/app/PrintButton";
@@ -9,12 +8,11 @@ import { Avatar, Badge, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { followUpState, visitState, VISIT_STATE } from "@/lib/appointments";
 import { addDays, dateKey, fmt, initials } from "@/lib/format";
-import { closeAppointment, documentAppointment, updateAppointment, bookAppointment } from "@/server/actions/appointments";
+import { closeAppointment, documentAppointment } from "@/server/actions/appointments";
 import { canManage } from "@/server/auth";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { appointmentDetail } from "@/server/queries/appointments";
-import { listStaff } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "Appointment" };
@@ -36,7 +34,7 @@ export default async function AppointmentPage({ params, searchParams }: { params
   const { id } = await params;
   const { booked } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [detail, staff, settings, now] = await Promise.all([appointmentDetail(id), listStaff(), getSettings(), requestTime()]);
+  const [detail, settings, now] = await Promise.all([appointmentDetail(id), getSettings(), requestTime()]);
   if (!detail) notFound();
   const { appointment: a, person } = detail;
   const today = dateKey(new Date(now));
@@ -89,9 +87,7 @@ export default async function AppointmentPage({ params, searchParams }: { params
           </div>
           {mayChange && open && (
             <div className="no-print flex flex-wrap gap-2">
-              <ModalForm action={updateAppointment.bind(null, a.id)} title="Change or reschedule" description="A new time or escort is sent to the team again." triggerLabel="Change" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save changes">
-                <AppointmentFields types={settings.appointment_types} staff={staff} appointment={a} prefix="edit-appt" />
-              </ModalForm>
+              <Link href={`/app/appointments/${a.id}/edit`} className="btn-ghost btn-sm"><Pencil className="h-3.5 w-3.5" /> Change</Link>
               <ModalForm action={closeAppointment.bind(null, a.id, "cancelled")} title="Cancel this appointment" triggerLabel="Cancel" triggerIcon="none" triggerTone="ghost" submitLabel="Cancel appointment">
                 <Field label="Why was it cancelled?" htmlFor="cancel-reason" hint="For example the clinic rescheduled, or the person was unwell.">
                   <textarea id="cancel-reason" name="reason" rows={3} required minLength={3} maxLength={500} className="field" />
@@ -237,15 +233,7 @@ export default async function AppointmentPage({ params, searchParams }: { params
                     <Repeat className="h-4 w-4" /> Follow-up needed{a.followUpBy ? ` by ${fmt.dayLong(a.followUpBy)}` : ""}
                   </p>
                   {a.followUpNotes && <p className="text-mute">{a.followUpNotes}</p>}
-                  <ModalForm action={bookAppointment} title="Book the follow-up" triggerLabel="Book follow-up" submitLabel="Book appointment">
-                    <AppointmentFields
-                      types={settings.appointment_types}
-                      staff={staff}
-                      appointment={{ ...a, scheduledAt: undefined, reason: a.followUpNotes || `Follow-up from ${fmt.day(a.scheduledAt)}`, prep: "" }}
-                      prefix="follow"
-                      defaults={{ individualId: person.id, followUpOf: a.id, date: a.followUpBy ?? addDays(today, 14) }}
-                    />
-                  </ModalForm>
+                  <Link href={`/app/appointments/new?followUpOf=${a.id}`} className="btn-brand btn-sm"><Repeat className="h-3.5 w-3.5" /> Book follow-up</Link>
                 </>
               ) : (
                 !detail.followUpOf && <p className="text-mute">{a.status === "completed" ? "No follow-up was asked for." : "Recorded when the visit is documented."}</p>

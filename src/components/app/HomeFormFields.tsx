@@ -4,6 +4,7 @@ import { Field } from "@/components/app/ui";
 import { labels } from "@/lib/format";
 import type { ShiftPattern } from "@/lib/schedule";
 import type { schema } from "@/server/db";
+import { SearchSelect } from "@/components/app/SearchSelect";
 
 type Home = typeof schema.homes.$inferSelect;
 type Staff = { id: string; firstName: string; lastName: string; role: string };
@@ -71,12 +72,7 @@ export function HomeFormFields({ home, staff, patterns, includeManagement = fals
         <Section icon={UserRound} title="Manager and budget" hint="The manager can approve this home's expenses and runs its issues. Both can be changed later.">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Home manager" htmlFor="home-manager">
-              <select id="home-manager" name="managerStaffId" className="field" defaultValue="">
-                <option value="">Choose later</option>
-                {staff.map(person => (
-                  <option key={person.id} value={person.id}>{person.firstName} {person.lastName} · {labels.staffRole[person.role as keyof typeof labels.staffRole] ?? person.role}</option>
-                ))}
-              </select>
+              <SearchSelect id="home-manager" name="managerStaffId" defaultValue="" emptyLabel="Choose later" placeholder="Search staff" options={staff.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}`, hint: labels.staffRole[person.role as keyof typeof labels.staffRole] }))} />
             </Field>
             <Field label="Monthly budget (USD)" htmlFor="home-budget" hint="Leave empty for no budget.">
               <input id="home-budget" name="monthlyBudget" inputMode="decimal" className="field" placeholder="2400" />
