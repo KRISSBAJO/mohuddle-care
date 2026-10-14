@@ -30,6 +30,8 @@ const GROUPS: Group[] = [
       { key: "prompt_levels", title: "Levels of support", help: "From least to most help. Used for personal care and plan goals." },
       { key: "activity_types", title: "Activity types", help: "What staff can tick in the activities section." },
       { key: "log_locations", title: "Where support was given", help: "The choices for where each shift happened." },
+      { key: "cp_note_min_chars", title: "Shortest Community Participation note", help: "The note box on a Community Participation note. 0 turns the check off.", unit: "characters", min: 0, max: 500 },
+      { key: "cp_cost_centers", title: "Community Participation cost centers", help: "Optional. Leave empty to hide the cost center box." },
     ],
   },
   {

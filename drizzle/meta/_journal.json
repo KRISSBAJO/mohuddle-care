@@ -169,6 +169,13 @@
       "when": 1792013332575,
       "tag": "0023_large_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792013819169,
+      "tag": "0024_military_morlocks",
+      "breakpoints": true
     }
   ]
 }

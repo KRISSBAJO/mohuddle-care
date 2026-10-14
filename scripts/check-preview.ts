@@ -51,7 +51,7 @@ async function main() {
       routes.push(days, `${days}?filter=gaps&dir=asc&per=62&from=2026-01-01`, `${days}?from=bad&to=2099-01-01&filter=nope`, `${days}/2026-10-11`);
     }
     if (visits[0]) routes.push(`/app/appointments/new?followUpOf=${visits[0].id}`);
-    routes.push("/app/settings/notes", "/app/settings/shifts", "/app/daily-logs?view=owed", "/app/daily-logs?view=owed&day=2026-10-13&home=not-a-home", "/app/daily-logs/new?shift=not-a-shift");
+    routes.push("/app/settings/notes", "/app/settings/shifts", "/app/daily-logs?view=owed", "/app/daily-logs?view=owed&day=2026-10-13&home=not-a-home", "/app/daily-logs/new?shift=not-a-shift", "/app/community-notes/new", "/app/community-notes/new?individual=not-a-person");
     if (people[0]) routes.push(`/app/daily-logs/new?individual=${people[0].id}`);
     routes.push("/app/incidents?status=active&sort=deadline&dir=desc&reportable=yes&period=all&per=10&page=3", "/app/incidents?q=headphones&severity=moderate&category=behavioural&home=none&attention=serious", "/app/homes/new", "/app/homes?view=table&sort=budget&dir=asc", "/app/homes?attention=late-meds&type=group_home&q=hill&per=6&page=4", "/app/homes?status=all&sort=vacancies", "/app/account", "/app/staff?q=a&role=dsp&login=none&cred=any&sort=expiry&dir=desc&per=10&page=2", "/app/staff?status=all&sort=home", "/app/individuals?q=e&attention=no-log&sort=lastLog&dir=desc&per=10&page=3", "/app/individuals?status=all&sort=age", "/app/schedule?view=staff", "/app/schedule?view=day&day=2026-10-14", "/app/schedule?week=2025-03-09", "/app/schedule?week=not-a-date");
     const { rows: staff } = await pool.query("select id from staff where active limit 1");

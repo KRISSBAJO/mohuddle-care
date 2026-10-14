@@ -86,6 +86,18 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(500),
     fallback: 60,
   },
+  cp_note_min_chars: {
+    label: "The note on a Community Participation note must be at least this many characters (0 to 500)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(500),
+    fallback: 40,
+  },
+  cp_cost_centers: {
+    label: "Cost centers for Community Participation notes (one per line, optional)",
+    kind: "list",
+    schema: z.array(z.string().min(1)),
+    fallback: [],
+  },
   log_locations: {
     label: "Where support was given, for daily logs (one per line)",
     kind: "list",

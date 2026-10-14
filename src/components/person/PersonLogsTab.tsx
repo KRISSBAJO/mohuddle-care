@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { CalendarDays, ClipboardList } from "lucide-react";
+import { CalendarDays, ClipboardList, MapPin } from "lucide-react";
 import { Pagination } from "@/components/app/ListControls";
 import { Empty, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { label } from "@/lib/format";
+import { durationWords } from "@/lib/community-note";
+import { fmt, label } from "@/lib/format";
+import { clockLabel } from "@/lib/log-note";
+import { communityNotesFor } from "@/server/queries/community-notes";
 import type { schema } from "@/server/db";
 import { logMoodFilters, logPageSizes, moodSeries, personLogs } from "@/server/queries/person";
 import { LogNoteView } from "@/components/logs/LogNoteView";
@@ -17,7 +20,7 @@ export async function PersonLogsTab({ id, person, query, adlOrder }: { id: strin
   const mood = (Object.keys(logMoodFilters) as (keyof typeof logMoodFilters)[]).find(key => key === query.mood) ?? "any";
   const per = logPageSizes.find(size => String(size) === query.per) ?? 10;
   const requested = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
-  const [logs, series] = await Promise.all([personLogs(id, { mood, page: requested, per }), moodSeries(id, 30)]);
+  const [logs, series, community] = await Promise.all([personLogs(id, { mood, page: requested, per }), moodSeries(id, 30), communityNotesFor(id)]);
   const href = (changes: { mood?: string; page?: number; per?: number }) => {
     const params = new URLSearchParams({ tab: "logs" });
     const next = { mood, page: logs.page, per, ...changes };
@@ -64,6 +67,25 @@ export async function PersonLogsTab({ id, person, query, adlOrder }: { id: strin
       </div>
 
       <aside className="space-y-6">
+        <Panel title="Community Participation" action={person.active ? <Link href={`/app/community-notes/new?individual=${id}`} className="text-xs font-semibold text-brand hover:text-brand-deep">New note</Link> : undefined}>
+          {community.length === 0 ? (
+            <Empty>No Community Participation notes yet.</Empty>
+          ) : (
+            <ul className="divide-y divide-line/60">
+              {community.map(note => (
+                <li key={note.id}>
+                  <Link href={`/app/community-notes/${note.id}`} className="flex items-start gap-2.5 px-5 py-3 text-sm hover:bg-panel/60">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-mute" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{note.activity}</span>
+                      <span className="block text-xs text-mute">{fmt.day(note.noteDate)}, {clockLabel(note.startTime)} to {clockLabel(note.endTime)} · {durationWords(note.minutes)}{note.staff ? ` · ${note.staff}` : ""}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
         <Panel title="Last 30 days">
           <div className="space-y-4 p-5">
             <MoodStrip days={series} compact />

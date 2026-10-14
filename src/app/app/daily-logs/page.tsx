@@ -45,7 +45,12 @@ export default async function DailyLogsPage({ searchParams }: { searchParams: Pr
               ? "Every signed shift note in one list. Search, filter and sort, then open any note."
               : "Start with a home, then a person, then a day. Each square is one day: green when every note owed was written."
         }
-        action={<Link href="/app/daily-logs/new" className="btn-brand"><Plus className="h-4 w-4" /> New log</Link>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/community-notes/new" className="btn-ghost">Community Participation note</Link>
+            <Link href="/app/daily-logs/new" className="btn-brand"><Plus className="h-4 w-4" /> New log</Link>
+          </div>
+        }
       />
       <nav className="mb-5 flex w-full gap-1 overflow-x-auto rounded-xl bg-panel p-1 sm:w-fit" aria-label="Daily log views">
         {VIEWS.map(([value, text, Icon]) => (

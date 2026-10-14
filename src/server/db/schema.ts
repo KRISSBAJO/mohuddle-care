@@ -315,6 +315,39 @@ export const noteRequirements = pgTable(
   table => [index("note_requirements_home").on(table.homeId), index("note_requirements_person").on(table.individualId)],
 );
 
+/*
+ * A Community Participation note: one outing or activity in the community, with its billable time.
+ * Separate from the shift note, as DIDD providers bill and review them separately.
+ */
+export const communityNotes = pgTable(
+  "community_notes",
+  {
+    id: id(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    noteDate: date("note_date").notNull(),
+    startTime: text("start_time").notNull(),
+    endTime: text("end_time").notNull(),
+    minutes: integer("minutes").notNull(),
+    trips: integer("trips"),
+    costCenter: text("cost_center").notNull().default(""),
+    otherParty: text("other_party").notNull().default(""),
+    selection: text("selection").notNull().default(""),
+    location: text("location").notNull().default(""),
+    activity: text("activity").notNull().default(""),
+    note: text("note").notNull().default(""),
+    learning: text("learning").notNull().default(""),
+    // Another staff member who was there, if any. Optional; they do not sign.
+    withStaffId: uuid("with_staff_id").references(() => staff.id, { onDelete: "set null" }),
+    signedName: text("signed_name").notNull().default(""),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [index("community_notes_person").on(table.individualId, table.noteDate)],
+);
+
 /* Data on each plan goal for one shift: offered or not, how much help, and how it went. */
 export const dailyLogGoals = pgTable(
   "daily_log_goals",
