@@ -188,6 +188,12 @@ export const settingDefs = {
     schema: z.array(z.string().min(1)).min(1),
     fallback: ["Medicaid / TennCare", "Medicare", "Medicare Advantage", "Private insurance", "Dental", "Vision", "Other"],
   },
+  task_categories: {
+    label: "Task categories (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Appointment to book", "Paperwork", "Repair", "Purchase", "Follow-up", "Training", "Family contact", "Other"],
+  },
   expense_approval_dollars: {
     label: "Home expenses above this many dollars need approval (0 means every expense does)",
     kind: "number",

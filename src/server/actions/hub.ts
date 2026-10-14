@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { fmt, parseMoney, zonedTime } from "@/lib/format";
+import { parseMoney, zonedTime } from "@/lib/format";
 import { getSettings, saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
@@ -184,47 +184,6 @@ export async function createIncident(_p: FormState, formData: FormData): Promise
 }
 
 /* ---------- Tasks ---------- */
-
-const taskSchema = z.object({
-  title: z.string().trim().min(3, "Give the task a title.").max(160),
-  details: optional(2000),
-  assignedTo: optionalUuid,
-  homeId: optionalUuid,
-  individualId: optionalUuid,
-  dueAt: z.union([z.literal(""), localDateTime]).transform(value => value || null),
-  priority: z.enum(schema.taskPriority.enumValues),
-});
-
-export async function createTask(_p: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  const parsed = taskSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return firstError(parsed.error);
-  const [task] = await db.insert(schema.tasks).values(parsed.data).returning({ id: schema.tasks.id });
-  await audit(user.id, "create", "task", task.id);
-  if (parsed.data.assignedTo) {
-    await notify(await recipients({ staffIds: [parsed.data.assignedTo], except: user.id }), {
-      kind: "task:assigned",
-      title: `New task for you: ${parsed.data.title}`,
-      body: parsed.data.dueAt ? `Due ${fmt.dateTime(parsed.data.dueAt)}.` : "",
-      href: parsed.data.individualId ? `/app/individuals/${parsed.data.individualId}?tab=tasks` : "/app/tasks",
-      tone: parsed.data.priority === "high" ? "warn" : "info",
-      dedupeKey: `task:assigned:${task.id}`,
-    });
-  }
-  revalidatePath("/app/tasks");
-  revalidatePath("/app/individuals/[id]", "page");
-  revalidatePath("/app");
-  return {};
-}
-
-export async function completeTask(id: string) {
-  const user = await requireUser();
-  await db.update(schema.tasks).set({ status: "done", completedAt: new Date() }).where(eq(schema.tasks.id, id));
-  await audit(user.id, "complete", "task", id);
-  revalidatePath("/app/tasks");
-  revalidatePath("/app/individuals/[id]", "page");
-  revalidatePath("/app");
-}
 
 /* ---------- Homes and staff ---------- */
 

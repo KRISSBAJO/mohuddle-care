@@ -1,8 +1,13 @@
 import { Check } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
-import { Badge, Empty, Field, Panel } from "@/components/app/ui";
-import { fmt, label, labels } from "@/lib/format";
-import { completeTask, createTask } from "@/server/actions/hub";
+import { Badge, Empty, Panel } from "@/components/app/ui";
+import { fmt, label } from "@/lib/format";
+import { addTask, finishTask } from "@/server/actions/tasks";
+import { TaskCheck } from "@/components/tasks/TaskCheck";
+import { TaskFields } from "@/components/tasks/TaskParts";
+import Link from "next/link";
+import { getSettings } from "@/server/settings";
+import { listHomes, listIndividuals } from "@/server/queries/hub";
 import { requestTime } from "@/server/clock";
 import type { schema } from "@/server/db";
 import { listStaff } from "@/server/queries/hub";
@@ -13,7 +18,7 @@ const priorityTone = { low: "neutral", normal: "brand", high: "bad" } as const;
 
 /* Follow-ups for this person: appointments to book, paperwork, things to buy. */
 export async function PersonTasksTab({ id, person }: { id: string; person: Person }) {
-  const [tasks, staff, now] = await Promise.all([personTasks(id), listStaff(), requestTime()]);
+  const [tasks, staff, now, settings, people, homes] = await Promise.all([personTasks(id), listStaff(), requestTime(), getSettings(), listIndividuals(), listHomes()]);
 
   return (
     <div className="space-y-6">
@@ -22,25 +27,16 @@ export async function PersonTasksTab({ id, person }: { id: string; person: Perso
           <h2 className="text-xl font-bold">Tasks for {person.firstName}</h2>
           <p className="text-sm text-mute">Appointments to book, paperwork, follow-ups. They also show on the main task list.</p>
         </div>
-        <ModalForm action={createTask} title={`Add a task for ${person.firstName}`} triggerLabel="Add task" submitLabel="Add task">
-          <input type="hidden" name="individualId" value={id} />
-          <input type="hidden" name="homeId" value={person.homeId ?? ""} />
-          <Field label="Task" htmlFor="person-task-title"><input id="person-task-title" name="title" required minLength={3} maxLength={160} className="field" placeholder="Book the annual dental check-up" /></Field>
-          <Field label="Details" htmlFor="person-task-details"><textarea id="person-task-details" name="details" rows={2} maxLength={2000} className="field" /></Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Assign to" htmlFor="person-task-assignee">
-              <select id="person-task-assignee" name="assignedTo" className="field" defaultValue="">
-                <option value="">Unassigned</option>
-                {staff.map(member => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
-              </select>
-            </Field>
-            <Field label="Priority" htmlFor="person-task-priority">
-              <select id="person-task-priority" name="priority" className="field" defaultValue="normal">
-                {Object.entries(labels.taskPriority).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-              </select>
-            </Field>
-          </div>
-          <Field label="Due" htmlFor="person-task-due"><input id="person-task-due" name="dueAt" type="datetime-local" className="field" /></Field>
+        <ModalForm action={addTask} title={`Add a task for ${person.firstName}`} triggerLabel="Add task" submitLabel="Add task">
+          <input type="hidden" name="stay" value="1" />
+          <TaskFields
+            staff={staff.map(member => ({ id: member.id, name: `${member.firstName} ${member.lastName}` }))}
+            people={people.map(option => ({ id: option.id, name: `${option.firstName} ${option.lastName}` }))}
+            homes={homes.map(home => ({ id: home.id, name: home.name }))}
+            categories={settings.task_categories}
+            prefix="person-task"
+            defaults={{ individualId: id, homeId: person.homeId ?? undefined }}
+          />
         </ModalForm>
       </div>
 
@@ -53,14 +49,10 @@ export async function PersonTasksTab({ id, person }: { id: string; person: Perso
               const overdue = task.dueAt && task.dueAt.getTime() < now;
               return (
                 <li key={task.id} className="flex items-start gap-3 px-5 py-3.5">
-                  <form action={completeTask.bind(null, task.id)} className="no-print">
-                    <button className="group mt-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-line hover:border-sage hover:bg-sage-soft" aria-label={`Mark ${task.title} done`}>
-                      <Check className="h-3.5 w-3.5 text-transparent group-hover:text-sage" />
-                    </button>
-                  </form>
+                  <div className="no-print pt-0.5"><TaskCheck action={finishTask.bind(null, task.id)} label={`Mark ${task.title} done`} /></div>
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-semibold">
-                      {task.title}
+                      <Link href={`/app/tasks/${task.id}`} className="hover:text-brand">{task.title}</Link>
                       <Badge tone={priorityTone[task.priority]}>{label("taskPriority", task.priority)}</Badge>
                       {overdue && <Badge tone="bad">Overdue</Badge>}
                     </p>

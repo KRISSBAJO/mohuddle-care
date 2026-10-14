@@ -233,6 +233,22 @@ export async function sweepNotifications(force = false) {
       });
     }
 
+    // Tasks that have just gone past their due time: the person doing them is told once.
+    const lateTasks = await db
+      .select({ id: schema.tasks.id, title: schema.tasks.title, dueAt: schema.tasks.dueAt, assignedTo: schema.tasks.assignedTo })
+      .from(schema.tasks)
+      .where(and(eq(schema.tasks.status, "open"), sql`${schema.tasks.assignedTo} is not null`, lt(schema.tasks.dueAt, new Date(now)), gte(schema.tasks.dueAt, new Date(now - 7 * 86_400_000))));
+    for (const task of lateTasks) {
+      sent += await notify(await recipients({ staffIds: [task.assignedTo] }), {
+        kind: "task:overdue",
+        title: `Overdue: ${task.title}`,
+        body: `It was due ${fmt.dateTime(task.dueAt!)}. Finish it, or change the date with a comment on why.`,
+        href: `/app/tasks/${task.id}`,
+        tone: "bad",
+        dedupeKey: `task:overdue:${task.id}:${task.dueAt!.getTime()}`,
+      });
+    }
+
     // Requests past their due date with items still to send.
     const overdueRequests = await db
       .select({ id: schema.documentRequests.id, staffId: schema.documentRequests.staffId, title: schema.documentRequests.title, dueOn: schema.documentRequests.dueOn })

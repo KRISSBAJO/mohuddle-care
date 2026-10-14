@@ -364,8 +364,27 @@ export const tasks = pgTable("tasks", {
   priority: taskPriority("priority").notNull().default("normal"),
   status: taskStatus("status").notNull().default("open"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  category: text("category").notNull().default(""),
+  createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+  completedBy: uuid("completed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+  completionNote: text("completion_note").notNull().default(""),
   createdAt: createdAt(),
 });
+
+/* A running conversation on a task: updates, questions and answers. */
+export const taskComments = pgTable(
+  "task_comments",
+  {
+    id: id(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  table => [index("task_comments_task").on(table.taskId)],
+);
 
 export const enquiries = pgTable("enquiries", {
   id: id(),
