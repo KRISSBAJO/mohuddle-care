@@ -4,12 +4,13 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { dateKey } from "@/lib/format";
-import { parseLogNote } from "@/lib/log-note";
+import { dateKey, zonedTime } from "@/lib/format";
+import { dosesByHour, parseLogNote, shiftMinutes, withDoses } from "@/lib/log-note";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { getSettings } from "@/server/settings";
+import { shiftDoses } from "@/server/queries/logs";
 import { configForPerson } from "@/server/queries/note-requirements";
 import type { FormState } from "./auth";
 
@@ -65,6 +66,12 @@ export async function createDailyLog(_previous: FormState, formData: FormData): 
   });
   if ("error" in parsed) return parsed;
   const { goals: goalData, ...note } = parsed.note;
+  // The timeline records the doses due in each hour from the MAR, as they stand at signing, not as the form sent them.
+  if (note.sections.includes("timeline")) {
+    const from = zonedTime(note.logDate, note.timeIn);
+    const doses = await shiftDoses([individualId], from, new Date(from.getTime() + (shiftMinutes(note.timeIn, note.timeOut) ?? 0) * 60_000));
+    note.timeline = withDoses(note.timeline, dosesByHour(doses, note.logDate, note.timeIn, note.timeOut), note.timeIn, note.timeOut);
+  }
 
   const shiftName = shift ? shift.name : String(formData.get("shiftName") ?? "").trim().slice(0, 60) || "Unscheduled";
   const [existing] = await db

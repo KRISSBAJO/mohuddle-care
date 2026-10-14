@@ -4,6 +4,7 @@
  * This module checks a submitted note. It has no database access so it can be tested on its own.
  */
 
+import { addDays } from "./format";
 import { OPTIONAL_SECTIONS, SECTION_KEYS, readExtraItems, type ExtraAnswer, type NoteItem, type SectionKey } from "./note-requirements";
 
 export const SHIFTS = ["day", "evening", "overnight"] as const;
@@ -51,6 +52,9 @@ export type GoalEntry = {
   note: string;
 };
 
+/* One hour of the shift: what happened, and the doses that were due in it, as they read when the note was signed. */
+export type TimelineEntry = { hour: string; note: string; meds: string[] };
+
 export type LogNote = {
   logDate: string;
   shift: (typeof SHIFTS)[number];
@@ -89,6 +93,7 @@ export type LogNote = {
   appointments: string;
   notes: string;
   extra: ExtraAnswer[];
+  timeline: TimelineEntry[];
   sections: SectionKey[];
 };
 
@@ -260,6 +265,17 @@ function read(form: Source, rules: LogRules): LogNote {
   if ("error" in extras) fail(extras.error);
   const extra = "answers" in extras ? extras.answers : [];
 
+  // The hourly timeline: one line per hour of the shift. Required means every hour has one.
+  const timeline: TimelineEntry[] = [];
+  if (on("timeline")) {
+    for (const hour of shiftHours(timeIn, timeOut)) {
+      const note = String(form.get(`timeline.${hour}`) ?? "").trim();
+      if (note.length > 500) fail(`Keep the ${hourLabel(hour)} line under 500 characters.`);
+      if (!note && required("timeline")) fail(`Write the ${hourLabel(hour)} line of the hourly timeline: it is required for this person.`);
+      if (note) timeline.push({ hour, note, meds: [] });
+    }
+  }
+
   const notes = text("notes", 5000);
   if (notes.length < rules.summaryMin) fail(`Write the shift summary: at least ${rules.summaryMin} characters about how the shift went.`);
   if (!yes("attest")) fail("Confirm the note is accurate before you sign it.");
@@ -302,6 +318,7 @@ function read(form: Source, rules: LogRules): LogNote {
     appointments,
     notes,
     extra,
+    timeline,
     sections: SECTION_KEYS.filter(on),
   };
 }
@@ -333,6 +350,57 @@ export function shiftMinutes(timeIn: string, timeOut: string) {
   const toMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
   const diff = toMinutes(timeOut) - toMinutes(timeIn);
   return diff > 0 ? diff : diff + 24 * 60;
+}
+
+/* The hours a shift covers, as "07:00", from the hour it starts in up to the one it ends in. Runs past midnight. */
+export function shiftHours(timeIn: string, timeOut: string): string[] {
+  const minutes = shiftMinutes(timeIn, timeOut);
+  if (minutes === null) return [];
+  const start = Number(timeIn.slice(0, 2));
+  const startMinute = Number(timeIn.slice(3));
+  const count = Math.ceil((startMinute + minutes) / 60);
+  return Array.from({ length: Math.min(count, 24) }, (_, index) => `${String((start + index) % 24).padStart(2, "0")}:00`);
+}
+
+/* The calendar day an hour of the shift falls on: hours before the start hour belong to the next day. */
+export function hourDay(logDate: string, timeIn: string, hour: string): string {
+  return hour.slice(0, 2) < timeIn.slice(0, 2) ? addDays(logDate, 1) : logDate;
+}
+
+/* "07:00" as "7 AM", "13:00" as "1 PM". */
+export function hourLabel(hour: string): string {
+  const value = Number(hour.slice(0, 2));
+  return `${value % 12 || 12} ${value < 12 ? "AM" : "PM"}`;
+}
+
+/* "08:30" as "8:30 AM". */
+export function clockLabel(clock: string): string {
+  const value = Number(clock.slice(0, 2));
+  return `${value % 12 || 12}:${clock.slice(3, 5)} ${value < 12 ? "AM" : "PM"}`;
+}
+
+/* A dose due on a day at a Central-time clock, already worded: "Metformin 500 mg · Given". */
+export type ShiftDose = { day: string; clock: string; label: string };
+
+/* The doses due in each hour of the shift, worded with their time: "8:00 AM Metformin 500 mg · Given". */
+export function dosesByHour(doses: ShiftDose[], logDate: string, timeIn: string, timeOut: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const hour of shiftHours(timeIn, timeOut)) {
+    const day = hourDay(logDate, timeIn, hour);
+    const due = doses
+      .filter(dose => dose.day === day && dose.clock.slice(0, 2) === hour.slice(0, 2))
+      .sort((a, b) => a.clock.localeCompare(b.clock))
+      .map(dose => `${clockLabel(dose.clock)} ${dose.label}`);
+    if (due.length) out[hour] = due;
+  }
+  return out;
+}
+
+/* The written lines with each hour's doses added, in shift order. An hour with only doses still gets a line. */
+export function withDoses(timeline: TimelineEntry[], byHour: Record<string, string[]>, timeIn: string, timeOut: string): TimelineEntry[] {
+  return shiftHours(timeIn, timeOut)
+    .map(hour => ({ hour, note: timeline.find(entry => entry.hour === hour)?.note ?? "", meds: byHour[hour] ?? [] }))
+    .filter(entry => entry.note || entry.meds.length);
 }
 
 /* A log written after the day it describes is a late entry. Reviewers expect it to be marked. */

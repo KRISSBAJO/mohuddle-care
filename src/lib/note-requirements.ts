@@ -14,6 +14,7 @@ export const OPTIONAL_SECTIONS = {
   activities: { title: "Activities and community", hint: "Activity types and what they did." },
   behaviour: { title: "Behaviour", hint: "Before, during, staff response and after, for any behaviour of concern." },
   contacts: { title: "Contacts and appointments", hint: "Family or guardian contact and appointments." },
+  timeline: { title: "Hourly timeline", hint: "A line for each hour of the shift, with medication times shown in place." },
 } as const;
 export type SectionKey = keyof typeof OPTIONAL_SECTIONS;
 export const SECTION_KEYS = Object.keys(OPTIONAL_SECTIONS) as SectionKey[];

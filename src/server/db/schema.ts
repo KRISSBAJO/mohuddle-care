@@ -275,6 +275,8 @@ export const dailyLogs = pgTable("daily_logs", {
     .$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person"; followUp?: { prompt: string; note: string; docs: { label: string; done: boolean }[] } }[]>()
     .notNull()
     .default(emptyList()),
+  // The optional hourly timeline: a line per hour, with the doses due in it as they stood when signed.
+  timeline: jsonb("timeline").$type<{ hour: string; note: string; meds: string[] }[]>().notNull().default(emptyList()),
   // Optional sections that were switched on for this person when the note was written.
   sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
   signedName: text("signed_name").notNull().default(""),

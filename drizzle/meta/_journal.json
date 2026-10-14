@@ -162,6 +162,13 @@
       "when": 1792011902070,
       "tag": "0022_wooden_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792013332575,
+      "tag": "0023_large_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

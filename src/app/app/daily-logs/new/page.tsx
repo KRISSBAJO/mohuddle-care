@@ -7,6 +7,7 @@ import { dateKey } from "@/lib/format";
 import { earliestStart, goalProgress } from "@/lib/goal-progress";
 import { clockOf } from "@/lib/schedule";
 import { activePatterns } from "@/server/queries/patterns";
+import { shiftDoses } from "@/server/queries/logs";
 import { configAbove, configsForPeople } from "@/server/queries/note-requirements";
 import { requestTime } from "@/server/clock";
 import { db, schema } from "@/server/db";
@@ -91,6 +92,9 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
     current: row.startsAt.getTime() <= now && row.endsAt.getTime() > now,
   }));
 
+  // Doses from a day and a half ago to half a day ahead: enough for any shift a note can be written for.
+  const doses = await shiftDoses(ids, new Date(now - 36 * 3_600_000), new Date(now + 14 * 3_600_000));
+
   const options: LogPerson[] = people.map(person => ({
     id: person.id,
     name: `${person.firstName} ${person.lastName}`,
@@ -109,6 +113,7 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
         progress: goalProgress(worked.filter(row => row.goalId === goal.id).map(row => row.day), goal.frequencyCount, goal.frequencyPeriod, today),
       })),
     homeId: person.homeId,
+    doses: doses.filter(dose => dose.individualId === person.id).map(({ day, clock, label }) => ({ day, clock, label })),
     myRecentLogs: todays.filter(row => row.individualId === person.id).map(row => ({ shiftId: row.shiftId, logDate: row.logDate, shift: row.shift as Shift | null })),
   }));
   const [configs, defaultConfig] = await Promise.all([configsForPeople(people.map(person => ({ id: person.id, homeId: person.homeId }))), configAbove(null)]);

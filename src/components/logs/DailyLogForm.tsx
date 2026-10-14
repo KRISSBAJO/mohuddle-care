@@ -8,7 +8,7 @@ import { FollowUpQuestion } from "@/components/logs/FollowUpQuestion";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
 import { periodWord, type GoalProgress } from "@/lib/goal-progress";
-import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, shiftMinutes } from "@/lib/log-note";
+import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, dosesByHour, hourLabel, shiftHours, shiftMinutes, type ShiftDose } from "@/lib/log-note";
 import type { NoteConfig, NoteItem, SectionKey } from "@/lib/note-requirements";
 import { isoWeekday, kindFor, type ShiftPattern } from "@/lib/schedule";
 import { createDailyLog } from "@/server/actions/logs";
@@ -23,6 +23,8 @@ export type LogPerson = {
   supportNotes: string;
   goals: { id: string; title: string; description: string; measurableStep: string; setupNotes: string; workedToday: boolean; progress: GoalProgress }[];
   homeId: string | null;
+  /* Doses due around now, for the hourly timeline. */
+  doses: ShiftDose[];
   myRecentLogs: { shiftId: string | null; logDate: string; shift: Shift | null }[];
 };
 
@@ -70,11 +72,12 @@ const SECTIONS = [
   ["activities", "Activities and community"],
   ["behaviour", "Behaviour"],
   ["contacts", "Contacts and appointments"],
+  ["timeline", "Hourly timeline"],
   ["extra", "Extra items"],
   ["summary", "Summary and signature"],
 ] as const;
 type SectionId = (typeof SECTIONS)[number][0];
-const OPTIONAL: SectionId[] = ["care", "meals", "sleep", "continence", "activities", "behaviour", "contacts"];
+const OPTIONAL: SectionId[] = ["care", "meals", "sleep", "continence", "activities", "behaviour", "contacts", "timeline"];
 
 const SCOPE_BADGE = { all: "Everyone", home: "This home", person: "This person" } as const;
 
@@ -148,6 +151,8 @@ export function DailyLogForm(props: Props) {
   const shiftName = scheduled ? scheduled.name : pattern ? pattern.name : "Unscheduled";
   const duplicate = person?.myRecentLogs.some(log => (scheduled ? log.shiftId === scheduled.id : !log.shiftId && log.logDate === logDate && log.shift === kind));
   const minutes = shiftMinutes(times.start, times.end);
+  const hours = shiftHours(times.start, times.end);
+  const hourDoses = person ? dosesByHour(person.doses, logDate, times.start, times.end) : {};
   const dayLabel = (day: string) => (day === today ? "Today" : `${fmt.weekday(day)} ${fmt.day(day)}`);
 
   const [state, action, pending] = useActionState<FormState, FormData>(async (previous, data) => {
@@ -175,6 +180,8 @@ export function DailyLogForm(props: Props) {
     if (data.getAll("activityTypes").length || has("activities")) next.add("activities");
     if (data.get("behaviourAnswer") === "no" || (data.get("behaviourAnswer") === "yes" && has("behaviours") && has("intervention"))) next.add("behaviour");
     if (has("familyContact") || has("appointments")) next.add("contacts");
+    const hourNames = shiftHours(String(data.get("timeIn") ?? ""), String(data.get("timeOut") ?? "")).map(hour => `timeline.${hour}`);
+    if (hourNames.length && (config.sections.timeline.required ? hourNames.every(has) : hourNames.some(has))) next.add("timeline");
     if (config.items.length && config.items.every(item => !item.required || has(`extra.${item.id}`) || data.getAll(`extra.${item.id}`).length > 0)) next.add("extra");
     if (String(data.get("notes") ?? "").trim().length >= summaryMin && data.get("attest") === "on") next.add("summary");
     setFilled(next);
@@ -625,6 +632,28 @@ export function DailyLogForm(props: Props) {
             </div>
           </div>
         </Section>
+        )}
+
+        {isOn("timeline") && (
+          <Section id="timeline" index={num("timeline")} title="Hourly timeline" hint="A line for each hour you were with them. Doses due that hour show from the MAR." required={mustFill("timeline")} done={filled.has("timeline")}>
+            {hours.length === 0 ? (
+              <p className="rounded-xl bg-panel px-4 py-3 text-sm text-mute">Enter the start and finish times above to see the hours.</p>
+            ) : (
+              <ol className="divide-y divide-line/60 rounded-xl border border-line">
+                {hours.map(hour => (
+                  <li key={hour} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[4.5rem_1fr] sm:items-start">
+                    <label htmlFor={`timeline-${hour}`} className="pt-2 text-sm font-semibold tabular-nums text-mute">{hourLabel(hour)}</label>
+                    <div className="grid gap-1.5">
+                      {hourDoses[hour]?.map(dose => (
+                        <span key={dose} className="w-fit rounded-full bg-sky px-2.5 py-0.5 text-xs font-medium text-brand-deep">{dose}</span>
+                      ))}
+                      <input id={`timeline-${hour}`} name={`timeline.${hour}`} maxLength={500} required={config.sections.timeline.required} className="field py-2" placeholder={hour === hours[0] ? "Arrived, read handover, Sam was watching TV." : ""} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Section>
         )}
 
         {config.items.length > 0 && (

@@ -1,8 +1,8 @@
-import { Activity, Bed, CheckCircle2, Clock, Droplets, HeartPulse, ListPlus, MapPin, PenLine, Phone, ShieldAlert, Target, Utensils, UserRound } from "lucide-react";
+import { Activity, Bed, CheckCircle2, Clock, Clock3, Droplets, HeartPulse, ListPlus, MapPin, PenLine, Phone, ShieldAlert, Target, Utensils, UserRound } from "lucide-react";
 import { Badge } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt, label } from "@/lib/format";
-import { GOAL_OFFERED, GOAL_OUTCOME, MEALS, isLateEntry, shiftMinutes } from "@/lib/log-note";
+import { GOAL_OFFERED, GOAL_OUTCOME, MEALS, hourLabel, isLateEntry, shiftMinutes } from "@/lib/log-note";
 import type { LogGoal, LogRow } from "@/server/queries/logs";
 
 const moodTone = { great: "good", good: "good", okay: "neutral", low: "warn", distressed: "bad" } as const;
@@ -215,6 +215,21 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
           <Block icon={Phone} title="Contacts and appointments" className={!compact ? "md:col-span-2" : undefined}>
             {log.familyContact && <p className="text-sm"><span className="text-mute">Family or guardian: </span>{log.familyContact}</p>}
             {log.appointments && <p className="text-sm"><span className="text-mute">Appointments: </span>{log.appointments}</p>}
+          </Block>
+        )}
+        {log.timeline.length > 0 && (
+          <Block icon={Clock3} title="Hourly timeline" className={!compact ? "md:col-span-2" : undefined}>
+            <ol className="divide-y divide-line/60">
+              {log.timeline.map(entry => (
+                <li key={entry.hour} className="grid grid-cols-[4rem_1fr] gap-2 py-1.5 text-sm">
+                  <span className="font-semibold tabular-nums text-mute">{hourLabel(entry.hour)}</span>
+                  <span>
+                    {entry.meds.map(dose => <span key={dose} className="mb-1 mr-1 inline-block rounded-full bg-sky px-2 py-0.5 text-xs text-brand-deep">{dose}</span>)}
+                    {entry.note && <span className="block">{entry.note}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </Block>
         )}
         {log.notes && !structured && (
