@@ -59,6 +59,12 @@ export const homes = pgTable("homes", {
   managerStaffId: uuid("manager_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }),
   // Spending limit per calendar month, in cents. Null means no budget set.
   monthlyBudgetCents: integer("monthly_budget_cents"),
+  zip: text("zip").notNull().default(""),
+  county: text("county").notNull().default(""),
+  licenseNumber: text("license_number").notNull().default(""),
+  openedOn: date("opened_on"),
+  // Practical notes for staff: parking, how to get in, quiet hours. Never door codes or passwords.
+  notes: text("notes").notNull().default(""),
   createdAt: createdAt(),
 });
 

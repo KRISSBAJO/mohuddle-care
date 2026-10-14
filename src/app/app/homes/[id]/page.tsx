@@ -29,7 +29,7 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-type Search = { tab?: string; day?: string; month?: string; show?: string };
+type Search = { tab?: string; day?: string; month?: string; show?: string; created?: string };
 
 export default async function HomePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -62,7 +62,7 @@ export default async function HomePage({ params, searchParams }: { params: Promi
           </h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-mute">
             {(home.address || home.city) && (
-              <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{[home.address, home.city].filter(Boolean).join(", ")}</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{[home.address, home.city, [home.zip].filter(Boolean).join("")].filter(Boolean).join(", ")}</span>
             )}
             {home.phone && (
               <a href={`tel:${home.phone}`} className="inline-flex items-center gap-1.5 hover:text-ink"><Phone className="h-3.5 w-3.5" />{home.phone}</a>
@@ -133,6 +133,22 @@ export default async function HomePage({ params, searchParams }: { params: Promi
           </div>
         )}
       </div>
+
+      {query.created && (
+        <div className="mb-5 rounded-2xl border border-sage/30 bg-sage-soft px-5 py-4 text-sm text-sage">
+          <p className="font-semibold">{home.name} is set up.</p>
+          <p className="mt-1">
+            Next: move people in from their own pages, then use{" "}
+            <Link href={`/app/schedule?home=${id}`} className="font-semibold underline">Add shifts on the schedule</Link>
+            {manager && !home.managerStaffId && (
+              <>
+                {" "}and choose a home manager under <Link href={`/app/homes/${id}?tab=details`} className="font-semibold underline">Details</Link>
+              </>
+            )}
+            .
+          </p>
+        </div>
+      )}
 
       <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-panel p-1" aria-label="Home sections">
         {tabs.map(([value, text, Icon]) => (

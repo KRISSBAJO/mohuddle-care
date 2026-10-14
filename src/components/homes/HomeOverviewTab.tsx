@@ -113,6 +113,24 @@ export async function HomeOverviewTab({ hub, homeId }: { hub: Hub; homeId: strin
             )}
           </Panel>
 
+          {(home.notes || home.licenseNumber || home.openedOn || home.county) && (
+            <Panel title="About this home">
+              <dl className="grid gap-3 p-5 text-sm">
+                {home.notes && (
+                  <div>
+                    <dt className="label">House notes</dt>
+                    <dd className="whitespace-pre-line">{home.notes}</dd>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {home.county && <div><dt className="label">County</dt><dd>{home.county}</dd></div>}
+                  {home.openedOn && <div><dt className="label">Opened</dt><dd>{fmt.day(home.openedOn)}</dd></div>}
+                  {home.licenseNumber && <div><dt className="label">Licence</dt><dd>{home.licenseNumber}</dd></div>}
+                </div>
+              </dl>
+            </Panel>
+          )}
+
           <Panel title="Open issues" action={<Link href={`/app/homes/${homeId}?tab=issues`} className="text-xs font-semibold text-brand">All issues <ArrowRight className="inline h-3 w-3" /></Link>}>
             {recentIssues.length === 0 ? (
               <Empty>Nothing reported.</Empty>

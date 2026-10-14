@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
-import { HomeStaffingFields } from "@/components/app/HomeStaffingFields";
+import { HomeFormFields } from "@/components/app/HomeFormFields";
 import { Field, Panel } from "@/components/app/ui";
 import { labels } from "@/lib/format";
 import { setHomeActive, updateHome } from "@/server/actions/editing";
@@ -18,23 +18,11 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
   const { home, residents } = detail;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Panel title="Details">
         <div className="p-5">
           <ActionForm action={updateHome.bind(null, home.id)} submitLabel="Save home">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name" htmlFor="home-name"><input id="home-name" name="name" required className="field" defaultValue={home.name} /></Field>
-              <Field label="Type" htmlFor="home-type">
-                <select id="home-type" name="type" className="field" defaultValue={home.type}>{Object.entries(labels.homeType).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
-              </Field>
-              <Field label="Address" htmlFor="home-address"><input id="home-address" name="address" className="field" defaultValue={home.address} /></Field>
-              <Field label="City" htmlFor="home-city"><input id="home-city" name="city" className="field" defaultValue={home.city} /></Field>
-              <Field label="Capacity" htmlFor="home-capacity" hint={residents.length ? `Cannot be lower than the ${residents.length} people living here.` : undefined}>
-                <input id="home-capacity" name="capacity" type="number" min={Math.max(1, residents.length)} max={20} className="field" defaultValue={home.capacity} />
-              </Field>
-              <Field label="House phone" htmlFor="home-phone"><input id="home-phone" name="phone" type="tel" className="field" defaultValue={home.phone} /></Field>
-            </div>
-            <HomeStaffingFields staffedKinds={home.staffedKinds} openDays={home.openDays} prefix="edit-home" />
+            <HomeFormFields home={home} minCapacity={Math.max(1, residents.length)} />
           </ActionForm>
         </div>
       </Panel>

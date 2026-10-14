@@ -9,9 +9,22 @@ export const uuid = z.uuid();
 export const optionalUuid = z.union([z.literal(""), z.uuid()]).transform(value => value || null);
 export const optionalDate = z.union([z.literal(""), z.iso.date()]).transform(value => value || null);
 
+/* "monthlyBudget" -> "Monthly budget", for error messages people read. */
+const fieldName = (key: string) => {
+  const words = key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/*
+ * The first problem in a form, in plain words. Messages written as full sentences are shown as they
+ * are; built-in ones get the field's name in front so people know which box to fix.
+ */
 export function firstError(error: z.ZodError): FormState {
   const issue = error.issues[0];
-  return { error: issue ? `${String(issue.path[0] ?? "Form")}: ${issue.message}` : "Please check the form." };
+  if (!issue) return { error: "Please check the form." };
+  if (/[.?!]$/.test(issue.message)) return { error: issue.message };
+  const field = issue.path[0];
+  return { error: field ? `${fieldName(String(field))}: ${issue.message}` : issue.message };
 }
 
 export const medicationFields = z.object({
@@ -46,6 +59,11 @@ export const homeSchema = z.object({
   city: z.string().trim().min(1).max(80).default("Nashville"),
   capacity: z.coerce.number().int().min(1).max(20),
   phone: optional(40),
+  zip: z.union([z.literal(""), z.string().trim().regex(/^\d{5}(-\d{4})?$/, "Use a 5-digit ZIP code, for example 37217.")]).default(""),
+  county: optional(60),
+  licenseNumber: optional(60),
+  openedOn: optionalDate,
+  notes: optional(2000),
   staffedKinds: z.array(z.enum(["day", "evening", "overnight"])).max(3).optional(),
   openDays: z.array(z.coerce.number().int().min(1).max(7)).max(7).optional(),
 });

@@ -224,3 +224,210 @@ export async function homeIssueList(id: string, status: "active" | "resolved" | 
 
 export { currentMonth };
 
+
+/* ---------- The homes list: search, filters, sorting and paging ---------- */
+
+export const homeSorts = {
+  name: "Name",
+  occupancy: "How full",
+  vacancies: "Free places",
+  issues: "Open issues",
+  spend: "Spent this month",
+  budget: "Budget used",
+  meds: "Late medication",
+} as const;
+export const homeAttention = {
+  any: "Anything",
+  urgent: "Urgent issues",
+  "over-budget": "Over budget",
+  "late-meds": "Late medication",
+  "open-shifts": "Open shifts this week",
+  vacancies: "Has free places",
+  "no-manager": "No home manager",
+} as const;
+export const homeStatusFilters = { active: "Open homes", closed: "Closed homes", all: "All homes" } as const;
+export const homePageSizes = [6, 12, 24] as const;
+
+export type HomeQuery = {
+  q: string;
+  type: string;
+  status: keyof typeof homeStatusFilters;
+  attention: keyof typeof homeAttention;
+  sort: keyof typeof homeSorts;
+  dir: "asc" | "desc";
+  view: "cards" | "table";
+  page: number;
+  per: (typeof homePageSizes)[number];
+};
+
+export const homeDefaults: HomeQuery = { q: "", type: "", status: "active", attention: "any", sort: "name", dir: "asc", view: "cards", page: 1, per: 12 };
+
+export function parseHomeQuery(params: Record<string, string | string[] | undefined>): HomeQuery {
+  const one = (key: string) => {
+    const value = params[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
+  const among = <T extends string>(value: string | undefined, allowed: T[], fallback: T): T => (allowed.includes(value as T) ? (value as T) : fallback);
+  const per = Number(one("per"));
+  return {
+    q: (one("q") ?? "").trim().slice(0, 120),
+    type: (schema.homeType.enumValues as readonly string[]).includes(one("type") ?? "") ? one("type")! : "",
+    status: among(one("status"), Object.keys(homeStatusFilters) as HomeQuery["status"][], "active"),
+    attention: among(one("attention"), Object.keys(homeAttention) as HomeQuery["attention"][], "any"),
+    sort: among(one("sort"), Object.keys(homeSorts) as HomeQuery["sort"][], "name"),
+    // Without a direction, each sort uses its natural one: names A to Z, numbers highest first.
+    dir: one("dir") === "desc" ? "desc" : one("dir") === "asc" ? "asc" : (one("sort") ?? "name") !== "name" && (one("sort") ?? "") in homeSorts ? "desc" : "asc",
+    view: one("view") === "table" ? "table" : "cards",
+    page: Math.max(1, Math.min(10_000, Math.floor(Number(one("page")) || 1))),
+    per: (homePageSizes as readonly number[]).includes(per) ? (per as HomeQuery["per"]) : 12,
+  };
+}
+
+export async function searchHomes(query: HomeQuery) {
+  const settings = await getSettings();
+  const today = dateKey();
+  await ensureMedicationRecords(today);
+  const now = new Date();
+  const dayStart = zonedTime(today, "00:00").toISOString();
+  const dayEnd = zonedTime(addDays(today, 1), "00:00").toISOString();
+  const lateBefore = new Date(now.getTime() - settings.med_late_minutes * 60_000).toISOString();
+  const weekAhead = new Date(now.getTime() + 7 * 86_400_000).toISOString();
+  const { from, to } = monthRange(today.slice(0, 7));
+  const h = schema.homes;
+
+  const residents = sql<number>`(select count(*) from individuals i where i.home_id = ${h.id} and i.active)`;
+  const medsTotal = sql<number>`(select count(*) from med_administrations a join individuals i on i.id = a.individual_id where i.home_id = ${h.id} and i.active and a.scheduled_for >= ${dayStart} and a.scheduled_for < ${dayEnd})`;
+  const medsGiven = sql<number>`(select count(*) from med_administrations a join individuals i on i.id = a.individual_id where i.home_id = ${h.id} and i.active and a.status = 'given' and a.scheduled_for >= ${dayStart} and a.scheduled_for < ${dayEnd})`;
+  const medsLate = sql<number>`(select count(*) from med_administrations a join individuals i on i.id = a.individual_id where i.home_id = ${h.id} and i.active and a.status = 'due' and a.scheduled_for >= ${dayStart} and a.scheduled_for <= ${lateBefore})`;
+  const openIssues = sql<number>`(select count(*) from home_issues x where x.home_id = ${h.id} and x.status <> 'resolved')`;
+  const urgentIssues = sql<number>`(select count(*) from home_issues x where x.home_id = ${h.id} and x.status <> 'resolved' and x.priority = 'urgent')`;
+  const overdueIssues = sql<number>`(select count(*) from home_issues x where x.home_id = ${h.id} and x.status <> 'resolved' and x.due_on < ${today})`;
+  const spent = sql<number>`(select coalesce(sum(e.amount_cents), 0) from home_expenses e where e.home_id = ${h.id} and e.status = 'approved' and e.spent_on >= ${from} and e.spent_on < ${to})`;
+  const pending = sql<number>`(select count(*) from home_expenses e where e.home_id = ${h.id} and e.status = 'pending')`;
+  const openShifts = sql<number>`(select count(*) from shifts s where s.home_id = ${h.id} and s.staff_id is null and s.status <> 'missed' and s.starts_at >= ${now.toISOString()} and s.starts_at < ${weekAhead})`;
+  const managerName = sql<string | null>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`;
+
+  const conditions = [];
+  if (query.status === "active") conditions.push(eq(h.active, true));
+  if (query.status === "closed") conditions.push(eq(h.active, false));
+  if (query.type) conditions.push(eq(h.type, query.type as (typeof schema.homeType.enumValues)[number]));
+  if (query.q) {
+    const term = `%${query.q.replace(/[\\%_]/g, char => `\\${char}`)}%`;
+    conditions.push(sql`(${h.name} ilike ${term} or ${h.address} ilike ${term} or ${h.city} ilike ${term} or (${schema.staff.firstName} || ' ' || ${schema.staff.lastName}) ilike ${term})`);
+  }
+  if (query.attention === "urgent") conditions.push(sql`${urgentIssues} > 0`);
+  if (query.attention === "over-budget") conditions.push(sql`${h.monthlyBudgetCents} is not null and ${spent} > ${h.monthlyBudgetCents}`);
+  if (query.attention === "late-meds") conditions.push(sql`${medsLate} > 0`);
+  if (query.attention === "open-shifts") conditions.push(sql`${openShifts} > 0`);
+  if (query.attention === "vacancies") conditions.push(sql`${residents} < ${h.capacity}`);
+  if (query.attention === "no-manager") conditions.push(sql`${h.managerStaffId} is null`);
+  const where = and(...conditions);
+
+  const direction = query.dir === "desc" ? sql`desc` : sql`asc`;
+  const byName = sql`${h.name} asc`;
+  const order = {
+    name: [sql`${h.name} ${direction}`],
+    occupancy: [sql`(${residents}::float / nullif(${h.capacity}, 0)) ${direction}`, byName],
+    vacancies: [sql`(${h.capacity} - ${residents}) ${direction}`, byName],
+    issues: [sql`${urgentIssues} ${direction}`, sql`${openIssues} ${direction}`, byName],
+    spend: [sql`${spent} ${direction}`, byName],
+    budget: [sql`(${spent}::float / nullif(${h.monthlyBudgetCents}, 0)) ${direction} nulls last`, byName],
+    meds: [sql`${medsLate} ${direction}`, byName],
+  }[query.sort];
+
+  const [{ n: total }] = await db.select({ n: count() }).from(h).leftJoin(schema.staff, eq(schema.staff.id, h.managerStaffId)).where(where);
+  const pages = Math.max(1, Math.ceil(total / query.per));
+  const page = Math.min(query.page, pages);
+
+  const rows = await db
+    .select({
+      id: h.id,
+      name: h.name,
+      type: h.type,
+      address: h.address,
+      city: h.city,
+      phone: h.phone,
+      capacity: h.capacity,
+      active: h.active,
+      budget: h.monthlyBudgetCents,
+      managerId: h.managerStaffId,
+      managerName,
+      residents,
+      medsTotal,
+      medsGiven,
+      medsLate,
+      openIssues,
+      urgentIssues,
+      overdueIssues,
+      spent,
+      pending,
+      openShifts,
+    })
+    .from(h)
+    .leftJoin(schema.staff, eq(schema.staff.id, h.managerStaffId))
+    .where(where)
+    .orderBy(...order)
+    .limit(query.per)
+    .offset((page - 1) * query.per);
+
+  const ids = rows.map(row => row.id);
+  const people = ids.length
+    ? await db
+        .select({ id: schema.individuals.id, homeId: schema.individuals.homeId, first: schema.individuals.firstName, last: schema.individuals.lastName })
+        .from(schema.individuals)
+        .where(and(inArray(schema.individuals.homeId, ids), eq(schema.individuals.active, true)))
+        .orderBy(asc(schema.individuals.firstName))
+    : [];
+
+  // Totals across all open homes for the summary tiles, whatever the filters.
+  const [totals] = await db
+    .select({
+      homes: count(),
+      places: sql<number>`coalesce(sum(${h.capacity}), 0)`,
+      filled: sql<number>`coalesce(sum(${residents}), 0)`,
+      urgent: sql<number>`count(*) filter (where ${urgentIssues} > 0)`,
+      overBudget: sql<number>`count(*) filter (where ${h.monthlyBudgetCents} is not null and ${spent} > ${h.monthlyBudgetCents})`,
+      lateMeds: sql<number>`coalesce(sum(${medsLate}), 0)`,
+      pending: sql<number>`coalesce(sum(${pending}), 0)`,
+      openShifts: sql<number>`coalesce(sum(${openShifts}), 0)`,
+      spent: sql<number>`coalesce(sum(${spent}), 0)`,
+      budget: sql<number>`coalesce(sum(${h.monthlyBudgetCents}), 0)`,
+    })
+    .from(h)
+    .where(eq(h.active, true));
+  const [{ closed }] = await db.select({ closed: count() }).from(h).where(eq(h.active, false));
+
+  const num = (value: unknown) => Number(value ?? 0);
+  return {
+    rows: rows.map(row => ({
+      ...row,
+      residents: num(row.residents),
+      medsTotal: num(row.medsTotal),
+      medsGiven: num(row.medsGiven),
+      medsLate: num(row.medsLate),
+      openIssues: num(row.openIssues),
+      urgentIssues: num(row.urgentIssues),
+      overdueIssues: num(row.overdueIssues),
+      spent: num(row.spent),
+      pending: num(row.pending),
+      openShifts: num(row.openShifts),
+      people: people.filter(person => person.homeId === row.id),
+    })),
+    total,
+    page,
+    pages,
+    summary: {
+      homes: num(totals.homes),
+      closed: num(closed),
+      places: num(totals.places),
+      filled: num(totals.filled),
+      urgent: num(totals.urgent),
+      overBudget: num(totals.overBudget),
+      lateMeds: num(totals.lateMeds),
+      pending: num(totals.pending),
+      openShifts: num(totals.openShifts),
+      spent: num(totals.spent),
+      budget: num(totals.budget),
+    },
+  };
+}

@@ -1,12 +1,12 @@
 "use server";
 
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { zonedTime } from "@/lib/format";
+import { parseMoney, zonedTime } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
 import type { FormState } from "./auth";
@@ -226,14 +226,32 @@ export async function completeTask(id: string) {
 
 /* ---------- Homes and staff ---------- */
 
+/* Creates a home with everything set at once: details, staffing needs, manager and budget. */
 export async function createHome(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
   const parsed = homeSchema.safeParse(homeFormValues(formData));
   if (!parsed.success) return firstError(parsed.error);
-  await db.insert(schema.homes).values(parsed.data);
-  await audit(user.id, "create", "home");
+  const [clash] = await db
+    .select({ id: schema.homes.id })
+    .from(schema.homes)
+    .where(sql`lower(${schema.homes.name}) = lower(${parsed.data.name})`)
+    .limit(1);
+  if (clash) return { error: "A home with that name already exists. Choose a different name." };
+  const managerRaw = String(formData.get("managerStaffId") ?? "");
+  let managerStaffId: string | null = null;
+  if (managerRaw) {
+    if (!uuid.safeParse(managerRaw).success) return { error: "Choose a home manager from the list." };
+    const [person] = await db.select({ active: schema.staff.active }).from(schema.staff).where(eq(schema.staff.id, managerRaw)).limit(1);
+    if (!person?.active) return { error: "That person is no longer on staff." };
+    managerStaffId = managerRaw;
+  }
+  const budgetRaw = String(formData.get("monthlyBudget") ?? "").trim();
+  const monthlyBudgetCents = budgetRaw ? parseMoney(budgetRaw) : null;
+  if (budgetRaw && monthlyBudgetCents === null) return { error: "Enter the monthly budget in dollars, for example 2400." };
+  const [row] = await db.insert(schema.homes).values({ ...parsed.data, managerStaffId, monthlyBudgetCents }).returning({ id: schema.homes.id });
+  await audit(user.id, "create", "home", row.id);
   revalidatePath("/app/homes");
-  return {};
+  redirect(`/app/homes/${row.id}?created=1`);
 }
 
 export async function createStaff(_p: FormState, formData: FormData): Promise<FormState> {
