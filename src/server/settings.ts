@@ -326,6 +326,24 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(240),
     fallback: 15,
   },
+  scribe_enabled: {
+    label: "Let staff speak their notes and have a local model draft them (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
+  scribe_model: {
+    label: "The Ollama model that drafts notes from what staff said",
+    kind: "text",
+    schema: z.string().trim().min(1).max(80),
+    fallback: "qwen3.5:4b",
+  },
+  scribe_speech: {
+    label: "The speech model: small (fastest), medium or turbo (most accurate)",
+    kind: "text",
+    schema: z.enum(["small", "medium", "turbo"]),
+    fallback: "small",
+  },
   clock_pay_early_from: {
     label: "When someone clocks in early, pay from",
     kind: "text",

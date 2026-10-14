@@ -154,6 +154,7 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
           signer={user.name}
           configs={configs}
           defaultConfig={defaultConfig}
+          scribe={settings.scribe_enabled === "on"}
         />
       </div>
     </div>

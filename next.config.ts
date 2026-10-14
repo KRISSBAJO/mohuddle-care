@@ -5,7 +5,7 @@ const securityHeaders = [
   // SAMEORIGIN, not DENY, so the Hub can preview its own stored PDFs. Other sites still cannot frame it.
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self), payment=()" },
 ];
 
 const nextConfig: NextConfig = {

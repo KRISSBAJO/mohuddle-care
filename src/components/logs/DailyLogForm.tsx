@@ -5,11 +5,13 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
 import { Select } from "@/components/app/Select";
 import { FollowUpQuestion } from "@/components/logs/FollowUpQuestion";
+import { ScribePanel } from "@/components/logs/ScribePanel";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
 import { periodWord, type GoalProgress } from "@/lib/goal-progress";
 import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, dosesByHour, hourLabel, shiftHours, shiftMinutes, type ShiftDose } from "@/lib/log-note";
 import type { NoteConfig, NoteItem, SectionKey } from "@/lib/note-requirements";
+import type { ScribeDraft } from "@/lib/scribe";
 import { isoWeekday, kindFor, type ShiftPattern } from "@/lib/schedule";
 import { createDailyLog } from "@/server/actions/logs";
 import type { FormState } from "@/server/actions/auth";
@@ -48,6 +50,8 @@ type Props = {
   /* Each person's note: which optional sections are on or required, and their extra items. */
   configs: Record<string, NoteConfig>;
   defaultConfig: NoteConfig;
+  /* Whether staff can speak the note and have it drafted. */
+  scribe: boolean;
 };
 
 const MOODS = [
@@ -195,6 +199,36 @@ export function DailyLogForm(props: Props) {
     return () => element.removeEventListener("select-change", update);
   });
 
+  // A draft from the scribe waits one render, so sections it switches on (behaviour) exist before filling.
+  const [draft, setDraft] = useState<ScribeDraft | null>(null);
+  useEffect(() => {
+    const element = form.current;
+    if (!draft || !element) return;
+    for (const [name, value] of Object.entries(draft)) {
+      if (name === "notes" || name === "behaviourOccurred" || value === null || value === "") continue;
+      if (name === "mood") {
+        const radio = element.querySelector<HTMLInputElement>(`input[name="mood"][value="${value}"]`);
+        if (radio) radio.checked = true;
+        continue;
+      }
+      const field = element.elements.namedItem(name);
+      // Only empty boxes are filled: anything staff already wrote stays.
+      if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) || field.value.trim()) continue;
+      field.value = String(value);
+      field.classList.add("scribe-filled");
+      field.addEventListener("input", () => field.classList.remove("scribe-filled"), { once: true });
+    }
+    setDraft(null);
+    measure();
+    // measure reads the form as it is now; it does not need to rerun this when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+  function fillFromScribe(next: ScribeDraft) {
+    if (next.behaviourOccurred) setBehaviour("yes");
+    if (typeof next.notes === "string" && next.notes) setSummary(current => (current.trim() ? current : String(next.notes)));
+    setDraft(next);
+  }
+
   const completed = visible.filter(([id]) => filled.has(id)).length;
   const levelOptions = useMemo(() => [...promptLevels, ...ADL_EXTRA], [promptLevels]);
 
@@ -211,6 +245,7 @@ export function DailyLogForm(props: Props) {
       noValidate={false}
     >
       <div className="grid gap-5">
+        {props.scribe && <ScribePanel kind="daily" personId={person?.id ?? ""} personName={first === "this person" ? "" : first} onFill={fillFromScribe} />}
         <div className="flex gap-3 rounded-2xl border border-brand/20 bg-sky/60 px-5 py-4 text-sm text-brand-deep">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
