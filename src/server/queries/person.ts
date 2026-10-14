@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne, sql } from "drizz
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { ensureMedicationRecords } from "@/server/queries/hub";
+import { goalsForLogs } from "@/server/queries/logs";
 
 const staffName = sql<string | null>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`;
 
@@ -290,27 +291,15 @@ export async function personLogs(id: string, options: { mood: keyof typeof logMo
   const pages = Math.max(1, Math.ceil(total / options.per));
   const page = Math.min(options.page, pages);
   const rows = await db
-    .select({
-      id: schema.dailyLogs.id,
-      logDate: schema.dailyLogs.logDate,
-      createdAt: schema.dailyLogs.createdAt,
-      mood: schema.dailyLogs.mood,
-      checks: schema.dailyLogs.checks,
-      meals: schema.dailyLogs.meals,
-      activities: schema.dailyLogs.activities,
-      health: schema.dailyLogs.health,
-      behaviours: schema.dailyLogs.behaviours,
-      goalProgress: schema.dailyLogs.goalProgress,
-      notes: schema.dailyLogs.notes,
-      staff: staffName,
-    })
+    .select({ log: schema.dailyLogs, staff: staffName })
     .from(schema.dailyLogs)
     .leftJoin(schema.staff, eq(schema.staff.id, schema.dailyLogs.staffId))
     .where(where)
     .orderBy(desc(schema.dailyLogs.logDate), desc(schema.dailyLogs.createdAt))
     .limit(options.per)
     .offset((page - 1) * options.per);
-  return { rows, total, page, pages, moods: Object.fromEntries(moods.map(row => [row.mood, row.n])) as Partial<Record<string, number>> };
+  const goals = await goalsForLogs(rows.map(row => row.log.id));
+  return { rows, goals, total, page, pages, moods: Object.fromEntries(moods.map(row => [row.mood, row.n])) as Partial<Record<string, number>> };
 }
 
 /* Every incident about this person, with who reported it and the filing state. */

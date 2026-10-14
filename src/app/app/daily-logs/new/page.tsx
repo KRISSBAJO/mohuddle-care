@@ -1,61 +1,93 @@
-import { ActionForm } from "@/components/app/ActionForm";
-import { Field, PageHeader } from "@/components/app/ui";
-import { dateKey, labels } from "@/lib/format";
-import { createDailyLog } from "@/server/actions/hub";
+import Link from "next/link";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { ArrowLeft } from "lucide-react";
+import { DailyLogForm, type LogPerson } from "@/components/logs/DailyLogForm";
+import { PageHeader } from "@/components/app/ui";
+import { dateKey } from "@/lib/format";
+import { requestTime } from "@/server/clock";
+import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
-import { listIndividuals } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 
 export const metadata = { title: "New daily log" };
 
+type Shift = "day" | "evening" | "overnight";
+
+/* The shift whose hours include this moment, from the shift hours in Settings. */
+function currentShift(now: number, hours: Record<Shift, string>): Shift {
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+  for (const shift of ["day", "evening", "overnight"] as const) {
+    const [start, end] = hours[shift].split("-");
+    const inside = start < end ? clock >= start && clock < end : clock >= start || clock < end;
+    if (inside) return shift;
+  }
+  return "day";
+}
+
 export default async function NewDailyLogPage({ searchParams }: { searchParams: Promise<{ individual?: string }> }) {
-  await requireUser();
+  const user = await requireUser();
   const { individual } = await searchParams;
-  const [people, settings] = await Promise.all([listIndividuals(), getSettings()]);
+  const today = dateKey();
+  const [settings, now, people] = await Promise.all([
+    getSettings(),
+    requestTime(),
+    db
+      .select({ id: schema.individuals.id, firstName: schema.individuals.firstName, lastName: schema.individuals.lastName, allergies: schema.individuals.allergies, supportNotes: schema.individuals.supportNotes, home: schema.homes.name })
+      .from(schema.individuals)
+      .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
+      .where(eq(schema.individuals.active, true))
+      .orderBy(asc(schema.individuals.firstName), asc(schema.individuals.lastName)),
+  ]);
+  const ids = people.map(person => person.id);
+  const [goals, todays] = ids.length
+    ? await Promise.all([
+        db
+          .select({ id: schema.planGoals.id, individualId: schema.planGoals.individualId, title: schema.planGoals.title, description: schema.planGoals.description })
+          .from(schema.planGoals)
+          .where(and(inArray(schema.planGoals.individualId, ids), eq(schema.planGoals.status, "active")))
+          .orderBy(asc(schema.planGoals.createdAt)),
+        db.select({ individualId: schema.dailyLogs.individualId, shift: schema.dailyLogs.shift }).from(schema.dailyLogs).where(and(inArray(schema.dailyLogs.individualId, ids), eq(schema.dailyLogs.logDate, today))),
+      ])
+    : [[], []];
+
+  const options: LogPerson[] = people.map(person => ({
+    id: person.id,
+    name: `${person.firstName} ${person.lastName}`,
+    home: person.home,
+    allergies: person.allergies,
+    supportNotes: person.supportNotes,
+    goals: goals.filter(goal => goal.individualId === person.id).map(({ id, title, description }) => ({ id, title, description })),
+    loggedToday: todays.filter(row => row.individualId === person.id && row.shift).map(row => row.shift as Shift),
+  }));
+  const shiftHours = { day: settings.shift_day_hours, evening: settings.shift_evening_hours, overnight: settings.shift_overnight_hours };
+  const initialPerson = options.some(person => person.id === individual) ? (individual as string) : "";
+
   return (
-    <div className="max-w-3xl">
-      <PageHeader eyebrow="Daily logs" title="Write a daily log" description={`Logs are due by ${settings.daily_log_due_hour}:00. Write what you saw, plainly. Families and reviewers read these.`} />
-      <ActionForm action={createDailyLog} submitLabel="Save log" className="card p-6">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="sm:col-span-2">
-            <Field label="Person" htmlFor="individualId">
-              <select id="individualId" name="individualId" required className="field" defaultValue={individual ?? ""}>
-                <option value="" disabled>Choose a person</option>
-                {people.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}{person.home ? ` · ${person.home}` : ""}</option>)}
-              </select>
-            </Field>
-          </div>
-          <Field label="Date" htmlFor="logDate"><input id="logDate" name="logDate" type="date" required className="field" defaultValue={dateKey()} /></Field>
-        </div>
-        <fieldset>
-          <legend className="label">Mood today</legend>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(labels.mood).map(([value, text]) => (
-              <label key={value} className="cursor-pointer rounded-full border border-line px-3.5 py-2 text-sm font-medium has-[:checked]:border-brand has-[:checked]:bg-sky has-[:checked]:text-brand-deep">
-                <input type="radio" name="mood" value={value} defaultChecked={value === "good"} className="sr-only" /> {text}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className="label">Required checks</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {settings.required_daily_checks.map(item => (
-              <label key={item} className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-sage has-[:checked]:bg-sage-soft">
-                <input type="checkbox" name="checks" value={item} className="h-4 w-4 accent-[#3e8e6a]" /> {item}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <Field label="Meals and fluids" htmlFor="meals"><input id="meals" name="meals" className="field" placeholder="Ate well at breakfast and lunch, declined snack" /></Field>
-        <Field label="Activities and community" htmlFor="activities"><textarea id="activities" name="activities" rows={3} className="field" placeholder="Where they went, who they saw, what they enjoyed" /></Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Health and wellbeing" htmlFor="health"><textarea id="health" name="health" rows={3} className="field" placeholder="Sleep, pain, appointments, anything a nurse should know" /></Field>
-          <Field label="Behaviours of concern" htmlFor="behaviours"><textarea id="behaviours" name="behaviours" rows={3} className="field" placeholder="What happened, what helped. Report incidents separately." /></Field>
-        </div>
-        <Field label="Progress on goals" htmlFor="goalProgress"><input id="goalProgress" name="goalProgress" className="field" placeholder="Practised bus route with support, needed one prompt" /></Field>
-        <Field label="Anything else for the next shift" htmlFor="notes"><textarea id="notes" name="notes" rows={2} className="field" /></Field>
-      </ActionForm>
+    <div className="max-w-6xl">
+      <Link href={initialPerson ? `/app/individuals/${initialPerson}?tab=logs` : "/app/daily-logs"} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
+        <ArrowLeft className="h-3.5 w-3.5" /> {initialPerson ? "Back to their logs" : "All daily logs"}
+      </Link>
+      <PageHeader
+        eyebrow="Daily logs"
+        title="Write a shift note"
+        description={`One note per person per shift, due by ${settings.daily_log_due_hour}:00. It covers personal care, meals, sleep, health, plan goals, activities and behaviour, and you sign it when you save.`}
+      />
+      <div className="mt-6">
+        <DailyLogForm
+          people={options}
+          initialPerson={initialPerson}
+          today={today}
+          defaultShift={currentShift(now, shiftHours)}
+          shiftHours={shiftHours}
+          locations={settings.log_locations}
+          adlItems={settings.adl_items}
+          promptLevels={settings.prompt_levels}
+          activityTypes={settings.activity_types}
+          requiredChecks={settings.required_daily_checks}
+          summaryMin={settings.daily_log_summary_min_chars}
+          signer={user.name}
+        />
+      </div>
     </div>
   );
 }

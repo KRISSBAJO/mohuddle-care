@@ -99,6 +99,36 @@ export const settingDefs = {
       "Goal activity offered",
     ],
   },
+  daily_log_summary_min_chars: {
+    label: "The shift summary on a daily log must be at least this many characters (0 to 500)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(500),
+    fallback: 60,
+  },
+  log_locations: {
+    label: "Where support was given, for daily logs (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["At home", "In the community", "Day program", "Work site", "Family home", "Hospital or clinic"],
+  },
+  adl_items: {
+    label: "Personal care tasks recorded on each daily log (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Bathing or shower", "Toileting", "Dressing", "Oral care", "Grooming", "Eating", "Mobility and transfers"],
+  },
+  prompt_levels: {
+    label: "Levels of support, least to most (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(2),
+    fallback: ["Independent", "Verbal prompt", "Gestural prompt", "Modelled", "Partial physical help", "Full physical help"],
+  },
+  activity_types: {
+    label: "Activity types staff can tick on a daily log (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Community outing", "Day program", "Work or volunteering", "Exercise", "Faith community", "Shopping or errands", "Leisure at home", "Household chores", "Cooking", "Family or friends visit", "Medical appointment", "Phone or video call"],
+  },
   expense_approval_dollars: {
     label: "Home expenses above this many dollars need approval (0 means every expense does)",
     kind: "number",

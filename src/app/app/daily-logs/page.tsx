@@ -18,7 +18,7 @@ export default async function DailyLogsPage({ searchParams }: { searchParams: Pr
       <PageHeader
         eyebrow="Daily logs"
         title={selected ? fmt.dayLong(selected) : "Recent daily logs"}
-        description="One log per person per shift: mood, meals, activities, health and progress on goals."
+        description="One signed shift note per person per shift: personal care, meals, sleep, health, plan goals, activities and behaviour."
         action={
           <div className="flex items-center gap-2">
             <form className="flex items-center gap-2">
@@ -41,9 +41,12 @@ export default async function DailyLogsPage({ searchParams }: { searchParams: Pr
                     <span className="text-xs text-mute">{log.home ?? ""}</span>
                     <Badge tone={moodTone[log.mood]}>{label("mood", log.mood)}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-mute">{log.activities || log.notes || "No narrative written."}</p>
-                  <p className="mt-1 text-xs text-dim">{fmt.day(log.logDate)} · written {fmt.time(log.createdAt)} by {log.staff ?? "staff"}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-mute">{log.notes || log.activities || "No narrative written."}</p>
+                  <p className="mt-1 text-xs text-dim">
+                    {[fmt.day(log.logDate), log.shift ? `${label("shiftKind", log.shift)} shift` : null, `written ${fmt.time(log.createdAt)} by ${log.staff ?? "staff"}`].filter(Boolean).join(" · ")}
+                  </p>
                 </div>
+                <Link href={`/app/daily-logs/${log.id}`} className="shrink-0 self-center text-xs font-semibold text-brand hover:text-brand-deep">Open note</Link>
               </li>
             ))}
           </ul>

@@ -1,26 +1,19 @@
 import Link from "next/link";
-import { CheckCircle2, ClipboardList } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { Pagination } from "@/components/app/ListControls";
-import { Badge, Empty, Panel } from "@/components/app/ui";
+import { Empty, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { fmt, label } from "@/lib/format";
+import { label } from "@/lib/format";
 import type { schema } from "@/server/db";
 import { logMoodFilters, logPageSizes, moodSeries, personLogs } from "@/server/queries/person";
-import { MoodStrip, moodTone } from "./parts";
+import { LogNoteView } from "@/components/logs/LogNoteView";
+import { MoodStrip } from "./parts";
 
 type Person = typeof schema.individuals.$inferSelect;
 
-const sections = [
-  ["meals", "Meals and fluids"],
-  ["activities", "Activities"],
-  ["health", "Health"],
-  ["behaviours", "Behaviour"],
-  ["goalProgress", "Goal progress"],
-  ["notes", "Other notes"],
-] as const;
 
 /* Every daily log, newest first, with the mood picture and a filter for the hard days. */
-export async function PersonLogsTab({ id, person, query }: { id: string; person: Person; query: Record<string, string | undefined> }) {
+export async function PersonLogsTab({ id, person, query, adlOrder }: { id: string; person: Person; query: Record<string, string | undefined>; adlOrder: string[] }) {
   const mood = (Object.keys(logMoodFilters) as (keyof typeof logMoodFilters)[]).find(key => key === query.mood) ?? "any";
   const per = logPageSizes.find(size => String(size) === query.per) ?? 10;
   const requested = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
@@ -54,36 +47,14 @@ export async function PersonLogsTab({ id, person, query }: { id: string; person:
           </Panel>
         ) : (
           <ol className="space-y-3">
-            {logs.rows.map(log => {
-              return (
-                <li key={log.id} className={cn("card p-5", (log.mood === "low" || log.mood === "distressed") && "border-l-4 border-l-accent")}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-display text-lg font-bold">{fmt.dayLong(log.logDate)}</p>
-                      <p className="text-xs text-mute">Written by {log.staff ?? "staff"} at {fmt.dateTime(log.createdAt)}</p>
-                    </div>
-                    <Badge tone={moodTone[log.mood]}>Mood: {label("mood", log.mood)}</Badge>
-                  </div>
-                  <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                    {sections.map(([key, title]) =>
-                      log[key] ? (
-                        <div key={key} className={key === "notes" || key === "activities" ? "sm:col-span-2" : undefined}>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</dt>
-                          <dd className="mt-0.5 whitespace-pre-line text-sm">{log[key]}</dd>
-                        </div>
-                      ) : null,
-                    )}
-                  </dl>
-                  {log.checks.length > 0 && (
-                    <p className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
-                      {log.checks.map(check => (
-                        <span key={check} className="chip bg-sage-soft px-2 py-0.5 text-sage"><CheckCircle2 className="h-3 w-3" /> {check}</span>
-                      ))}
-                    </p>
-                  )}
-                </li>
-              );
-            })}
+            {logs.rows.map(({ log, staff }) => (
+              <li key={log.id} className={cn("card p-5", (log.mood === "low" || log.mood === "distressed" || log.seizure || log.behaviourOccurred) && "border-l-4 border-l-accent")}>
+                <LogNoteView log={log} goals={logs.goals.get(log.id) ?? []} staff={staff} adlOrder={adlOrder} compact />
+                <p className="no-print mt-3 text-right">
+                  <Link href={`/app/daily-logs/${log.id}`} className="text-xs font-semibold text-brand hover:text-brand-deep">Open the full note</Link>
+                </p>
+              </li>
+            ))}
           </ol>
         )}
         <div className="card overflow-hidden">

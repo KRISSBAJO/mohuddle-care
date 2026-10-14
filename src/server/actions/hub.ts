@@ -103,38 +103,6 @@ export async function updateGoal(goalId: string, _p: FormState, formData: FormDa
   return {};
 }
 
-/* ---------- Daily logs ---------- */
-
-const logSchema = z.object({
-  individualId: uuid,
-  logDate: z.iso.date(),
-  mood: z.enum(schema.mood.enumValues),
-  meals: optional(),
-  activities: optional(),
-  health: optional(),
-  behaviours: optional(),
-  goalProgress: optional(),
-  notes: optional(4000),
-});
-
-export async function createDailyLog(_p: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  const parsed = logSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return firstError(parsed.error);
-  const checks = formData.getAll("checks").map(String).filter(Boolean);
-  const required = (await import("@/server/settings").then(m => m.getSettings())).required_daily_checks;
-  const missing = required.filter(item => !checks.includes(item));
-  if (missing.length) return { error: `Please confirm every required check. Missing: ${missing.join(", ")}.` };
-  const [row] = await db
-    .insert(schema.dailyLogs)
-    .values({ ...parsed.data, checks, staffId: user.staffId })
-    .returning({ id: schema.dailyLogs.id });
-  await audit(user.id, "create", "daily_log", row.id);
-  revalidatePath("/app");
-  revalidatePath("/app/daily-logs");
-  redirect(`/app/individuals/${parsed.data.individualId}?saved=log`);
-}
-
 /* ---------- Medications ---------- */
 
 export async function addMedication(_p: FormState, formData: FormData): Promise<FormState> {

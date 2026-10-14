@@ -229,7 +229,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
       {tab === "plan" && <PersonCarePlanTab id={id} person={person} />}
       {tab === "medications" && <PersonMedicationsTab id={id} person={person} manager={manager} end={query.end} days={query.days} lateMinutes={settings.med_late_minutes} />}
       {tab === "health" && <PersonHealthTab id={id} person={person} manager={manager} />}
-      {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} />}
+      {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} adlOrder={settings.adl_items} />}
       {tab === "incidents" && <PersonIncidentsTab id={id} person={person} />}
       {tab === "tasks" && <PersonTasksTab id={id} person={person} />}
       {tab === "profile" && <PersonProfileTab id={id} person={person} home={home} manager={manager} />}

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 /* Roles decide what a signed-in person may do inside the Hub. */
 export const userRole = pgEnum("user_role", ["admin", "coordinator", "nurse", "dsp"]);
@@ -41,6 +41,7 @@ export const issueStatus = pgEnum("issue_status", ["open", "in_progress", "resol
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const emptyList = () => sql`'[]'::jsonb`;
+const emptyMap = () => sql`'{}'::jsonb`;
 
 export const homes = pgTable("homes", {
   id: id(),
@@ -187,9 +188,56 @@ export const dailyLogs = pgTable("daily_logs", {
   health: text("health").notNull().default(""),
   behaviours: text("behaviours").notNull().default(""),
   goalProgress: text("goal_progress").notNull().default(""),
+  // The shift summary. Older logs used it for "anything else for the next shift".
   notes: text("notes").notNull().default(""),
+  // A full shift note, in the shape reviewers expect from a Therap T-Log. Older logs leave these empty.
+  shift: shiftKind("shift"),
+  timeIn: text("time_in").notNull().default(""),
+  timeOut: text("time_out").notNull().default(""),
+  location: text("location").notNull().default(""),
+  presentation: text("presentation").notNull().default(""),
+  adl: jsonb("adl").$type<Record<string, string>>().notNull().default(emptyMap()),
+  mealIntake: jsonb("meal_intake").$type<Record<string, string>>().notNull().default(emptyMap()),
+  fluidsOz: integer("fluids_oz"),
+  sleepHours: real("sleep_hours"),
+  sleepQuality: text("sleep_quality").notNull().default(""),
+  bowelMovements: integer("bowel_movements"),
+  incontinence: integer("incontinence"),
+  vitals: jsonb("vitals").$type<Partial<Record<"bpSys" | "bpDia" | "pulse" | "temp" | "weight" | "pain", number>>>().notNull().default(emptyMap()),
+  seizure: boolean("seizure").notNull().default(false),
+  seizureNotes: text("seizure_notes").notNull().default(""),
+  behaviourOccurred: boolean("behaviour_occurred").notNull().default(false),
+  antecedent: text("antecedent").notNull().default(""),
+  intervention: text("intervention").notNull().default(""),
+  behaviourOutcome: text("behaviour_outcome").notNull().default(""),
+  activityTypes: jsonb("activity_types").$type<string[]>().notNull().default(emptyList()),
+  familyContact: text("family_contact").notNull().default(""),
+  appointments: text("appointments").notNull().default(""),
+  signedName: text("signed_name").notNull().default(""),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+/* Data on each plan goal for one shift: offered or not, how much help, and how it went. */
+export const dailyLogGoals = pgTable(
+  "daily_log_goals",
+  {
+    id: id(),
+    logId: uuid("log_id")
+      .notNull()
+      .references(() => dailyLogs.id, { onDelete: "cascade" }),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => planGoals.id, { onDelete: "cascade" }),
+    offered: text("offered").notNull(),
+    promptLevel: text("prompt_level").notNull().default(""),
+    outcome: text("outcome").notNull().default(""),
+    attempts: integer("attempts"),
+    successes: integer("successes"),
+    note: text("note").notNull().default(""),
+  },
+  table => [uniqueIndex("daily_log_goal_once").on(table.logId, table.goalId), index("daily_log_goals_goal").on(table.goalId)],
+);
 
 export const medications = pgTable("medications", {
   id: id(),

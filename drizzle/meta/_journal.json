@@ -50,6 +50,13 @@
       "when": 1791991806496,
       "tag": "0006_massive_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791993286238,
+      "tag": "0007_windy_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

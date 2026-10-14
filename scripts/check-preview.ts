@@ -28,6 +28,10 @@ async function main() {
       routes.push(`${person}?tab=medications&days=28&end=2026-09-30`, `${person}?tab=medications&days=99&end=not-a-date`, `${person}?tab=logs&mood=concern&per=25&page=9`, `${person}?tab=logs&mood=nonsense&page=-3`);
     }
     for (const incident of incidents) routes.push(`/app/incidents/${incident.id}`);
+    const { rows: logs } = await pool.query("select id from daily_logs order by created_at desc limit 2");
+    for (const log of logs) routes.push(`/app/daily-logs/${log.id}`);
+    routes.push("/app/daily-logs/new?individual=not-a-person");
+    if (people[0]) routes.push(`/app/daily-logs/new?individual=${people[0].id}`);
     routes.push("/app/incidents?status=active&sort=deadline&dir=desc&reportable=yes&period=all&per=10&page=3", "/app/incidents?q=headphones&severity=moderate&category=behavioural&home=none&attention=serious", "/app/homes/new", "/app/homes?view=table&sort=budget&dir=asc", "/app/homes?attention=late-meds&type=group_home&q=hill&per=6&page=4", "/app/homes?status=all&sort=vacancies", "/app/account", "/app/staff?q=a&role=dsp&login=none&cred=any&sort=expiry&dir=desc&per=10&page=2", "/app/staff?status=all&sort=home", "/app/individuals?q=e&attention=no-log&sort=lastLog&dir=desc&per=10&page=3", "/app/individuals?status=all&sort=age", "/app/schedule?view=staff", "/app/schedule?view=day&day=2026-10-14", "/app/schedule?week=2025-03-09", "/app/schedule?week=not-a-date");
     const { rows: staff } = await pool.query("select id from staff where active limit 1");
     const { rows: homes } = await pool.query("select id from homes where active limit 1");

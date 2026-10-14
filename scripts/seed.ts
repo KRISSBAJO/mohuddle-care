@@ -201,6 +201,14 @@ async function main() {
         behaviours: d === 2 && person.id === marcusLee.id ? "Upset in the car without headphones. Pulled over, waited, recovered in ten minutes." : "",
         goalProgress: d === 1 ? "Worked on the current goal; see activities." : "",
         notes: "",
+        shift: "day",
+        timeIn: "07:00",
+        timeOut: "15:00",
+        location: "At home",
+        mealIntake: { Breakfast: "All", Lunch: "Most" },
+        fluidsOz: 48,
+        signedName: `${staffFor.firstName} ${staffFor.lastName}`,
+        signedAt: zoned(day, "15:05"),
       });
     }
   });
