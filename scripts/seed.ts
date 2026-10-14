@@ -47,7 +47,7 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
   const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
@@ -236,6 +236,15 @@ async function main() {
     { individualId: olivia.id, staffId: luis.id, logDate: today, mood: "good", checks, meals: "Lunch from home.", activities: "Coffee cart morning, art after lunch.", goalProgress: "", health: "", behaviours: "", notes: "" },
   );
   await db.insert(schema.dailyLogs).values(logRows);
+
+  // What daily notes cover: the agency default, plus examples for one home and two people.
+  await db.insert(schema.noteRequirements).values([
+    ...(["care", "meals", "sleep", "activities", "behaviour", "contacts"] as const).map(section => ({ scope: "all" as const, kind: "section" as const, section, enabled: true })),
+    { scope: "person", individualId: brianna.id, kind: "section", section: "continence", enabled: true, required: true },
+    { scope: "person", individualId: brianna.id, kind: "item", label: "Skin areas checked for redness", fieldType: "multi", options: ["Heels", "Hips", "Sacrum", "Elbows", "Shoulder blades"], help: "Tick each area you checked. Report any redness to the nurse.", sortOrder: 1 },
+    { scope: "person", individualId: tasha.id, kind: "section", section: "seizure", enabled: true, required: true },
+    { scope: "home", homeId: hillcrest.id, kind: "item", label: "Fire door and alarm panel checked at the end of the shift?", fieldType: "yes_no", required: true, help: "The panel light should be green.", sortOrder: 1 },
+  ]);
 
   // Medication records: yesterday fully given, today's morning doses mostly given, one left due so the Today page has something to chase.
   const adminRows: (typeof schema.medAdministrations.$inferInsert)[] = [];

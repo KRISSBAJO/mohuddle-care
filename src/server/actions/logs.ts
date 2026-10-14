@@ -9,6 +9,7 @@ import { parseLogNote } from "@/lib/log-note";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { getSettings } from "@/server/settings";
+import { configForPerson } from "@/server/queries/note-requirements";
 import type { FormState } from "./auth";
 
 /*
@@ -43,8 +44,9 @@ export async function createDailyLog(_previous: FormState, formData: FormData): 
     formData.set("shift", shift.kind);
   }
 
-  const [settings, goals] = await Promise.all([
+  const [settings, config, goals] = await Promise.all([
     getSettings(),
+    configForPerson({ id: individualId, homeId: person.homeId }),
     db.select({ id: schema.planGoals.id }).from(schema.planGoals).where(and(eq(schema.planGoals.individualId, individualId), eq(schema.planGoals.status, "active"))),
   ]);
   const parsed = parseLogNote(formData, {
@@ -55,6 +57,8 @@ export async function createDailyLog(_previous: FormState, formData: FormData): 
     adlItems: settings.adl_items,
     promptLevels: settings.prompt_levels,
     activityTypes: settings.activity_types,
+    sections: config.sections,
+    items: config.items,
     // Only goals still active now. A goal closed while the form was open is skipped, not an error.
     goalIds: goals.map(goal => goal.id).filter(id => formData.has(`goal.${id}.offered`)),
   });

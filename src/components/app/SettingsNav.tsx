@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 const LINKS = [
   ["/app/settings", "Business rules"],
   ["/app/settings/shifts", "Shift patterns"],
+  ["/app/settings/notes", "Daily notes"],
 ] as const;
 
 /* Tabs across the settings pages. */

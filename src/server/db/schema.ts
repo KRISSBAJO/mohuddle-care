@@ -233,10 +233,45 @@ export const dailyLogs = pgTable("daily_logs", {
   activityTypes: jsonb("activity_types").$type<string[]>().notNull().default(emptyList()),
   familyContact: text("family_contact").notNull().default(""),
   appointments: text("appointments").notNull().default(""),
+  // Free-text notes per personal care task, and the newer sleep and bowel details.
+  adlNotes: jsonb("adl_notes").$type<Record<string, string>>().notNull().default(emptyMap()),
+  sleepNotes: text("sleep_notes").notNull().default(""),
+  stoolType: text("stool_type").notNull().default(""),
+  continenceNotes: text("continence_notes").notNull().default(""),
+  // Answers to extra items set for everyone, the home or the person. Labels are kept so old notes still read right.
+  extra: jsonb("extra").$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person" }[]>().notNull().default(emptyList()),
+  // Optional sections that were switched on for this person when the note was written.
+  sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
   signedName: text("signed_name").notNull().default(""),
   signedAt: timestamp("signed_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+/*
+ * What daily notes must cover, beyond the core. Scope "all" is the agency default; "home" and "person"
+ * add to it or switch sections off. Sections switch built-in parts on or off; items are extra questions.
+ */
+export const noteRequirements = pgTable(
+  "note_requirements",
+  {
+    id: id(),
+    scope: text("scope").$type<"all" | "home" | "person">().notNull(),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "cascade" }),
+    individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"section" | "item">().notNull(),
+    section: text("section").notNull().default(""),
+    enabled: boolean("enabled").notNull().default(true),
+    required: boolean("required").notNull().default(false),
+    label: text("label").notNull().default(""),
+    fieldType: text("field_type").notNull().default(""),
+    options: jsonb("options").$type<string[]>().notNull().default(emptyList()),
+    unit: text("unit").notNull().default(""),
+    help: text("help").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  table => [index("note_requirements_home").on(table.homeId), index("note_requirements_person").on(table.individualId)],
+);
 
 /* Data on each plan goal for one shift: offered or not, how much help, and how it went. */
 export const dailyLogGoals = pgTable(

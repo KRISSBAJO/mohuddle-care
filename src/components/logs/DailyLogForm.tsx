@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
-import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, shiftMinutes } from "@/lib/log-note";
+import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, shiftMinutes } from "@/lib/log-note";
+import type { NoteConfig, NoteItem, SectionKey } from "@/lib/note-requirements";
 import { isoWeekday, kindFor, type ShiftPattern } from "@/lib/schedule";
 import { createDailyLog } from "@/server/actions/logs";
 import type { FormState } from "@/server/actions/auth";
@@ -39,6 +40,9 @@ type Props = {
   requiredChecks: string[];
   summaryMin: number;
   signer: string;
+  /* Each person's note: which optional sections are on or required, and their extra items. */
+  configs: Record<string, NoteConfig>;
+  defaultConfig: NoteConfig;
 };
 
 const MOODS = [
@@ -49,29 +53,38 @@ const MOODS = [
   ["distressed", "Distressed"],
 ] as const;
 
+/* Every part a note can have, in order. Optional ones show only when switched on for the person. */
 const SECTIONS = [
   ["shift", "Shift details"],
   ["mood", "Mood and presentation"],
   ["checks", "Required checks"],
   ["care", "Personal care"],
   ["meals", "Meals and fluids"],
-  ["sleep", "Sleep and continence"],
-  ["health", "Health and vitals"],
+  ["sleep", "Sleep"],
+  ["continence", "Bowel and bladder"],
+  ["health", "Health"],
   ["goals", "Plan goals"],
   ["activities", "Activities and community"],
   ["behaviour", "Behaviour"],
   ["contacts", "Contacts and appointments"],
+  ["extra", "Extra items"],
   ["summary", "Summary and signature"],
 ] as const;
 type SectionId = (typeof SECTIONS)[number][0];
+const OPTIONAL: SectionId[] = ["care", "meals", "sleep", "continence", "activities", "behaviour", "contacts"];
 
-function Section({ id, index, title, hint, done, children }: { id: SectionId; index: number; title: string; hint?: string; done?: boolean; children: React.ReactNode }) {
+const SCOPE_BADGE = { all: "Everyone", home: "This home", person: "This person" } as const;
+
+function Section({ id, index, title, hint, done, required, children }: { id: SectionId; index: number; title: string; hint?: string; done?: boolean; required?: string; children: React.ReactNode }) {
   return (
     <section id={`log-${id}`} className="card scroll-mt-24 p-5 sm:p-6">
       <header className="mb-4 flex items-start gap-3">
         <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold", done ? "bg-sage text-white" : "bg-panel text-mute")}>{done ? <CheckCircle2 className="h-4 w-4" /> : index}</span>
-        <div>
-          <h2 className="font-display text-lg font-bold">{title}</h2>
+        <div className="min-w-0 flex-1">
+          <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-bold">
+            {title}
+            {required && <span className="chip bg-sky px-2 py-0.5 font-sans text-[11px] text-brand-deep">{required}</span>}
+          </h2>
           {hint && <p className="text-sm text-mute">{hint}</p>}
         </div>
       </header>
@@ -105,13 +118,13 @@ export function DailyLogForm(props: Props) {
   const [times, setTimes] = useState(() =>
     firstShift ? { start: firstShift.start, end: firstShift.end } : { start: firstPattern?.start ?? "", end: firstPattern?.end ?? "" },
   );
-  const [seizure, setSeizure] = useState(false);
-  const [behaviour, setBehaviour] = useState(false);
+  const [seizure, setSeizure] = useState("");
+  const [behaviour, setBehaviour] = useState("");
   const [offered, setOffered] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState("");
   // Shift, mood and behaviour start filled in from their defaults; the rest fills as staff write.
   const [filled, setFilled] = useState<Set<SectionId>>(() => {
-    const start = new Set<SectionId>(["mood", "behaviour"]);
+    const start = new Set<SectionId>(["mood"]);
     const chosen = people.find(option => option.id === props.initialPerson);
     if (chosen) start.add("shift");
     if (chosen && chosen.goals.length === 0) start.add("goals");
@@ -119,6 +132,13 @@ export function DailyLogForm(props: Props) {
   });
 
   const person = people.find(option => option.id === personId) ?? null;
+  const config = (person && props.configs[person.id]) || props.defaultConfig;
+  const first = person?.name.split(" ")[0] ?? "this person";
+  const isOn = (key: SectionKey) => config.sections[key].on;
+  const mustFill = (key: SectionKey) => (config.sections[key].on && config.sections[key].required ? `Required for ${first}` : undefined);
+  // The sections this person's note shows, numbered in order.
+  const visible = SECTIONS.filter(([id]) => (OPTIONAL.includes(id) ? isOn(id as SectionKey) : id === "extra" ? config.items.length > 0 : true));
+  const num = (id: SectionId) => visible.findIndex(([key]) => key === id) + 1;
   const scheduled = myShifts.find(option => option.id === shiftId) ?? null;
   const pattern = patterns.find(option => option.id === patternId) ?? null;
   const kind: Shift = scheduled ? scheduled.kind : times.start ? kindFor(times.start) : "day";
@@ -145,17 +165,19 @@ export function DailyLogForm(props: Props) {
     if (requiredChecks.every(item => data.getAll("checks").includes(item))) next.add("checks");
     if (any("adl.")) next.add("care");
     if (any("meal.") || has("fluidsOz") || has("meals")) next.add("meals");
-    if (has("sleepHours") || has("sleepQuality") || has("bowelMovements") || has("incontinence")) next.add("sleep");
-    if (["bpSys", "pulse", "temp", "weight", "pain", "health"].some(has) || data.get("seizure") === "on") next.add("health");
+    if (has("sleepHours") || has("sleepQuality") || has("sleepNotes")) next.add("sleep");
+    if (has("bowelMovements") || has("incontinence") || has("stoolType")) next.add("continence");
+    if (["bpSys", "pulse", "temp", "weight", "pain", "health", "seizureAnswer"].some(has)) next.add("health");
     if (person && (person.goals.length === 0 || person.goals.every(goal => has(`goal.${goal.id}.offered`)))) next.add("goals");
     if (data.getAll("activityTypes").length || has("activities")) next.add("activities");
-    if (data.get("behaviourOccurred") === "on" ? has("behaviours") && has("intervention") : true) next.add("behaviour");
+    if (data.get("behaviourAnswer") === "no" || (data.get("behaviourAnswer") === "yes" && has("behaviours") && has("intervention"))) next.add("behaviour");
     if (has("familyContact") || has("appointments")) next.add("contacts");
+    if (config.items.length && config.items.every(item => !item.required || has(`extra.${item.id}`) || data.getAll(`extra.${item.id}`).length > 0)) next.add("extra");
     if (String(data.get("notes") ?? "").trim().length >= summaryMin && data.get("attest") === "on") next.add("summary");
     setFilled(next);
   }
 
-  const completed = filled.size;
+  const completed = visible.filter(([id]) => filled.has(id)).length;
   const levelOptions = useMemo(() => [...promptLevels, ...ADL_EXTRA], [promptLevels]);
 
   return (
@@ -179,7 +201,7 @@ export function DailyLogForm(props: Props) {
           </p>
         </div>
 
-        <Section id="shift" index={1} title="Shift details" done={filled.has("shift")}>
+        <Section id="shift" index={num("shift")} title="Shift details" done={filled.has("shift")}>
           <input type="hidden" name="shiftId" value={scheduled?.id ?? ""} />
           <input type="hidden" name="shiftName" value={shiftName} />
           <input type="hidden" name="shift" value={kind} />
@@ -293,7 +315,7 @@ export function DailyLogForm(props: Props) {
           )}
         </Section>
 
-        <Section id="mood" index={2} title="Mood and presentation" hint="Their mood overall, and how they seemed when you arrived." done={filled.has("mood")}>
+        <Section id="mood" index={num("mood")} title="Mood and presentation" hint="Their mood overall, and how they seemed when you arrived." done={filled.has("mood")}>
           <fieldset>
             <legend className="sr-only">Mood</legend>
             <div className="flex flex-wrap gap-2">
@@ -310,7 +332,7 @@ export function DailyLogForm(props: Props) {
           </div>
         </Section>
 
-        <Section id="checks" index={3} title="Required checks" hint="Every one must be confirmed. Coordinators set this list in Settings." done={filled.has("checks")}>
+        <Section id="checks" index={num("checks")} title="Required checks" hint="Every one must be confirmed. Coordinators set this list in Settings." done={filled.has("checks")}>
           <div className="grid gap-2 sm:grid-cols-2">
             {requiredChecks.map(item => (
               <label key={item} className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-sage has-[:checked]:bg-sage-soft">
@@ -320,21 +342,28 @@ export function DailyLogForm(props: Props) {
           </div>
         </Section>
 
-        <Section id="care" index={4} title="Personal care" hint="How much help each task needed on this shift. Leave blank if it did not come up." done={filled.has("care")}>
+        {isOn("care") && (
+        <Section id="care" index={num("care")} title="Personal care" required={mustFill("care")} hint={mustFill("care") ? "Choose a support level for every task, and add a note where it helps." : "How much help each task needed, and anything worth noting. Leave blank if it did not come up."} done={filled.has("care")}>
           <div className="overflow-hidden rounded-xl border border-line">
+            <div className="hidden grid-cols-[11rem_14rem_1fr] gap-3 border-b border-line bg-panel/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-mute md:grid">
+              <span>Task</span><span>Support needed</span><span>Note</span>
+            </div>
             {adlItems.map((item, index) => (
-              <div key={item} className="grid items-center gap-2 border-b border-line px-3.5 py-2.5 last:border-b-0 sm:grid-cols-[1fr_16rem]">
+              <div key={item} className="grid items-center gap-2 border-b border-line px-3.5 py-2.5 last:border-b-0 md:grid-cols-[11rem_14rem_1fr] md:gap-3">
                 <label htmlFor={`adl-${index}`} className="text-sm font-medium">{item}</label>
-                <select id={`adl-${index}`} name={`adl.${index}`} className="field py-2" defaultValue="">
+                <select id={`adl-${index}`} name={`adl.${index}`} required={Boolean(mustFill("care"))} className="field py-2" defaultValue="">
                   <option value="">—</option>
                   {levelOptions.map(level => <option key={level}>{level}</option>)}
                 </select>
+                <input name={`adlNote.${index}`} maxLength={500} className="field py-2" placeholder="Note, for example needed help with buttons" aria-label={`Note on ${item}`} />
               </div>
             ))}
           </div>
         </Section>
+        )}
 
-        <Section id="meals" index={5} title="Meals and fluids" done={filled.has("meals")}>
+        {isOn("meals") && (
+        <Section id="meals" index={num("meals")} title="Meals and fluids" required={mustFill("meals")} done={filled.has("meals")}>
           <div className="grid gap-3 sm:grid-cols-4">
             {MEALS.map(meal => (
               <div key={meal}>
@@ -357,32 +386,65 @@ export function DailyLogForm(props: Props) {
             </div>
           </div>
         </Section>
+        )}
 
-        <Section id="sleep" index={6} title="Sleep and continence" hint="Overnight staff fill in sleep. Everyone records bowel movements and incontinence." done={filled.has("sleep")}>
-          <div className="grid gap-4 sm:grid-cols-4">
+        {isOn("sleep") && (
+          <Section id="sleep" index={num("sleep")} title="Sleep" required={mustFill("sleep")} hint="Mostly for overnight staff. Leave blank if they were not asleep on your shift." done={filled.has("sleep")}>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div>
+                <Label htmlFor="sleepHours" optional>Hours slept</Label>
+                <input id="sleepHours" name="sleepHours" type="number" min={0} max={24} step={0.5} inputMode="decimal" className="field" />
+              </div>
+              <div className="sm:col-span-3">
+                <Label htmlFor="sleepQuality" optional>How they slept</Label>
+                <select id="sleepQuality" name="sleepQuality" className="field" defaultValue="">
+                  <option value="">—</option>
+                  {SLEEP_QUALITY.map(quality => <option key={quality}>{quality}</option>)}
+                </select>
+              </div>
+            </div>
             <div>
-              <Label htmlFor="sleepHours" optional>Hours slept</Label>
-              <input id="sleepHours" name="sleepHours" type="number" min={0} max={24} step={0.5} inputMode="decimal" className="field" />
+              <Label htmlFor="sleepNotes" optional>Night checks and notes</Label>
+              <textarea id="sleepNotes" name="sleepNotes" rows={2} maxLength={1000} className="field" placeholder="Checked 01:00, 03:00 and 05:00, asleep each time. Repositioned at 03:00." />
             </div>
-            <div className="sm:col-span-3">
-              <Label htmlFor="sleepQuality" optional>Sleep</Label>
-              <select id="sleepQuality" name="sleepQuality" className="field" defaultValue="">
-                <option value="">—</option>
-                {SLEEP_QUALITY.map(quality => <option key={quality}>{quality}</option>)}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="bowelMovements" optional>Bowel movements</Label>
-              <input id="bowelMovements" name="bowelMovements" type="number" min={0} max={20} inputMode="numeric" className="field" />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="incontinence" optional>Incontinence episodes</Label>
-              <input id="incontinence" name="incontinence" type="number" min={0} max={30} inputMode="numeric" className="field" />
-            </div>
-          </div>
-        </Section>
+          </Section>
+        )}
 
-        <Section id="health" index={7} title="Health and vitals" hint="Only take vitals if their plan or the nurse asks for them." done={filled.has("health")}>
+        {isOn("continence") && (
+          <Section id="continence" index={num("continence")} title="Bowel and bladder" required={mustFill("continence")} hint="Enter 0 when there was no bowel movement on your shift." done={filled.has("continence")}>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="bowelMovements">Bowel movements</Label>
+                <input id="bowelMovements" name="bowelMovements" type="number" min={0} max={20} required={Boolean(mustFill("continence"))} inputMode="numeric" className="field" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="stoolType" optional>Stool type (Bristol chart)</Label>
+                <select id="stoolType" name="stoolType" className="field" defaultValue="">
+                  <option value="">—</option>
+                  {STOOL_TYPES.map(type => <option key={type}>{type}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="incontinence" optional>Incontinence episodes</Label>
+                <input id="incontinence" name="incontinence" type="number" min={0} max={30} inputMode="numeric" className="field" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="continenceNotes" optional>Notes</Label>
+                <input id="continenceNotes" name="continenceNotes" maxLength={1000} className="field" placeholder="Brief changed at 10:00 and 14:00, skin intact." />
+              </div>
+            </div>
+          </Section>
+        )}
+
+        <Section
+          id="health"
+          index={num("health")}
+          title="Health"
+          required={mustFill("vitals") || mustFill("seizure")}
+          hint={isOn("vitals") ? (mustFill("vitals") ? `Take ${first}'s blood pressure and pulse at least.` : "Take vitals if their plan or the nurse asks for them.") : "Anything a nurse should know."}
+          done={filled.has("health")}
+        >
+          {isOn("vitals") && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
             <div className="col-span-2 sm:col-span-2">
               <Label>Blood pressure</Label>
@@ -409,10 +471,20 @@ export function DailyLogForm(props: Props) {
               <input id="pain" name="pain" type="number" min={0} max={10} inputMode="numeric" className="field" />
             </div>
           </div>
-          <label className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-flag has-[:checked]:bg-flag-soft">
-            <input type="checkbox" name="seizure" checked={seizure} onChange={event => setSeizure(event.target.checked)} className="h-4 w-4 accent-[#c2412d]" /> Seizure activity on this shift
-          </label>
-          {seizure && (
+          )}
+          {isOn("seizure") && (
+            <fieldset className="rounded-xl border border-line px-4 py-3">
+              <legend className="px-1 text-sm font-semibold">Any seizure activity on this shift?</legend>
+              <div className="flex flex-wrap gap-2">
+                {[["no", "No"], ["yes", "Yes"]].map(([value, text]) => (
+                  <label key={value} className={cn(chip, "py-1.5", value === "yes" && "has-[:checked]:border-flag has-[:checked]:bg-flag-soft has-[:checked]:text-flag")}>
+                    <input type="radio" name="seizureAnswer" value={value} required={Boolean(mustFill("seizure"))} checked={seizure === value} onChange={() => setSeizure(value)} className="sr-only" /> {text}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {isOn("seizure") && seizure === "yes" && (
             <div>
               <Label htmlFor="seizureNotes">Describe the seizure</Label>
               <textarea id="seizureNotes" name="seizureNotes" rows={3} required minLength={10} maxLength={3000} className="field" placeholder="Started 14:05, lasted about 90 seconds, right arm stiff then shaking. Rolled onto her side, timed it, called the nurse." />
@@ -424,7 +496,7 @@ export function DailyLogForm(props: Props) {
           </div>
         </Section>
 
-        <Section id="goals" index={8} title="Plan goals" hint="Data for each goal in their Individual Support Plan. Reviewers check this against the plan." done={filled.has("goals")}>
+        <Section id="goals" index={num("goals")} title="Plan goals" hint="Data for each goal in their Individual Support Plan. Reviewers check this against the plan." done={filled.has("goals")}>
           {!person ? (
             <p className="rounded-xl bg-panel px-4 py-3 text-sm text-mute">Choose a person to see their goals.</p>
           ) : person.goals.length === 0 ? (
@@ -486,7 +558,8 @@ export function DailyLogForm(props: Props) {
           </div>
         </Section>
 
-        <Section id="activities" index={9} title="Activities and community" done={filled.has("activities")}>
+        {isOn("activities") && (
+        <Section id="activities" index={num("activities")} title="Activities and community" required={mustFill("activities")} done={filled.has("activities")}>
           <div className="flex flex-wrap gap-2">
             {props.activityTypes.map(type => (
               <label key={type} className={cn(chip, "py-1.5")}>
@@ -499,12 +572,21 @@ export function DailyLogForm(props: Props) {
             <textarea id="activities" name="activities" rows={3} maxLength={3000} className="field" placeholder="Where they went, who they saw, what choices they made, what they enjoyed." />
           </div>
         </Section>
+        )}
 
-        <Section id="behaviour" index={10} title="Behaviour" hint="Record any behaviour named in their behaviour support plan, in order: before, during, response, after." done={filled.has("behaviour")}>
-          <label className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
-            <input type="checkbox" name="behaviourOccurred" checked={behaviour} onChange={event => setBehaviour(event.target.checked)} className="h-4 w-4 accent-[#d39b2a]" /> A behaviour of concern happened on this shift
-          </label>
-          {behaviour && (
+        {isOn("behaviour") && (
+        <Section id="behaviour" index={num("behaviour")} required={mustFill("behaviour")} title="Behaviour" hint="Record any behaviour named in their behaviour support plan, in order: before, during, response, after." done={filled.has("behaviour")}>
+          <fieldset className="rounded-xl border border-line px-4 py-3">
+            <legend className="px-1 text-sm font-semibold">Did a behaviour of concern happen on this shift?</legend>
+            <div className="flex flex-wrap gap-2">
+              {[["no", "No"], ["yes", "Yes"]].map(([value, text]) => (
+                <label key={value} className={cn(chip, "py-1.5", value === "yes" && "has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-[#8a5a10]")}>
+                  <input type="radio" name="behaviourAnswer" value={value} required={Boolean(mustFill("behaviour"))} checked={behaviour === value} onChange={() => setBehaviour(value)} className="sr-only" /> {text}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {behaviour === "yes" && (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -534,8 +616,10 @@ export function DailyLogForm(props: Props) {
             </>
           )}
         </Section>
+        )}
 
-        <Section id="contacts" index={11} title="Contacts and appointments" done={filled.has("contacts")}>
+        {isOn("contacts") && (
+        <Section id="contacts" index={num("contacts")} title="Contacts and appointments" required={mustFill("contacts")} done={filled.has("contacts")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="familyContact" optional>Family or guardian contact</Label>
@@ -547,8 +631,17 @@ export function DailyLogForm(props: Props) {
             </div>
           </div>
         </Section>
+        )}
 
-        <Section id="summary" index={12} title="Summary and signature" done={filled.has("summary")}>
+        {config.items.length > 0 && (
+          <Section id="extra" index={num("extra")} title={`Extra items for ${first}`} hint="Set for this person, their home or everyone. Required ones must be answered." done={filled.has("extra")}>
+            {config.items.map(item => (
+              <ExtraField key={item.id} item={item} />
+            ))}
+          </Section>
+        )}
+
+        <Section id="summary" index={num("summary")} title="Summary and signature" done={filled.has("summary")}>
           <div>
             <Label htmlFor="notes">Shift summary</Label>
             <textarea
@@ -596,11 +689,11 @@ export function DailyLogForm(props: Props) {
           )}
           <nav className="card p-4" aria-label="Log sections">
             <p className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-mute">
-              Sections <span className="normal-case tracking-normal">{completed}/{SECTIONS.length}</span>
+              Sections <span className="normal-case tracking-normal">{completed}/{visible.length}</span>
             </p>
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-panel"><div className="h-full rounded-full bg-sage transition-all" style={{ width: `${(completed / SECTIONS.length) * 100}%` }} /></div>
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-panel"><div className="h-full rounded-full bg-sage transition-all" style={{ width: `${(completed / visible.length) * 100}%` }} /></div>
             <ol className="grid gap-0.5 text-sm">
-              {SECTIONS.map(([id, title]) => (
+              {visible.map(([id, title]) => (
                 <li key={id}>
                   <a href={`#log-${id}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-mute hover:bg-panel hover:text-ink">
                     {filled.has(id) ? <CheckCircle2 className="h-4 w-4 text-sage" /> : <Circle className="h-4 w-4 text-line" />} {title}
@@ -613,5 +706,52 @@ export function DailyLogForm(props: Props) {
         </div>
       </aside>
     </form>
+  );
+}
+
+/* One extra question, drawn by its answer type. */
+function ExtraField({ item }: { item: NoteItem }) {
+  const name = `extra.${item.id}`;
+  const id = `extra-${item.id.slice(0, 8)}`;
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <label htmlFor={item.fieldType === "yes_no" || item.fieldType === "multi" ? undefined : id} className="text-sm font-semibold">{item.label}</label>
+        <span className="chip bg-panel px-2 py-0 text-[10px] text-mute">{SCOPE_BADGE[item.scope]}</span>
+        {item.required && <span className="chip bg-sky px-2 py-0 text-[10px] text-brand-deep">Required</span>}
+      </div>
+      {item.help && <p className="-mt-1 mb-2 text-xs text-mute">{item.help}</p>}
+      {item.fieldType === "yes_no" && (
+        <div className="flex gap-2">
+          {["Yes", "No"].map(value => (
+            <label key={value} className={cn(chip, "py-1.5")}>
+              <input type="radio" name={name} value={value} required={item.required} className="sr-only" /> {value}
+            </label>
+          ))}
+        </div>
+      )}
+      {item.fieldType === "number" && (
+        <div className="flex max-w-xs items-center gap-2">
+          <input id={id} name={name} type="number" step="any" required={item.required} inputMode="decimal" className="field" />
+          {item.unit && <span className="text-sm text-mute">{item.unit}</span>}
+        </div>
+      )}
+      {item.fieldType === "choice" && (
+        <select id={id} name={name} required={item.required} className="field max-w-md" defaultValue="">
+          <option value="">—</option>
+          {item.options.map(option => <option key={option}>{option}</option>)}
+        </select>
+      )}
+      {item.fieldType === "multi" && (
+        <div className="flex flex-wrap gap-2">
+          {item.options.map(option => (
+            <label key={option} className={cn(chip, "py-1.5")}>
+              <input type="checkbox" name={name} value={option} className="sr-only" /> {option}
+            </label>
+          ))}
+        </div>
+      )}
+      {item.fieldType === "text" && <textarea id={id} name={name} rows={2} required={item.required} maxLength={2000} className="field" />}
+    </div>
   );
 }

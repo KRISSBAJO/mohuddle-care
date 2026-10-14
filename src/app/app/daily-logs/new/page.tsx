@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/ui";
 import { dateKey } from "@/lib/format";
 import { clockOf } from "@/lib/schedule";
 import { activePatterns } from "@/server/queries/patterns";
+import { configAbove, configsForPeople } from "@/server/queries/note-requirements";
 import { requestTime } from "@/server/clock";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
@@ -80,6 +81,7 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
     homeId: person.homeId,
     myRecentLogs: todays.filter(row => row.individualId === person.id).map(row => ({ shiftId: row.shiftId, logDate: row.logDate, shift: row.shift as Shift | null })),
   }));
+  const [configs, defaultConfig] = await Promise.all([configsForPeople(people.map(person => ({ id: person.id, homeId: person.homeId }))), configAbove(null)]);
   const initialPerson = options.some(person => person.id === individual) ? (individual as string) : "";
   // Start on the shift asked for, else the writer's shift at this person's home, else their current or latest shift.
   const personHome = options.find(person => person.id === initialPerson)?.homeId;
@@ -115,6 +117,8 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
           requiredChecks={settings.required_daily_checks}
           summaryMin={settings.daily_log_summary_min_chars}
           signer={user.name}
+          configs={configs}
+          defaultConfig={defaultConfig}
         />
       </div>
     </div>

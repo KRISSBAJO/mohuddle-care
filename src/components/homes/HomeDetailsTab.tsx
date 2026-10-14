@@ -9,12 +9,14 @@ import { setHomeManagement } from "@/server/actions/homes";
 import type { schema } from "@/server/db";
 import { homeDetail } from "@/server/queries/hub";
 import { activePatterns } from "@/server/queries/patterns";
+import { configAbove, requirementsAt } from "@/server/queries/note-requirements";
+import { NoteRequirementsEditor } from "@/components/logs/NoteRequirementsEditor";
 
 type Staff = typeof schema.staff.$inferSelect;
 
 /* Coordinators only: the home's details, its manager and budget, and closing it. */
 export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff: Staff[] }) {
-  const [detail, patterns] = await Promise.all([homeDetail(homeId), activePatterns()]);
+  const [detail, patterns, noteRows, agencyNote] = await Promise.all([homeDetail(homeId), activePatterns(), requirementsAt("home", homeId), configAbove(null)]);
   if (!detail) return null;
   const { home, residents } = detail;
 
@@ -79,6 +81,12 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
           </div>
         </Panel>
       </div>
+
+      <section className="xl:col-span-2">
+        <h2 className="text-xl font-bold">Daily notes at {home.name}</h2>
+        <p className="mb-4 text-sm text-mute">Sections and questions here appear on notes for everyone living at {home.name}, on top of the agency default.</p>
+        <NoteRequirementsEditor scope="home" targetId={home.id} name={home.name} above={agencyNote} rows={noteRows} manager />
+      </section>
     </div>
   );
 }

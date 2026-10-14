@@ -226,7 +226,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
       <p className="print-only mb-4 flex items-center gap-2 text-sm text-mute"><FileText className="h-4 w-4" /> {TABS.find(([value]) => value === tab)?.[1]} · printed {fmt.dayLong(today)}</p>
 
       {tab === "overview" && <PersonOverviewTab id={id} person={person} home={home} lateMinutes={settings.med_late_minutes} />}
-      {tab === "plan" && <PersonCarePlanTab id={id} person={person} />}
+      {tab === "plan" && <PersonCarePlanTab id={id} person={person} manager={manager} />}
       {tab === "medications" && <PersonMedicationsTab id={id} person={person} manager={manager} end={query.end} days={query.days} lateMinutes={settings.med_late_minutes} />}
       {tab === "health" && <PersonHealthTab id={id} person={person} manager={manager} />}
       {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} adlOrder={settings.adl_items} />}

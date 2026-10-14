@@ -106,3 +106,38 @@ test("shift length handles overnight and late entries are spotted", () => {
   assert.equal(isLateEntry("2026-10-13", "2026-10-14"), true);
   assert.equal(isLateEntry("2026-10-14", "2026-10-14"), false);
 });
+
+test("sections that are off are ignored, and required sections must be filled", () => {
+  const off = parseLogNote(form({ ...valid, "meal.Lunch": "Most", bowelMovements: "2" }), { ...rules, sections: { meals: { on: false, required: false }, continence: { on: false, required: false } } });
+  assert.ok("note" in off && Object.keys(off.note.mealIntake).length === 0 && off.note.bowelMovements === null, "meals off and continence off by default are dropped");
+  assert.ok("note" in off && !off.note.sections.includes("meals"));
+  const continence = { ...rules, sections: { continence: { on: true, required: true } } };
+  assert.match(errorOf2(valid, continence) ?? "", /bowel and bladder/);
+  const ok = parseLogNote(form({ ...valid, bowelMovements: "0", stoolType: "Type 4: smooth and soft" }), continence);
+  assert.ok("note" in ok && ok.note.bowelMovements === 0 && ok.note.stoolType.startsWith("Type 4"));
+  const seizure = { ...rules, sections: { seizure: { on: true, required: true } } };
+  assert.match(errorOf2(valid, seizure) ?? "", /seizure watch/);
+  assert.ok("note" in parseLogNote(form({ ...valid, seizureAnswer: "no" }), seizure));
+  assert.match(errorOf2({ ...valid, seizureAnswer: "yes" }, seizure) ?? "", /Describe the seizure/);
+  const care = { ...rules, sections: { care: { on: true, required: true } } };
+  assert.match(errorOf2(valid, care) ?? "", /Toileting/);
+});
+
+test("extra items are checked against their type and kept with their label", () => {
+  const items = [
+    { id: "a", label: "Fire door checked?", fieldType: "yes_no" as const, options: [], unit: "", help: "", required: true, scope: "home" as const },
+    { id: "b", label: "Weight", fieldType: "number" as const, options: [], unit: "lb", help: "", required: false, scope: "person" as const },
+    { id: "c", label: "Skin areas checked", fieldType: "multi" as const, options: ["Heels", "Hips", "Back"], unit: "", help: "", required: false, scope: "person" as const },
+  ];
+  const withItems = { ...rules, items };
+  assert.match(errorOf2(valid, withItems) ?? "", /Fire door checked/);
+  assert.match(errorOf2({ ...valid, "extra.a": "Yes", "extra.b": "heavy" }, withItems) ?? "", /must be a number/);
+  const ok = parseLogNote(form({ ...valid, "extra.a": "Yes", "extra.b": "142", "extra.c": ["Heels", "Elbows"] }), withItems);
+  assert.ok("note" in ok);
+  assert.deepEqual(ok.note.extra.map(answer => [answer.label, answer.value]), [["Fire door checked?", "Yes"], ["Weight", "142"], ["Skin areas checked", ["Heels"]]]);
+});
+
+function errorOf2(values: Record<string, string | string[]>, withRules: LogRules) {
+  const result = parseLogNote(form(values), withRules);
+  return "error" in result ? result.error : null;
+}

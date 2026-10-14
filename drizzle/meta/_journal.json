@@ -64,6 +64,13 @@
       "when": 1791994034438,
       "tag": "0008_shallow_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791995053148,
+      "tag": "0009_bored_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

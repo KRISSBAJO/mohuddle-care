@@ -6,6 +6,8 @@ import { dateKey, daysBetween, fmt } from "@/lib/format";
 import { addGoal, setGoalStatus, updateGoal } from "@/server/actions/hub";
 import type { schema } from "@/server/db";
 import { personCarePlan } from "@/server/queries/person";
+import { configAbove, requirementsAt } from "@/server/queries/note-requirements";
+import { NoteRequirementsEditor } from "@/components/logs/NoteRequirementsEditor";
 
 type Person = typeof schema.individuals.$inferSelect;
 type Goal = typeof schema.planGoals.$inferSelect;
@@ -33,11 +35,12 @@ function GoalFields({ goal, prefix }: { goal?: Goal; prefix: string }) {
 }
 
 /* The person's plan goals, grouped by where they stand, next to what staff wrote about progress. */
-export async function PersonCarePlanTab({ id, person }: { id: string; person: Person }) {
-  const { goals, progress, logsLast30 } = await personCarePlan(id);
+export async function PersonCarePlanTab({ id, person, manager }: { id: string; person: Person; manager: boolean }) {
+  const [{ goals, progress, logsLast30 }, noteRows, homeNote] = await Promise.all([personCarePlan(id), requirementsAt("person", id), configAbove(person.homeId)]);
   const today = dateKey();
 
   return (
+    <div className="space-y-8">
     <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -122,6 +125,15 @@ export async function PersonCarePlanTab({ id, person }: { id: string; person: Pe
         )}
         <p className="border-t border-line px-5 py-2.5 text-xs text-dim">{logsLast30} daily logs written in the last 30 days.</p>
       </Panel>
+    </div>
+
+    <section>
+      <h2 className="text-xl font-bold">What daily notes must cover for {person.firstName}</h2>
+      <p className="mb-4 text-sm text-mute">
+        Turn on sections such as bowel and bladder or seizure watch just for {person.firstName}, or add questions only their notes ask. Home and agency settings apply too.
+      </p>
+      <NoteRequirementsEditor scope="person" targetId={id} name={person.firstName} above={homeNote} rows={noteRows} manager={manager} />
+    </section>
     </div>
   );
 }

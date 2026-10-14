@@ -1,4 +1,4 @@
-import { Activity, Bed, CheckCircle2, Clock, HeartPulse, MapPin, PenLine, Phone, ShieldAlert, Target, Utensils, UserRound } from "lucide-react";
+import { Activity, Bed, CheckCircle2, Clock, Droplets, HeartPulse, ListPlus, MapPin, PenLine, Phone, ShieldAlert, Target, Utensils, UserRound } from "lucide-react";
 import { Badge } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt, label } from "@/lib/format";
@@ -48,13 +48,15 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
   if (vitals.pain !== undefined) vitalRows.push(["Pain", `${vitals.pain} of 10`]);
   // The database does not keep key order, so personal care follows the order set in Settings.
   const rank = (item: string) => (adlOrder.includes(item) ? adlOrder.indexOf(item) : adlOrder.length);
-  const adl = Object.entries(log.adl ?? {}).sort(([a], [b]) => rank(a) - rank(b));
+  const careItems = [...new Set([...Object.keys(log.adl ?? {}), ...Object.keys(log.adlNotes ?? {})])].sort((a, b) => rank(a) - rank(b));
   const meals = MEALS.filter(meal => log.mealIntake?.[meal]).map(meal => [meal, log.mealIntake[meal]] as [string, string]);
   const sleepRows: [string, React.ReactNode][] = [];
   if (log.sleepHours !== null) sleepRows.push(["Hours slept", String(log.sleepHours)]);
   if (log.sleepQuality) sleepRows.push(["Sleep", log.sleepQuality]);
-  if (log.bowelMovements !== null) sleepRows.push(["Bowel movements", String(log.bowelMovements)]);
-  if (log.incontinence !== null) sleepRows.push(["Incontinence episodes", String(log.incontinence)]);
+  const bowelRows: [string, React.ReactNode][] = [];
+  if (log.bowelMovements !== null) bowelRows.push(["Bowel movements", String(log.bowelMovements)]);
+  if (log.stoolType) bowelRows.push(["Stool type", log.stoolType]);
+  if (log.incontinence !== null) bowelRows.push(["Incontinence episodes", String(log.incontinence)]);
   const structured = Boolean(log.shift);
 
   return (
@@ -90,9 +92,17 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
             <p className="flex flex-wrap gap-1.5">{log.checks.map(check => <span key={check} className="chip bg-sage-soft px-2 py-0.5 text-sage">{check}</span>)}</p>
           </Block>
         )}
-        {adl.length > 0 && (
+        {careItems.length > 0 && (
           <Block icon={UserRound} title="Personal care">
-            <Pairs rows={adl.map(([item, level]) => [item, <span key={item} className={level === "Refused" ? "text-[#8a5a10]" : undefined}>{level}</span>])} />
+            <Pairs
+              rows={careItems.map(item => [
+                item,
+                <span key={item}>
+                  <span className={log.adl?.[item] === "Refused" ? "text-[#8a5a10]" : undefined}>{log.adl?.[item] ?? "—"}</span>
+                  {log.adlNotes?.[item] && <span className="block text-xs font-normal text-mute">{log.adlNotes[item]}</span>}
+                </span>,
+              ])}
+            />
           </Block>
         )}
         {(meals.length > 0 || log.fluidsOz !== null || log.meals) && (
@@ -101,9 +111,16 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
             {log.meals && <p className="mt-2 text-sm text-mute">{log.meals}</p>}
           </Block>
         )}
-        {sleepRows.length > 0 && (
-          <Block icon={Bed} title="Sleep and continence">
-            <Pairs rows={sleepRows} />
+        {(sleepRows.length > 0 || log.sleepNotes) && (
+          <Block icon={Bed} title="Sleep">
+            {sleepRows.length > 0 && <Pairs rows={sleepRows} />}
+            {log.sleepNotes && <p className="mt-2 text-sm text-mute">{log.sleepNotes}</p>}
+          </Block>
+        )}
+        {(bowelRows.length > 0 || log.continenceNotes) && (
+          <Block icon={Droplets} title="Bowel and bladder">
+            {bowelRows.length > 0 && <Pairs rows={bowelRows} />}
+            {log.continenceNotes && <p className="mt-2 text-sm text-mute">{log.continenceNotes}</p>}
           </Block>
         )}
         {(vitalRows.length > 0 || log.seizure || log.health) && (
@@ -167,6 +184,16 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
             ) : (
               <Para>{log.behaviours}</Para>
             )}
+          </Block>
+        )}
+        {log.extra.length > 0 && (
+          <Block icon={ListPlus} title="Extra items" className={!compact ? "md:col-span-2" : undefined}>
+            <Pairs
+              rows={log.extra.map(answer => [
+                answer.label,
+                `${Array.isArray(answer.value) ? answer.value.join(", ") : answer.value}${answer.unit ? ` ${answer.unit}` : ""}`,
+              ])}
+            />
           </Block>
         )}
         {(log.familyContact || log.appointments) && (
