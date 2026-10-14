@@ -24,11 +24,11 @@ export default async function DailyLogPage({ params, searchParams }: { params: P
   return (
     <div className="max-w-4xl">
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Link href={`${personHref}?tab=logs`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
-          <ArrowLeft className="h-3.5 w-3.5" /> {record.first}&apos;s daily logs
+        <Link href={`/app/daily-logs/person/${log.individualId}/${log.logDate}`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
+          <ArrowLeft className="h-3.5 w-3.5" /> {record.first}&apos;s day
         </Link>
         <div className="flex gap-2">
-          <Link href="/app/daily-logs" className="btn-ghost btn-sm">All logs</Link>
+          <Link href={`/app/daily-logs/person/${log.individualId}`} className="btn-ghost btn-sm">All of {record.first}&apos;s days</Link>
           <PrintButton />
         </div>
       </div>

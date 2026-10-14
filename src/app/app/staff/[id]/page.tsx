@@ -28,7 +28,7 @@ function tenure(hiredAt: string | null, today: string) {
   const years = Math.floor(days / 365);
   const months = Math.floor((days % 365) / 30);
   if (years === 0 && months === 0) return "Joined this month";
-  return "With Milestone " + [years ? `${years} year${years === 1 ? "" : "s"}` : null, months ? `${months} month${months === 1 ? "" : "s"}` : null].filter(Boolean).join(", ");
+  return "With us " + [years ? `${years} year${years === 1 ? "" : "s"}` : null, months ? `${months} month${months === 1 ? "" : "s"}` : null].filter(Boolean).join(", ");
 }
 
 export default async function StaffMemberPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string }> }) {
@@ -97,11 +97,11 @@ export default async function StaffMemberPage({ params, searchParams }: { params
 
       {created && (
         <p className="mb-6 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">
-          {member.firstName} has been added. Next, create their Hub login and add their credentials.
+          {member.firstName} has been added. Next, create their Mohuddle login and add their credentials.
         </p>
       )}
       {!member.active && (
-        <p className="mb-6 rounded-xl bg-panel px-4 py-3 text-sm font-medium text-mute">{member.firstName} has left Milestone. Their records stay on file.</p>
+        <p className="mb-6 rounded-xl bg-panel px-4 py-3 text-sm font-medium text-mute">{member.firstName} has left. Their records stay on file.</p>
       )}
 
       <div className="grid gap-6 xl:grid-cols-3">
@@ -172,12 +172,12 @@ export default async function StaffMemberPage({ params, searchParams }: { params
         </div>
 
         <div className="space-y-6">
-          <Panel title="Hub login">
+          <Panel title="Mohuddle login">
             <div className="space-y-4 p-5 text-sm">
               {!login ? (
                 <>
                   <p className="text-mute">
-                    {member.firstName} cannot sign in to the Hub yet. Create a login to get a one-time link. They open it,
+                    {member.firstName} cannot sign in to Mohuddle yet. Create a login to get a one-time link. They open it,
                     choose a password, and they are in.
                   </p>
                   {manager && member.active && grantable.length > 0 ? (
@@ -257,7 +257,7 @@ export default async function StaffMemberPage({ params, searchParams }: { params
                       {detail.upcomingShifts === 1 ? "shift becomes" : "shifts become"} open, and their {detail.openTasks} open{" "}
                       {detail.openTasks === 1 ? "task becomes" : "tasks become"} unassigned. Their logs and records stay.
                     </p>
-                    <ConfirmAction action={setStaffActive.bind(null, member.id, false)} label="Mark as left Milestone" tone="danger" confirm={`Mark ${member.firstName} ${member.lastName} as left? Their login turns off and their upcoming shifts open up.`} />
+                    <ConfirmAction action={setStaffActive.bind(null, member.id, false)} label="Mark as left" tone="danger" confirm={`Mark ${member.firstName} ${member.lastName} as left? Their login turns off and their upcoming shifts open up.`} />
                   </>
                 ) : (
                   <>

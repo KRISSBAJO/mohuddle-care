@@ -245,7 +245,7 @@ export function NewPersonWizard({
   homes: { id: string; name: string }[];
   services: Record<string, string>;
   lists: { careTeamRoles: string[]; insuranceTypes: string[]; goalServices: string[]; communication: string[]; mobility: string[]; diet: string[] };
-  /* Keyed by home id, with "" for people not in a Milestone home. */
+  /* Keyed by home id, with "" for people not in one of our homes. */
   noteDefaults: Record<string, NoteDefaults>;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
@@ -446,7 +446,7 @@ export function NewPersonWizard({
               {person.preferredName && <span className="font-normal text-mute"> ({person.preferredName})</span>}
             </p>
             <p className="text-xs text-mute">
-              {[age !== null ? `${age} years old` : "", services[person.serviceType], homeName ?? "Not in a Milestone home"].filter(Boolean).join(" · ")}
+              {[age !== null ? `${age} years old` : "", services[person.serviceType], homeName ?? "Not in one of our homes"].filter(Boolean).join(" · ")}
             </p>
           </div>
         )}
@@ -497,7 +497,7 @@ export function NewPersonWizard({
                   <div>
                     <Label htmlFor="np-home">Home</Label>
                     <select id="np-home" className="field" {...bind("homeId")}>
-                      <option value="">Not in a Milestone home</option>
+                      <option value="">Not in one of our homes</option>
                       {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
                     </select>
                   </div>
@@ -793,7 +793,7 @@ export function NewPersonWizard({
                   ["Gender", [person.gender, person.pronouns].filter(Boolean).join(", ")],
                   ["Main language", person.primaryLanguage],
                   ["Service", services[person.serviceType]],
-                  ["Home", homeName ?? "Not in a Milestone home"],
+                  ["Home", homeName ?? "Not in one of our homes"],
                   ["Support started", person.admittedAt],
                 ]} />
               </Summary>

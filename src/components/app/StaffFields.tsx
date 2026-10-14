@@ -27,7 +27,7 @@ export function StaffFields({ homes, member, prefix, loginEmail }: { homes: Home
           {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
         </select>
       </Field>
-      <Field label="Email" htmlFor={id("email")} hint={loginEmail ? "This is also their sign-in email." : "Used for their Hub login later."}>
+      <Field label="Email" htmlFor={id("email")} hint={loginEmail ? "This is also their sign-in email." : "Used for their Mohuddle login later."}>
         <input id={id("email")} name="email" type="email" required maxLength={200} autoComplete="off" className="field" defaultValue={member?.email} />
       </Field>
       <Field label="Phone" htmlFor={id("phone")}>

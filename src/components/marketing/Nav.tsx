@@ -58,7 +58,7 @@ export function Nav() {
         </nav>
 
         <div className="hidden items-center gap-5 lg:flex">
-          <Link href="/login" className="text-xs font-semibold text-mute">Staff Hub</Link>
+          <Link href="/login" className="text-xs font-semibold text-mute">Staff sign in</Link>
           <Link href="/#contact" className="btn-primary btn-sm">Let’s talk <Phone className="h-3.5 w-3.5" /></Link>
         </div>
 
@@ -91,7 +91,7 @@ export function Nav() {
                 <Phone className="h-4 w-4" /> Call us
               </a>
               <Link href="/login" className="btn-primary flex-1" onClick={() => setOpen(false)}>
-                Staff Hub
+                Staff sign in
               </Link>
             </div>
           </nav>

@@ -35,7 +35,7 @@ export function Footer() {
             <li><Link href="/#why" className="text-white/85 hover:text-white">Why families choose us</Link></li>
             <li><Link href="/careers" className="text-white/85 hover:text-white">Careers and foster parenting</Link></li>
             <li><Link href="/privacy" className="text-white/85 hover:text-white">Privacy and non-discrimination</Link></li>
-            <li><Link href="/login" className="text-white/85 hover:text-white">Staff Hub sign in</Link></li>
+            <li><Link href="/login" className="text-white/85 hover:text-white">Staff sign in</Link></li>
           </ul>
         </div>
 

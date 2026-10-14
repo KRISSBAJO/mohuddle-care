@@ -1,6 +1,6 @@
 # Milestone
 
-Public website and staff operations app ("Milestone Hub") for Milestone Home Healthcare Service, a
+Public website and staff operations app ("Mohuddle") for Milestone Home Healthcare Service, a
 Nashville provider of person-centered support for adults and children with intellectual and
 developmental disabilities.
 

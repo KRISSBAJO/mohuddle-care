@@ -143,7 +143,7 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
       <aside className="hub-sidebar hidden shrink-0 flex-col text-white lg:flex">
         <Link href="/app" className="mb-7 flex items-center gap-2.5 px-2">
           <Logo className="h-8 w-8" />
-          <span><span className="block font-display text-lg font-semibold leading-none">Milestone</span><span className="mt-1 block text-[9px] uppercase tracking-[0.22em] text-white/40">Care hub</span></span>
+          <span><span className="block font-display text-lg font-semibold leading-none">Mohuddle</span><span className="mt-1 block text-[9px] uppercase tracking-[0.22em] text-white/40">Care operations</span></span>
         </Link>
         {nav}
         {account}
@@ -152,7 +152,7 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
       <div className="sticky top-0 z-30 flex items-center justify-between bg-ink px-4 py-3 text-white lg:hidden">
         <Link href="/app" className="flex items-center gap-2">
           <Logo className="h-7 w-7" />
-          <span className="font-display font-bold">Milestone Hub</span>
+          <span className="font-display font-bold">Mohuddle</span>
         </Link>
         <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} aria-controls="hub-drawer" className="rounded-lg p-2 hover:bg-white/10">
           <Menu className="h-5 w-5" />
@@ -170,7 +170,7 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
           id="hub-drawer"
           role="dialog"
           aria-modal="true"
-          aria-label="Hub menu"
+          aria-label="Main menu"
           inert={!open}
           className={cn(
             "absolute inset-y-0 left-0 flex w-[min(300px,85vw)] flex-col overflow-y-auto bg-ink p-4 text-white shadow-[var(--shadow-float)] transition-transform duration-200 ease-[var(--ease-soft)] motion-reduce:transition-none",
@@ -180,7 +180,7 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
           <div className="mb-4 flex items-center justify-between">
             <Link href="/app" onClick={() => setOpen(false)} className="flex items-center gap-2">
               <Logo className="h-7 w-7" />
-              <span className="font-display font-bold">Milestone Hub</span>
+              <span className="font-display font-bold">Mohuddle</span>
             </Link>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-2 hover:bg-white/10">
               <X className="h-5 w-5" />

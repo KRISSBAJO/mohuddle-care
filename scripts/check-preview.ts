@@ -43,6 +43,13 @@ async function main() {
     const { rows: taskRows } = await pool.query("select id from tasks limit 1");
     if (taskRows[0]) routes.push(`/app/tasks/${taskRows[0].id}`);
     routes.push("/app/appointments/new", "/app/appointments/new?individual=bad&followUpOf=bad");
+    const { rows: homeRows } = await pool.query("select id from homes limit 1");
+    routes.push("/app/daily-logs?view=notes", "/app/daily-logs?view=notes&sort=mood&dir=asc&per=50&page=9&mood=concern&q=a", "/app/daily-logs?view=owed", "/app/daily-logs/home/none", "/app/daily-logs/home/none?days=99&end=bad&sort=bad");
+    if (homeRows[0]) routes.push(`/app/daily-logs/home/${homeRows[0].id}`, `/app/daily-logs/home/${homeRows[0].id}?days=30&status=all&sort=last&dir=asc`);
+    if (people[0]) {
+      const days = `/app/daily-logs/person/${people[0].id}`;
+      routes.push(days, `${days}?filter=gaps&dir=asc&per=62&from=2026-01-01`, `${days}?from=bad&to=2099-01-01&filter=nope`, `${days}/2026-10-11`);
+    }
     if (visits[0]) routes.push(`/app/appointments/new?followUpOf=${visits[0].id}`);
     routes.push("/app/settings/notes", "/app/settings/shifts", "/app/daily-logs?view=owed", "/app/daily-logs?view=owed&day=2026-10-13&home=not-a-home", "/app/daily-logs/new?shift=not-a-shift");
     if (people[0]) routes.push(`/app/daily-logs/new?individual=${people[0].id}`);
@@ -78,7 +85,7 @@ async function main() {
       assert.equal(served.subarray(0, 5).toString(), "%PDF-");
       console.log(`PASS original PDF ${form}`);
     }
-    console.log(`Verified ${routes.length} routes and unauthenticated Hub protection.`);
+    console.log(`Verified ${routes.length} routes and unauthenticated app protection.`);
   } finally {
     await pool.query("delete from sessions where token_hash=$1", [tokenHash]);
     await pool.end();

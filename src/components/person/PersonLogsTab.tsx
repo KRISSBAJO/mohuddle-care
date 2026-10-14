@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList } from "lucide-react";
+import { CalendarDays, ClipboardList } from "lucide-react";
 import { Pagination } from "@/components/app/ListControls";
 import { Empty, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
@@ -36,8 +36,9 @@ export async function PersonLogsTab({ id, person, query, adlOrder }: { id: strin
               {text}
             </Link>
           ))}
+          <Link href={`/app/daily-logs/person/${id}`} className="btn-ghost btn-sm ml-auto"><CalendarDays className="h-3.5 w-3.5" /> Day by day</Link>
           {person.active && (
-            <Link href={`/app/daily-logs/new?individual=${id}`} className="btn-brand btn-sm ml-auto"><ClipboardList className="h-3.5 w-3.5" /> Write today&apos;s log</Link>
+            <Link href={`/app/daily-logs/new?individual=${id}`} className="btn-brand btn-sm"><ClipboardList className="h-3.5 w-3.5" /> Write today&apos;s log</Link>
           )}
         </div>
 

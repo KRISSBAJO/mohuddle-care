@@ -380,7 +380,7 @@ async function RequestsTab() {
                   {!request.revokedAt && !request.completedAt && (
                     <div className="flex flex-wrap items-start gap-2">
                       <FreshLinkButton action={freshRequestLink.bind(null, request.id)} />
-                      <ConfirmAction action={withdrawRequest.bind(null, request.id)} label="Withdraw" confirm="Withdraw this request? The link stops working and it leaves their Hub page." />
+                      <ConfirmAction action={withdrawRequest.bind(null, request.id)} label="Withdraw" confirm="Withdraw this request? The link stops working and it leaves their Mohuddle account." />
                     </div>
                   )}
                 </div>

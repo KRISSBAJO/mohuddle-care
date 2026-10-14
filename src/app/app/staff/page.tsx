@@ -49,13 +49,13 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       <PageHeader
         eyebrow="Staff"
         title="Your team"
-        description="Search, sort and open anyone to manage their details, Hub login and credentials."
+        description="Search, sort and open anyone to manage their details, Mohuddle login and credentials."
         action={
           manager ? (
             <ModalForm
               action={createStaff}
               title="Add a staff member"
-              description="You can create their Hub login and record credentials on the next page."
+              description="You can create their Mohuddle login and record credentials on the next page."
               triggerLabel="Add staff member"
               submitLabel="Add and open"
             >
@@ -67,7 +67,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Current staff" value={summary.current} hint={summary.left ? `${summary.left} former staff on record` : "Everyone on the team now"} icon={Users} href={hrefWith(defaults, {})} />
-        <Stat label="No Hub login yet" value={summary.noLogin} hint="Open a person to create one" icon={KeyRound} tone={summary.noLogin ? "warn" : "good"} href={hrefWith(defaults, { login: "none" })} />
+        <Stat label="No Mohuddle login yet" value={summary.noLogin} hint="Open a person to create one" icon={KeyRound} tone={summary.noLogin ? "warn" : "good"} href={hrefWith(defaults, { login: "none" })} />
         <Stat label="Expired credentials" value={summary.expired} hint="People with at least one" icon={AlertTriangle} tone={summary.expired ? "bad" : "good"} href={hrefWith(defaults, { cred: "expired", sort: "expiry" })} />
         <Stat label="Expiring soon" value={summary.expiring} hint={`Within ${result.warningDays} days`} icon={BadgeCheck} tone={summary.expiring ? "warn" : "good"} href={hrefWith(defaults, { cred: "expiring", sort: "expiry" })} />
       </div>
@@ -90,7 +90,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
             <option value="none">Floating or office</option>
             {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
           </select>
-          <select name="login" data-default="any" defaultValue={query.login} aria-label="Filter by Hub login" className="field lg:w-auto">
+          <select name="login" data-default="any" defaultValue={query.login} aria-label="Filter by Mohuddle login" className="field lg:w-auto">
             {Object.entries(staffLoginFilters).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
           </select>
           <select name="cred" data-default="any" defaultValue={query.cred} aria-label="Filter by credentials" className="field lg:w-auto">
@@ -114,7 +114,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                 <StaffSort query={current} sort="name">Name</StaffSort>
                 <StaffSort query={current} sort="role">Job</StaffSort>
                 <StaffSort query={current} sort="home">Home</StaffSort>
-                <th>Hub login</th>
+                <th>Mohuddle login</th>
                 <StaffSort query={current} sort="expiry">Credentials</StaffSort>
                 <StaffSort query={current} sort="hired">Hired</StaffSort>
               </tr>

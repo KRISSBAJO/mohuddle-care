@@ -31,7 +31,7 @@ export function IndividualFields({ homes, person, prefix = "person", lists }: { 
         </Field>
         <Field label="Home" htmlFor={id("home")}>
           <select id={id("home")} name="homeId" className="field" defaultValue={person?.homeId ?? ""}>
-            <option value="">Not in a Milestone home</option>
+            <option value="">Not in one of our homes</option>
             {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
           </select>
         </Field>

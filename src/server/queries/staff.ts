@@ -8,7 +8,7 @@ import { getSettings } from "@/server/settings";
 export const staffSorts = { name: "Name", role: "Job", home: "Home", hired: "Hire date", expiry: "Next expiry" } as const;
 export const staffLoginFilters = { any: "Any login", none: "No login", invited: "Invited", on: "Login on", off: "Login off" } as const;
 export const staffCredFilters = { any: "Any credentials", expired: "Expired", expiring: "Expiring soon", missing: "None recorded" } as const;
-export const staffStatusFilters = { current: "Current staff", left: "Left Milestone", all: "Everyone" } as const;
+export const staffStatusFilters = { current: "Current staff", left: "Left", all: "Everyone" } as const;
 export const staffPageSizes = [10, 25, 50] as const;
 
 export type StaffQuery = {

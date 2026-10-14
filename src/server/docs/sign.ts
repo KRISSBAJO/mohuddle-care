@@ -90,7 +90,7 @@ function certificate(pdf: PDFDocument, evidence: Evidence, signature: PDFImage, 
   let y = PAGE.height - PAGE.margin;
   page.drawText("Certificate of electronic signature", { x: PAGE.margin, y, size: 16, font: fonts.bold, color: INK });
   y -= 18;
-  page.drawText(pdfSafe(`${site.legalName} · Milestone Hub`), { x: PAGE.margin, y, size: 9, font: fonts.regular, color: MUTE });
+  page.drawText(pdfSafe(`${site.legalName} · Mohuddle`), { x: PAGE.margin, y, size: 9, font: fonts.regular, color: MUTE });
   y -= 30;
   const rows: [string, string][] = [
     ["Document", `${evidence.title} (version ${evidence.version})`],
@@ -128,7 +128,7 @@ function footers(pdf: PDFDocument, font: PDFFont, reference: string) {
   pages.forEach((page, index) => {
     const { width } = page.getSize();
     page.drawText(`Reference ${reference} · Page ${index + 1} of ${pages.length}`, { x: PAGE.margin, y: 24, size: 7, font, color: MUTE });
-    page.drawText("Signed electronically through Milestone Hub", { x: width - PAGE.margin - font.widthOfTextAtSize("Signed electronically through Milestone Hub", 7), y: 24, size: 7, font, color: MUTE });
+    page.drawText("Signed electronically through Mohuddle", { x: width - PAGE.margin - font.widthOfTextAtSize("Signed electronically through Mohuddle", 7), y: 24, size: 7, font, color: MUTE });
   });
 }
 
@@ -137,7 +137,7 @@ async function textPdf(template: Template, filled: string, evidence: Evidence, s
   const pdf = await PDFDocument.create();
   pdf.setTitle(evidence.title);
   pdf.setAuthor(evidence.signerName);
-  pdf.setProducer("Milestone Hub");
+  pdf.setProducer("Mohuddle");
   const fonts = { regular: await pdf.embedFont(StandardFonts.Helvetica), bold: await pdf.embedFont(StandardFonts.HelveticaBold) };
   const signature = await pdf.embedPng(signaturePng);
   const initials = await pdf.embedPng(initialsPng);
@@ -187,7 +187,7 @@ async function textPdf(template: Template, filled: string, evidence: Evidence, s
 /* An uploaded PDF: initials stamped on every page, then a signature page and the certificate. */
 async function sourcePdf(source: Buffer, template: Template, evidence: Evidence, signaturePng: Buffer, initialsPng: Buffer) {
   const pdf = await PDFDocument.load(source);
-  pdf.setProducer("Milestone Hub");
+  pdf.setProducer("Mohuddle");
   const fonts = { regular: await pdf.embedFont(StandardFonts.Helvetica), bold: await pdf.embedFont(StandardFonts.HelveticaBold) };
   const signature = await pdf.embedPng(signaturePng);
   const initials = await pdf.embedPng(initialsPng);

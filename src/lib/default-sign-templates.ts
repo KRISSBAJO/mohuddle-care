@@ -9,7 +9,7 @@ export const DEFAULT_TEMPLATES = [
     category: "staff" as const,
     typeName: "Signed employee handbook acknowledgment",
     body: `# Receipt of the handbook
-I, {{name}}, confirm that I have received the {{agency}} employee handbook, either on paper or through the Hub, and that I know where to find it.
+I, {{name}}, confirm that I have received the {{agency}} employee handbook, either on paper or through Mohuddle, and that I know where to find it.
 
 # Reading and questions
 I understand that I am responsible for reading the handbook and for asking my supervisor or a coordinator about anything I do not understand.
@@ -34,7 +34,7 @@ I, {{name}}, understand that while working for {{agency}} I will see protected h
 I will look at, use and share this information only as my job requires, and only with people who need it to provide care or run the agency.
 
 # Keeping records safe
-I will keep paper records locked away, sign out of the Hub when I finish, never share my password, and never store or send information about the people we support on my personal phone, email or social media.
+I will keep paper records locked away, sign out of Mohuddle when I finish, never share my password, and never store or send information about the people we support on my personal phone, email or social media.
 
 # Photos and social media
 I will not take photos or videos of the people we support, or post anything about them, unless the agency has their written consent and my supervisor has approved it.

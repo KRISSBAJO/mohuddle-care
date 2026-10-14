@@ -21,7 +21,7 @@ export default async function SetupPasswordPage({ params }: { params: Promise<{ 
         </Link>
         {link ? (
           <>
-            <p className="eyebrow">Staff Hub</p>
+            <p className="eyebrow">Mohuddle</p>
             <h1 className="mt-2 text-3xl font-bold">{link.purpose === "invite" ? `Welcome, ${link.name.split(" ")[0]}` : "Choose a new password"}</h1>
             <p className="mb-6 mt-2 text-sm text-mute">
               You will sign in as <span className="font-semibold text-ink">{link.email}</span>. This link works once.

@@ -75,7 +75,7 @@ export default async function IndividualsPage({ searchParams }: { searchParams: 
           </select>
           <select name="home" defaultValue={query.home} aria-label="Filter by home" className="field lg:w-auto">
             <option value="">All homes</option>
-            <option value="none">Not in a Milestone home</option>
+            <option value="none">Not in one of our homes</option>
             {homes.map(home => <option key={home.id} value={home.id}>{home.name}</option>)}
           </select>
           <select name="attention" data-default="any" defaultValue={query.attention} aria-label="Filter by what needs attention" className="field lg:w-auto">

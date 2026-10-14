@@ -6,7 +6,7 @@ import { Logo } from "@/components/marketing/Logo";
 import { LoginForm } from "@/components/app/LoginForm";
 import { getSessionUser } from "@/server/auth";
 
-export const metadata: Metadata = { title: "Staff Hub sign in" };
+export const metadata: Metadata = { title: "Sign in to Mohuddle" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const user = await getSessionUser();
@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <span className="font-display text-xl font-bold">Milestone</span>
         </Link>
         <div>
-          <p className="eyebrow text-accent">Staff Hub</p>
+          <p className="eyebrow text-accent">Mohuddle</p>
           <h1 className="mt-4 max-w-md text-5xl font-bold">One place for every shift, log and plan.</h1>
           <p className="mt-5 max-w-md text-white/70">
             Daily routines, medications, incidents and schedules for every home, with the rules set by the office and

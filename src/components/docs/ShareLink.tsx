@@ -4,12 +4,13 @@ import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Link2, Mail, MessageSquare, RefreshCw } from "lucide-react";
 import type { LinkResult } from "@/server/actions/documents";
+import { site } from "@/lib/site";
 
 /* Shows a private link once, with copy, text and email buttons. The text and email open on this device. */
 export function ShareLink({ link, expires, first, onDone }: { link: string; expires?: string; first?: string; onDone?: () => void }) {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
-  const message = `Hi${first ? ` ${first}` : ""}, please upload your documents for Milestone here: ${link}${expires ? ` (works until ${expires})` : ""}`;
+  const message = `Hi${first ? ` ${first}` : ""}, please upload your documents for ${site.name} here: ${link}${expires ? ` (works until ${expires})` : ""}`;
   return (
     <div className="rounded-xl border border-sage/40 bg-sage-soft/60 p-4" role="status">
       <p className="flex items-center gap-1.5 text-sm font-semibold text-sage"><Link2 className="h-4 w-4" /> Private link ready</p>
@@ -35,7 +36,7 @@ export function ShareLink({ link, expires, first, onDone }: { link: string; expi
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <a href={`sms:?&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><MessageSquare className="h-3.5 w-3.5" /> Text it</a>
-        <a href={`mailto:?subject=${encodeURIComponent("Documents for Milestone")}&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><Mail className="h-3.5 w-3.5" /> Email it</a>
+        <a href={`mailto:?subject=${encodeURIComponent(`Documents for ${site.name}`)}&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><Mail className="h-3.5 w-3.5" /> Email it</a>
         <button
           type="button"
           className="btn-ghost btn-sm"

@@ -43,7 +43,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       ? { name: `${detail.staffFirst} ${detail.staffLast}`, href: `/app/staff/${doc.staffId}#documents`, back: "Staff file" }
       : doc.ownerKind === "person"
         ? { name: `${detail.personFirst} ${detail.personLast}`, href: `/app/individuals/${doc.individualId}?tab=documents`, back: "Documents" }
-        : { name: detail.home ?? "Milestone (agency)", href: doc.homeId ? `/app/homes/${doc.homeId}?tab=documents` : "/app/documents?tab=business", back: "Documents" };
+        : { name: detail.home ?? "The agency", href: doc.homeId ? `/app/homes/${doc.homeId}?tab=documents` : "/app/documents?tab=business", back: "Documents" };
   const fileUrl = `/api/docs/file/${doc.id}`;
   const suggestedExpiry = doc.expiresOn ?? (type?.expires && type.validityMonths ? addMonths(doc.issuedOn ?? today, type.validityMonths) : "");
 
@@ -70,7 +70,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           </h1>
           <p className="mt-1 text-sm text-mute">
             For <Link href={owner.href} className="font-semibold text-ink hover:text-brand">{owner.name}</Link> · {doc.fileName} · {formatBytes(doc.sizeBytes)} · added {fmt.dateTime(doc.createdAt)} by {doc.uploadedByName || "staff"}
-            {doc.source === "request_link" ? " through a private link" : doc.source === "staff_portal" ? " from their Hub page" : ""}
+            {doc.source === "request_link" ? " through a private link" : doc.source === "staff_portal" ? " from their Mohuddle account" : ""}
           </p>
         </div>
       </header>
@@ -102,7 +102,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                   {type?.validityMonths && <p className="-mt-2 text-xs text-mute">{type.name} is usually valid for {type.validityMonths} months.</p>}
                   <Field label="Note" htmlFor="ap-note"><input id="ap-note" name="note" maxLength={1000} className="field" placeholder="Optional" /></Field>
                 </ActionForm>
-                <ModalForm action={rejectDocumentAction.bind(null, doc.id)} title="Return it to redo" description="They see your reason and can upload again with the same link or from their Hub page." triggerLabel="Return to redo" triggerIcon="none" triggerTone="ghost" submitLabel="Return it">
+                <ModalForm action={rejectDocumentAction.bind(null, doc.id)} title="Return it to redo" description="They see your reason and can upload again with the same link or from their Mohuddle account." triggerLabel="Return to redo" triggerIcon="none" triggerTone="ghost" submitLabel="Return it">
                   <Field label="What needs fixing?" htmlFor="rj-reason"><textarea id="rj-reason" name="reason" rows={3} required minLength={5} maxLength={1000} className="field" placeholder="The back of the card is missing. Please upload both sides." /></Field>
                 </ModalForm>
               </div>

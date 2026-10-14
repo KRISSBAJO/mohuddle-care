@@ -50,7 +50,7 @@ export async function PersonProfileTab({ id, person, home, manager }: { id: stri
             {person.primaryLanguage && <Row term="Main language">{person.primaryLanguage}</Row>}
             <Row term="Date of birth">{person.dob ? `${fmt.dayLong(person.dob)}${years !== null ? ` (${years})` : ""}` : <span className="text-mute">Not recorded</span>}</Row>
             <Row term="Service">{label("serviceType", person.serviceType)}</Row>
-            <Row term="Home">{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-brand">{home.name}</Link> : <span className="text-mute">Not in a Milestone home</span>}{home?.address ? <span className="text-mute"> · {[home.address, home.city].filter(Boolean).join(", ")}</span> : null}</Row>
+            <Row term="Home">{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-brand">{home.name}</Link> : <span className="text-mute">Not in one of our homes</span>}{home?.address ? <span className="text-mute"> · {[home.address, home.city].filter(Boolean).join(", ")}</span> : null}</Row>
             <Row term="Supported since">{person.admittedAt ? fmt.dayLong(person.admittedAt) : <span className="text-mute">Not recorded</span>}</Row>
             {!person.active && <Row term="Support ended">{person.dischargedAt ? fmt.dayLong(person.dischargedAt) : "Yes"}{person.dischargeReason && <span className="text-mute"> · {person.dischargeReason}</span>}</Row>}
             <Row term="Record created">{fmt.dayLong(dateKey(person.createdAt))}</Row>

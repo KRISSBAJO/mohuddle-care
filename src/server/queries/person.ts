@@ -380,7 +380,7 @@ export async function personHistory(id: string, person: typeof schema.individual
     "individual:readmit": ["Readmitted", "start"],
   };
   const events: HistoryEvent[] = [
-    ...(person.admittedAt ? [{ at: new Date(`${person.admittedAt}T12:00:00Z`), title: "Support started", detail: "Admitted to Milestone services.", kind: "start" as const }] : []),
+    ...(person.admittedAt ? [{ at: new Date(`${person.admittedAt}T12:00:00Z`), title: "Support started", detail: "Admitted to our services.", kind: "start" as const }] : []),
     ...goals.map(goal => ({ at: goal.createdAt, title: "Goal added", detail: goal.title + (goal.status !== "active" ? ` (now ${goal.status})` : ""), kind: "goal" as const })),
     ...meds.flatMap(med => [
       ...(med.startedAt ? [{ at: med.startedAt, title: "Medication started", detail: `${med.name} ${med.dose}, ${med.times.join(", ")}`, kind: "med" as const }] : []),

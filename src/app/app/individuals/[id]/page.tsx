@@ -113,7 +113,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
                 <div className="inline-flex items-center gap-1.5">
                   <dt className="sr-only">Home</dt>
                   <Home className="h-3.5 w-3.5" />
-                  <dd>{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-ink hover:text-brand">{home.name}</Link> : "Not in a Milestone home"}</dd>
+                  <dd>{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-ink hover:text-brand">{home.name}</Link> : "Not in one of our homes"}</dd>
                 </div>
                 {homeManager && (
                   <div className="inline-flex items-center gap-1.5">

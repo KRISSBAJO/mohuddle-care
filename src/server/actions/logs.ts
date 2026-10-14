@@ -21,7 +21,7 @@ export async function createDailyLog(_previous: FormState, formData: FormData): 
   const individualId = String(formData.get("individualId") ?? "");
   if (!z.uuid().safeParse(individualId).success) return { error: "Choose the person this log is about." };
   const [person] = await db.select().from(schema.individuals).where(eq(schema.individuals.id, individualId)).limit(1);
-  if (!person) return { error: "That person is no longer in the Hub." };
+  if (!person) return { error: "That person is no longer on record." };
   if (!person.active) return { error: `Support for ${person.firstName} has ended. Logs can no longer be added.` };
 
   // The shift the note is for. Staff can only write against their own shifts.
