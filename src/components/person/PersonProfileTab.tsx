@@ -45,7 +45,9 @@ export async function PersonProfileTab({ id, person, home, manager }: { id: stri
       <div className="space-y-6">
         <Panel title="Personal details">
           <dl className="divide-y divide-line/60">
-            <Row term="Full name">{person.firstName} {person.lastName}</Row>
+            <Row term="Full name">{person.firstName} {person.lastName}{person.preferredName && <span className="text-mute"> · likes to be called {person.preferredName}</span>}</Row>
+            {(person.gender || person.pronouns) && <Row term="Gender">{[person.gender, person.pronouns].filter(Boolean).join(" · ")}</Row>}
+            {person.primaryLanguage && <Row term="Main language">{person.primaryLanguage}</Row>}
             <Row term="Date of birth">{person.dob ? `${fmt.dayLong(person.dob)}${years !== null ? ` (${years})` : ""}` : <span className="text-mute">Not recorded</span>}</Row>
             <Row term="Service">{label("serviceType", person.serviceType)}</Row>
             <Row term="Home">{home ? <Link href={`/app/homes/${home.id}`} className="font-semibold text-brand">{home.name}</Link> : <span className="text-mute">Not in a Milestone home</span>}{home?.address ? <span className="text-mute"> · {[home.address, home.city].filter(Boolean).join(", ")}</span> : null}</Row>
@@ -63,7 +65,13 @@ export async function PersonProfileTab({ id, person, home, manager }: { id: stri
         </Panel>
 
         <Panel title={`How to support ${person.firstName} well`}>
-          <p className="whitespace-pre-line p-5 text-sm leading-relaxed">{person.supportNotes || <span className="text-mute">No support notes yet. Coordinators add these with Edit details.</span>}</p>
+          <dl className="divide-y divide-line/60">
+            <Row term="Communication">{person.communication || <span className="text-mute">Not recorded</span>}</Row>
+            <Row term="Mobility">{person.mobility || <span className="text-mute">Not recorded</span>}</Row>
+            <Row term="Diet">{person.diet || <span className="text-mute">Not recorded</span>}</Row>
+            <Row term="Likes and interests">{person.likes || <span className="text-mute">Not recorded</span>}</Row>
+          </dl>
+          <p className="whitespace-pre-line border-t border-line/60 p-5 text-sm leading-relaxed">{person.supportNotes || <span className="text-mute">No support notes yet. Coordinators add these with Edit details.</span>}</p>
         </Panel>
 
         {manager && (

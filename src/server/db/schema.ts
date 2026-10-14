@@ -145,6 +145,15 @@ export const individuals = pgTable("individuals", {
   allergies: text("allergies").notNull().default(""),
   diagnoses: text("diagnoses").notNull().default(""),
   supportNotes: text("support_notes").notNull().default(""),
+  // Who they are, beyond the record: how to address them, communicate with them and support them well.
+  preferredName: text("preferred_name").notNull().default(""),
+  gender: text("gender").notNull().default(""),
+  pronouns: text("pronouns").notNull().default(""),
+  primaryLanguage: text("primary_language").notNull().default(""),
+  communication: text("communication").notNull().default(""),
+  mobility: text("mobility").notNull().default(""),
+  diet: text("diet").notNull().default(""),
+  likes: text("likes").notNull().default(""),
   active: boolean("active").notNull().default(true),
   // Set when support ends. The record and its history stay; active is false while discharged.
   dischargedAt: date("discharged_at"),
@@ -161,6 +170,13 @@ export const planGoals = pgTable("plan_goals", {
   description: text("description").notNull().default(""),
   targetDate: date("target_date"),
   status: goalStatus("status").notNull().default("active"),
+  // As written in the ISP: the measurable step, how often it is worked on, and which note records it.
+  measurableStep: text("measurable_step").notNull().default(""),
+  frequencyCount: integer("frequency_count"),
+  frequencyPeriod: text("frequency_period").$type<"day" | "week" | "month">(),
+  effectiveDate: date("effective_date"),
+  documentedOn: text("documented_on").notNull().default("Daily notes"),
+  setupNotes: text("setup_notes").notNull().default(""),
   createdAt: createdAt(),
 });
 

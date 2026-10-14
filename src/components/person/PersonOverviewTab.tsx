@@ -82,7 +82,18 @@ export async function PersonOverviewTab({ id, person, home, lateMinutes }: { id:
         </Panel>
 
         <Panel title={`How to support ${person.firstName} well`} action={<MoreLink href={`${base}?tab=profile`}>Profile</MoreLink>}>
+          {(person.communication || person.mobility || person.diet) && (
+            <dl className="grid gap-3 border-b border-line/60 px-5 py-4 text-sm sm:grid-cols-3">
+              {([["Communicates", person.communication], ["Mobility", person.mobility], ["Diet", person.diet]] as const).map(([term, value]) => (
+                <div key={term}>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-mute">{term}</dt>
+                  <dd className={value ? "" : "text-dim"}>{value || "Not recorded"}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <p className="whitespace-pre-line p-5 text-sm leading-relaxed">{person.supportNotes || "No support notes yet. Coordinators add these with Edit details."}</p>
+          {person.likes && <p className="border-t border-line/60 px-5 py-3 text-sm"><span className="font-semibold">Enjoys: </span>{person.likes}</p>}
         </Panel>
 
         {home && person.active && (

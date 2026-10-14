@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, ClipboardList, Pill, Search, Users } from "lucide-react";
+import { AlertTriangle, ClipboardList, Pill, Search, UserPlus, Users } from "lucide-react";
 import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
-import { IndividualFields } from "@/components/app/IndividualForm";
 import { listHref, Pagination, SortHeader } from "@/components/app/ListControls";
-import { ModalForm } from "@/components/app/ModalForm";
 import { Avatar, Badge, Empty, PageHeader, Panel, Stat } from "@/components/app/ui";
 import { age, fmt, initials, label, labels } from "@/lib/format";
-import { createIndividual } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
 import { listHomes } from "@/server/queries/hub";
@@ -51,15 +48,7 @@ export default async function IndividualsPage({ searchParams }: { searchParams: 
         description="Find anyone quickly, see who needs something today, and open a profile for their plan, medications and notes."
         action={
           manager ? (
-            <ModalForm
-              action={createIndividual}
-              title="Add a person"
-              description="Start with the basics. Support notes, goals and medications come next on their page."
-              triggerLabel="Add person"
-              submitLabel="Add and open"
-            >
-              <IndividualFields homes={homes} prefix="new-person" compact />
-            </ModalForm>
+<Link href="/app/individuals/new" className="btn-brand"><UserPlus className="h-4 w-4" /> Add person</Link>
           ) : undefined
         }
       />

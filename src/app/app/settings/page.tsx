@@ -53,10 +53,14 @@ const GROUPS: Group[] = [
     id: "people",
     title: "People supported",
     icon: UsersRound,
-    intro: "The lists used on each person's care team and insurance.",
+    intro: "The lists used when adding a person, on their care team, insurance and plan goals.",
     items: [
       { key: "care_team_roles", title: "Care team roles", help: "Who can be added to a person's care team." },
       { key: "insurance_types", title: "Insurance types", help: "Offered when recording a person's insurance." },
+      { key: "goal_services", title: "Where goals are recorded", help: "Each plan goal names the service whose notes record it, such as daily notes or community participation." },
+      { key: "communication_options", title: "Ways of communicating", help: "Offered when adding a person." },
+      { key: "mobility_options", title: "Mobility levels", help: "Offered when adding a person." },
+      { key: "diet_options", title: "Diets", help: "Offered when adding a person." },
     ],
   },
   {

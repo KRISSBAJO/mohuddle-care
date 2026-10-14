@@ -11,6 +11,7 @@ import {
   Home,
   LayoutDashboard,
   ListChecks,
+  Pencil,
   Phone,
   Pill,
   ShieldAlert,
@@ -19,8 +20,6 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { IndividualFields } from "@/components/app/IndividualForm";
-import { ModalForm } from "@/components/app/ModalForm";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar, Badge } from "@/components/app/ui";
 import { PersonAppointmentsTab } from "@/components/person/PersonAppointmentsTab";
@@ -37,10 +36,8 @@ import { PersonProfileTab } from "@/components/person/PersonProfileTab";
 import { PersonTasksTab } from "@/components/person/PersonTasksTab";
 import { cn } from "@/lib/cn";
 import { age, dateKey, fmt, initials, label } from "@/lib/format";
-import { updateIndividual } from "@/server/actions/hub";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
-import { listHomes } from "@/server/queries/hub";
 import { personHeader } from "@/server/queries/person";
 import { getSettings } from "@/server/settings";
 
@@ -69,7 +66,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
   const query = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const settings = await getSettings();
-  const [header, homes] = await Promise.all([personHeader(id, settings.med_late_minutes), listHomes()]);
+  const header = await personHeader(id, settings.med_late_minutes);
   if (!header) notFound();
   const { person, home, manager: homeManager, counts } = header;
   const tab: PersonTab = TABS.some(([value]) => value === query.tab) ? (query.tab as PersonTab) : "overview";
@@ -140,9 +137,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
             {active && <Link href={`/app/daily-logs/new?individual=${id}`} className="btn-brand btn-sm"><ClipboardList className="h-3.5 w-3.5" /> Daily log</Link>}
             {active && <Link href={`/app/incidents/new?individual=${id}`} className="btn-ghost btn-sm"><AlertTriangle className="h-3.5 w-3.5" /> Report incident</Link>}
             {manager && (
-              <ModalForm action={updateIndividual.bind(null, id)} title={`Edit ${person.firstName}'s details`} triggerLabel="Edit details" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save details">
-                <IndividualFields homes={homes} person={person} prefix="edit-person" />
-              </ModalForm>
+              <Link href={`/app/individuals/${id}/edit`} className="btn-ghost btn-sm"><Pencil className="h-3.5 w-3.5" /> Edit details</Link>
             )}
             <PrintButton />
           </div>
@@ -179,9 +174,10 @@ export default async function IndividualPage({ params, searchParams }: { params:
       {query.saved === "log" && <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Daily log saved. Thank you.</p>}
       {query.saved === "created" && (
         <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">
-          {person.firstName} has been added. Next, use Edit details for support notes and contacts, then add goals and medications.
+          {person.firstName} has been added. Their care team, insurance, goals and medications are on the tabs below.
         </p>
       )}
+      {query.saved === "details" && <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Details saved.</p>}
       {query.saved === "medication" && <p className="mb-5 rounded-xl bg-sage-soft px-4 py-3 text-sm font-medium text-sage">Medication updated. The medication record follows from now on.</p>}
       {!active && (
         <p className="mb-5 rounded-xl bg-panel px-4 py-3 text-sm font-medium text-mute">

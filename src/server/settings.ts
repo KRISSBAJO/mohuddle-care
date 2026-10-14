@@ -188,6 +188,30 @@ export const settingDefs = {
     schema: z.array(z.string().min(1)).min(1),
     fallback: ["Medicaid / TennCare", "Medicare", "Medicare Advantage", "Private insurance", "Dental", "Vision", "Other"],
   },
+  goal_services: {
+    label: "Where plan goals are recorded (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Daily notes", "CP - Community Participation", "Personal assistance", "Day services", "Employment supports", "Behavior supports"],
+  },
+  communication_options: {
+    label: "Ways people communicate (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Speaks in full sentences", "Speaks a few words", "Signs or gestures", "Picture cards or board", "Speech device", "Non-verbal, reads body language", "Hearing impaired", "Vision impaired"],
+  },
+  mobility_options: {
+    label: "Mobility levels (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Walks independently", "Walks with standby help", "Uses a cane or walker", "Uses a wheelchair, self-propels", "Uses a wheelchair, pushed by staff", "Needs a lift or two-person transfer"],
+  },
+  diet_options: {
+    label: "Diets (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Regular", "Diabetic", "Low sodium", "Heart healthy", "Mechanical soft", "Pureed", "Thickened liquids", "Gluten free", "Vegetarian", "Tube feeding"],
+  },
   task_categories: {
     label: "Task categories (one per line)",
     kind: "list",

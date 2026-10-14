@@ -44,17 +44,15 @@ const individualSchema = z.object({
   allergies: optional(500),
   diagnoses: optional(1000),
   supportNotes: optional(4000),
+  preferredName: optional(80),
+  gender: optional(40),
+  pronouns: optional(40),
+  primaryLanguage: optional(60),
+  communication: optional(500),
+  mobility: optional(500),
+  diet: optional(500),
+  likes: optional(1000),
 });
-
-export async function createIndividual(_p: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireManager();
-  const parsed = individualSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return firstError(parsed.error);
-  const [row] = await db.insert(schema.individuals).values(parsed.data).returning({ id: schema.individuals.id });
-  await audit(user.id, "create", "individual", row.id);
-  revalidatePath("/app/individuals");
-  redirect(`/app/individuals/${row.id}?saved=created`);
-}
 
 export async function updateIndividual(id: string, _p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
@@ -64,8 +62,7 @@ export async function updateIndividual(id: string, _p: FormState, formData: Form
   await audit(user.id, "update", "individual", id);
   revalidatePath(`/app/individuals/${id}`);
   revalidatePath("/app/individuals");
-  // No redirect: the edit pop-up closes itself and the page shows the new details.
-  return {};
+  redirect(`/app/individuals/${id}?saved=details`);
 }
 
 const goalSchema = z.object({
