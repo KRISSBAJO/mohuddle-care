@@ -141,6 +141,13 @@
       "when": 1792009123698,
       "tag": "0019_square_sway",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792010947876,
+      "tag": "0020_fearless_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

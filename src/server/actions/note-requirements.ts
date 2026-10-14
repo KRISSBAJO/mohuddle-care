@@ -67,6 +67,9 @@ const itemInput = z.object({
   help: z.string().trim().max(200).default(""),
   required: z.boolean(),
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
+  followUpOn: z.enum(["", "Yes", "No"]).default(""),
+  followUpPrompt: z.string().trim().max(200).default(""),
+  followUpDocs: z.array(z.string().trim().min(1).max(80)).max(10),
 });
 
 /* Adds or changes an extra item staff answer on daily notes at this level. */
@@ -86,12 +89,21 @@ export async function saveNoteItem(scope: Scope, targetId: string | null, itemId
     help: formData.get("help") ?? "",
     required: formData.get("required") === "on",
     sortOrder: formData.get("sortOrder") || 0,
+    followUpOn: formData.get("followUpOn") ?? "",
+    followUpPrompt: formData.get("followUpPrompt") ?? "",
+    followUpDocs: [...new Set(String(formData.get("followUpDocs") ?? "").split(/\r?\n/).map(line => line.trim()).filter(Boolean))],
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the item." };
   const data = parsed.data;
   if ((data.fieldType === "choice" || data.fieldType === "multi") && data.options.length < 2) return { error: "List at least two options, one per line." };
   if (data.fieldType !== "choice" && data.fieldType !== "multi") data.options = [];
   if (data.fieldType !== "number") data.unit = "";
+  // Follow-ups are for yes or no questions only.
+  if (data.fieldType !== "yes_no" || !data.followUpOn) {
+    data.followUpOn = "";
+    data.followUpPrompt = "";
+    data.followUpDocs = [];
+  } else if (data.followUpPrompt.length < 3) return { error: "Write what staff should explain when they give that answer." };
   if (itemId) {
     if (!z.uuid().safeParse(itemId).success) return { error: "Unknown item." };
     const updated = await db
@@ -104,6 +116,16 @@ export async function saveNoteItem(scope: Scope, targetId: string | null, itemId
     await db.insert(schema.noteRequirements).values({ scope, ...ids, kind: "item", enabled: true, ...data });
   }
   await db.insert(schema.auditLog).values({ userId: user.id, action: itemId ? "note-item:update" : "note-item:create", entity: "note_requirement", entityId: itemId ?? "" });
+  refresh(scope, targetId);
+  return {};
+}
+
+/* Switches an item on or off without losing it, for example a question from the agency library. */
+export async function setNoteItemEnabled(scope: Scope, targetId: string | null, itemId: string, enabled: boolean): Promise<FormState> {
+  const user = await requireManager();
+  if (!z.uuid().safeParse(itemId).success) return { error: "Unknown item." };
+  await db.update(schema.noteRequirements).set({ enabled }).where(and(eq(schema.noteRequirements.id, itemId), where(scope, targetId), eq(schema.noteRequirements.kind, "item")));
+  await db.insert(schema.auditLog).values({ userId: user.id, action: enabled ? "note-item:on" : "note-item:off", entity: "note_requirement", entityId: itemId });
   refresh(scope, targetId);
   return {};
 }

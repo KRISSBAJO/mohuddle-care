@@ -2,6 +2,7 @@
  * Development seed. Creates a realistic week at Milestone so every screen has something to show.
  * Safe to run again: it wipes and rebuilds the demo data. Never run against production.
  */
+import { NOTE_LIBRARY } from "../src/lib/note-library";
 import "dotenv/config";
 import { hash } from "@node-rs/argon2";
 import { sql } from "drizzle-orm";
@@ -270,7 +271,9 @@ async function main() {
     { scope: "person", individualId: brianna.id, kind: "section", section: "continence", enabled: true, required: true },
     { scope: "person", individualId: brianna.id, kind: "item", label: "Skin areas checked for redness", fieldType: "multi", options: ["Heels", "Hips", "Sacrum", "Elbows", "Shoulder blades"], help: "Tick each area you checked. Report any redness to the nurse.", sortOrder: 1 },
     { scope: "person", individualId: tasha.id, kind: "section", section: "seizure", enabled: true, required: true },
-    { scope: "home", homeId: hillcrest.id, kind: "item", label: "Fire door and alarm panel checked at the end of the shift?", fieldType: "yes_no", required: true, help: "The panel light should be green.", sortOrder: 1 },
+    { scope: "home", homeId: hillcrest.id, kind: "item", label: "Fire door and alarm panel checked at the end of the shift?", fieldType: "yes_no", required: true, help: "The panel light should be green.", sortOrder: 1, followUpOn: "No", followUpPrompt: "What was wrong, and who did you tell?", followUpDocs: ["Maintenance issue logged"] },
+    // The library of service questions, off until an administrator switches them on.
+    ...NOTE_LIBRARY.map(item => ({ scope: "all" as const, kind: "item" as const, enabled: false, required: true, fieldType: "yes_no", ...item })),
   ]);
 
   // Medication records: yesterday fully given, today's morning doses mostly given, one left due so the Today page has something to chase.

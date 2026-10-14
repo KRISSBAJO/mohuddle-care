@@ -267,7 +267,10 @@ export const dailyLogs = pgTable("daily_logs", {
   stoolType: text("stool_type").notNull().default(""),
   continenceNotes: text("continence_notes").notNull().default(""),
   // Answers to extra items set for everyone, the home or the person. Labels are kept so old notes still read right.
-  extra: jsonb("extra").$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person" }[]>().notNull().default(emptyList()),
+  extra: jsonb("extra")
+    .$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person"; followUp?: { prompt: string; note: string; docs: { label: string; done: boolean }[] } }[]>()
+    .notNull()
+    .default(emptyList()),
   // Optional sections that were switched on for this person when the note was written.
   sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
   signedName: text("signed_name").notNull().default(""),
@@ -296,6 +299,11 @@ export const noteRequirements = pgTable(
     unit: text("unit").notNull().default(""),
     help: text("help").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
+    // For yes or no questions: the answer that opens a follow-up ("Yes" or "No"), what to ask, and the
+    // documents that answer needs, such as an incident report. Empty means no follow-up.
+    followUpOn: text("follow_up_on").notNull().default(""),
+    followUpPrompt: text("follow_up_prompt").notNull().default(""),
+    followUpDocs: jsonb("follow_up_docs").$type<string[]>().notNull().default(emptyList()),
     createdAt: createdAt(),
   },
   table => [index("note_requirements_home").on(table.homeId), index("note_requirements_person").on(table.individualId)],

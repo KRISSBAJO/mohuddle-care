@@ -194,6 +194,21 @@ export function LogNoteView({ log, goals, staff, adlOrder = [], compact = false 
                 `${Array.isArray(answer.value) ? answer.value.join(", ") : answer.value}${answer.unit ? ` ${answer.unit}` : ""}`,
               ])}
             />
+            {log.extra.filter(answer => answer.followUp).map(answer => (
+              <div key={answer.id} className="mt-3 rounded-xl border border-accent/50 bg-accent-soft/40 px-4 py-3 text-sm">
+                <p className="text-xs font-semibold text-[#8a5a10]">{answer.label}: {String(answer.value)}{answer.followUp!.prompt ? ` · ${answer.followUp!.prompt}` : ""}</p>
+                <p className="mt-1 whitespace-pre-line">{answer.followUp!.note}</p>
+                {answer.followUp!.docs.length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-1.5">
+                    {answer.followUp!.docs.map(doc => (
+                      <span key={doc.label} className={doc.done ? "chip bg-sage-soft px-2 py-0.5 text-[11px] text-sage" : "chip bg-flag-soft px-2 py-0.5 text-[11px] text-flag"}>
+                        {doc.done ? "Done" : "Still to do"}: {doc.label}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
+            ))}
           </Block>
         )}
         {(log.familyContact || log.appointments) && (

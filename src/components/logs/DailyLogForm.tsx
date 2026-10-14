@@ -4,6 +4,7 @@ import { startTransition, useActionState, useEffect, useMemo, useRef, useState }
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
 import { Select } from "@/components/app/Select";
+import { FollowUpQuestion } from "@/components/logs/FollowUpQuestion";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
 import { ADL_EXTRA, GOAL_OFFERED, GOAL_OUTCOME, INTAKE, MEALS, SLEEP_QUALITY, STOOL_TYPES, shiftMinutes } from "@/lib/log-note";
@@ -623,7 +624,7 @@ export function DailyLogForm(props: Props) {
         {config.items.length > 0 && (
           <Section id="extra" index={num("extra")} title={`Extra items for ${first}`} hint="Set for this person, their home or everyone. Required ones must be answered." done={filled.has("extra")}>
             {config.items.map(item => (
-              <ExtraField key={item.id} item={item} />
+              <ExtraField key={item.id} item={item} personId={personId} />
             ))}
           </Section>
         )}
@@ -697,7 +698,7 @@ export function DailyLogForm(props: Props) {
 }
 
 /* One extra question, drawn by its answer type. */
-function ExtraField({ item }: { item: NoteItem }) {
+function ExtraField({ item, personId }: { item: NoteItem; personId: string }) {
   const name = `extra.${item.id}`;
   const id = `extra-${item.id.slice(0, 8)}`;
   return (
@@ -708,7 +709,8 @@ function ExtraField({ item }: { item: NoteItem }) {
         {item.required && <span className="chip bg-sky px-2 py-0 text-[10px] text-brand-deep">Required</span>}
       </div>
       {item.help && <p className="-mt-1 mb-2 text-xs text-mute">{item.help}</p>}
-      {item.fieldType === "yes_no" && (
+      {item.fieldType === "yes_no" && item.followUpOn && <FollowUpQuestion item={item} chip={chip} individualId={personId || null} />}
+      {item.fieldType === "yes_no" && !item.followUpOn && (
         <div className="flex gap-2">
           {["Yes", "No"].map(value => (
             <label key={value} className={cn(chip, "py-1.5")}>

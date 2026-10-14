@@ -8,6 +8,7 @@ import { dateKey } from "@/lib/format";
 import { parseLogNote } from "@/lib/log-note";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
+import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { getSettings } from "@/server/settings";
 import { configForPerson } from "@/server/queries/note-requirements";
 import type { FormState } from "./auth";
@@ -92,6 +93,20 @@ export async function createDailyLog(_previous: FormState, formData: FormData): 
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "create", entity: "daily_log", entityId: row.id });
     return row.id;
   });
+
+  // Follow-ups that left a document still to do, such as an incident report, go to the people who oversee notes.
+  const outstanding = note.extra.filter(answer => answer.followUp?.docs.some(doc => !doc.done));
+  if (outstanding.length) {
+    const ids = await recipients({ roles: settings.notify_roles_notes as Role[], staffIds: [await homeManagerOf(person.homeId)], except: user.id });
+    await notify(ids, {
+      kind: "notes:follow-up",
+      title: `${user.name}: ${person.firstName}'s note has documents still to do`,
+      body: outstanding.map(answer => `${answer.label}: ${answer.followUp!.docs.filter(doc => !doc.done).map(doc => doc.label).join(", ")}`).join(". "),
+      href: `/app/daily-logs/${id}`,
+      tone: "warn",
+      dedupeKey: `notes:follow-up:${id}`,
+    });
+  }
 
   revalidatePath("/app");
   revalidatePath("/app/daily-logs");

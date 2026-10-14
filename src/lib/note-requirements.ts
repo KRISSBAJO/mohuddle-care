@@ -47,9 +47,13 @@ export type RequirementRow = {
   unit: string;
   help: string;
   sortOrder: number;
+  followUpOn?: string;
+  followUpPrompt?: string;
+  followUpDocs?: string[];
 };
 
-export type NoteItem = { id: string; label: string; fieldType: FieldType; options: string[]; unit: string; help: string; required: boolean; scope: Scope };
+/* followUpOn is the yes or no answer that opens a follow-up: a note, and the documents that answer needs. */
+export type NoteItem = { id: string; label: string; fieldType: FieldType; options: string[]; unit: string; help: string; required: boolean; scope: Scope; followUpOn?: "Yes" | "No" | ""; followUpPrompt?: string; followUpDocs?: string[] };
 export type SectionState = { on: boolean; required: boolean; from: Scope | "default" };
 export type NoteConfig = { sections: Record<SectionKey, SectionState>; items: NoteItem[] };
 
@@ -64,11 +68,24 @@ export function effectiveConfig(rows: RequirementRow[]): NoteConfig {
   const items = ordered
     .filter(row => row.kind === "item" && row.enabled && row.fieldType in FIELD_TYPES)
     .sort((a, b) => SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope] || a.sortOrder - b.sortOrder)
-    .map(row => ({ id: row.id, label: row.label, fieldType: row.fieldType as FieldType, options: row.options, unit: row.unit, help: row.help, required: row.required, scope: row.scope }));
+    .map(row => ({
+      id: row.id,
+      label: row.label,
+      fieldType: row.fieldType as FieldType,
+      options: row.options,
+      unit: row.unit,
+      help: row.help,
+      required: row.required,
+      scope: row.scope,
+      followUpOn: row.fieldType === "yes_no" && (row.followUpOn === "Yes" || row.followUpOn === "No") ? (row.followUpOn as "Yes" | "No") : ("" as const),
+      followUpPrompt: row.followUpPrompt ?? "",
+      followUpDocs: row.followUpDocs ?? [],
+    }));
   return { sections, items };
 }
 
-export type ExtraAnswer = { id: string; label: string; value: string | string[]; unit: string; scope: Scope };
+export type FollowUp = { prompt: string; note: string; docs: { label: string; done: boolean }[] };
+export type ExtraAnswer = { id: string; label: string; value: string | string[]; unit: string; scope: Scope; followUp?: FollowUp };
 
 /* Reads and checks the answers to extra items. Returns the answers, or the first problem in a sentence. */
 export function readExtraItems(items: NoteItem[], get: (name: string) => string, getAll: (name: string) => string[]): { answers: ExtraAnswer[] } | { error: string } {
@@ -87,7 +104,17 @@ export function readExtraItems(items: NoteItem[], get: (name: string) => string,
       if (value && item.fieldType === "choice" && !item.options.includes(value)) return { error: `Choose one of the options for "${item.label}".` };
       if (value.length > 2000) return { error: `Keep "${item.label}" under 2,000 characters.` };
     }
-    if (value.length) answers.push({ id: item.id, label: item.label, value, unit: item.unit, scope: item.scope });
+    if (!value.length) continue;
+    // The answer that needs more must be explained; each document is marked done or still to do.
+    if (item.followUpOn && value === item.followUpOn) {
+      const note = get(`${name}.followUp`).trim();
+      if (note.length < 3) return { error: `You answered ${value} to "${item.label}". ${item.followUpPrompt || "Explain your answer."}` };
+      if (note.length > 2000) return { error: `Keep the follow-up for "${item.label}" under 2,000 characters.` };
+      const done = getAll(`${name}.doc`);
+      answers.push({ id: item.id, label: item.label, value, unit: item.unit, scope: item.scope, followUp: { prompt: item.followUpPrompt ?? "", note, docs: (item.followUpDocs ?? []).map(label => ({ label, done: done.includes(label) })) } });
+      continue;
+    }
+    answers.push({ id: item.id, label: item.label, value, unit: item.unit, scope: item.scope });
   }
   return { answers };
 }

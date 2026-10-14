@@ -6,7 +6,7 @@ import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { FIELD_TYPES, OPTIONAL_SECTIONS, SECTION_KEYS, type NoteConfig, type Scope } from "@/lib/note-requirements";
-import { removeNoteItem, saveNoteItem, saveSectionSettings } from "@/server/actions/note-requirements";
+import { removeNoteItem, saveNoteItem, saveSectionSettings, setNoteItemEnabled } from "@/server/actions/note-requirements";
 import type { schema } from "@/server/db";
 
 type Row = typeof schema.noteRequirements.$inferSelect;
@@ -34,6 +34,27 @@ function ItemFields({ item, prefix }: { item?: Row; prefix: string }) {
       <Field label="Help for staff" htmlFor={`${prefix}-help`}>
         <input id={`${prefix}-help`} name="help" maxLength={200} className="field" defaultValue={item?.help} placeholder="Check the latch and the alarm light." />
       </Field>
+      <fieldset className="grid gap-4 rounded-xl border border-line p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-mute">Follow-up, for yes or no questions</legend>
+        <Field label="This answer opens a follow-up" htmlFor={`${prefix}-followup`} hint="Staff must explain that answer in a pop-up. The other answer needs nothing more.">
+          <Select
+            id={`${prefix}-followup`}
+            name="followUpOn"
+            defaultValue={item?.followUpOn ?? ""}
+            options={[
+              { value: "", label: "No follow-up" },
+              { value: "Yes", label: "Yes" },
+              { value: "No", label: "No" },
+            ]}
+          />
+        </Field>
+        <Field label="What staff should explain" htmlFor={`${prefix}-prompt`}>
+          <input id={`${prefix}-prompt`} name="followUpPrompt" maxLength={200} className="field" defaultValue={item?.followUpPrompt} placeholder="Briefly describe what happened and what you did." />
+        </Field>
+        <Field label="Documents that answer needs" htmlFor={`${prefix}-docs`} hint="One per line. Staff tick each one done, or it shows as still to do on the note.">
+          <textarea id={`${prefix}-docs`} name="followUpDocs" rows={2} className="field" defaultValue={item?.followUpDocs.join("\n")} placeholder={"Incident report\nABC data sheet"} />
+        </Field>
+      </fieldset>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex items-center gap-2.5 rounded-xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-brand has-[:checked]:bg-sky/50">
           <input type="checkbox" name="required" defaultChecked={item?.required ?? true} className="h-4 w-4 accent-[#1b6fa8]" /> Must be answered on every note
@@ -140,6 +161,7 @@ export function NoteRequirementsEditor({
       >
         <div className="p-5 text-sm text-mute">
           Questions staff answer on {where}, in addition to the sections. For example, &ldquo;Bowel movement recorded on the chart?&rdquo; for one person, or &ldquo;Fire door checked?&rdquo; for one home.
+          {scope === "all" && " The service questions marked Off are a ready-made library: turn on the ones your agency uses."}
         </div>
         {inheritedItems.length > 0 && scope !== "all" && (
           <ul className="divide-y divide-line/60 border-t border-line bg-panel/30">
@@ -168,8 +190,16 @@ export function NoteRequirementsEditor({
                     <span className="font-semibold">{item.label}</span>
                     <Badge tone="neutral">{FIELD_TYPES[item.fieldType as keyof typeof FIELD_TYPES] ?? item.fieldType}</Badge>
                     {item.required && <Badge tone="brand">Required</Badge>}
+                    {!item.enabled && <Badge tone="neutral">Off</Badge>}
+                    {item.followUpOn && <Badge tone="warn">Follow-up on {item.followUpOn}</Badge>}
                     {item.unit && <span className="text-xs text-mute">{item.unit}</span>}
                   </p>
+                  {item.followUpOn && (
+                    <p className="text-xs text-mute">
+                      Asks: {item.followUpPrompt}
+                      {item.followUpDocs.length > 0 && ` · Needs: ${item.followUpDocs.join(", ")}`}
+                    </p>
+                  )}
                   {(item.options.length > 0 || item.help) && <p className={cn("text-xs text-mute")}>{[item.options.join(" · "), item.help].filter(Boolean).join(" — ")}</p>}
                 </div>
                 {manager && (
@@ -177,6 +207,7 @@ export function NoteRequirementsEditor({
                     <ModalForm action={saveNoteItem.bind(null, scope, targetId, item.id)} title="Edit item" triggerLabel="Edit" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save item">
                       <ItemFields item={item} prefix={`item-${item.id.slice(0, 8)}`} />
                     </ModalForm>
+                    <ConfirmAction action={setNoteItemEnabled.bind(null, scope, targetId, item.id, !item.enabled)} label={item.enabled ? "Turn off" : "Turn on"} />
                     <ConfirmAction action={removeNoteItem.bind(null, scope, targetId, item.id)} label="Remove" confirm={`Remove "${item.label}"? Notes already written keep their answers.`} />
                   </div>
                 )}
