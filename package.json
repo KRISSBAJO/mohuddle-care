@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.29.3",
-  "engines": { "node": "22.x" },
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --turbopack --port 3400",
     "build": "next build",
@@ -20,11 +22,14 @@
     "check:preview": "tsx scripts/check-preview.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1151.0",
+    "@aws-sdk/s3-request-presigner": "^3.1151.0",
     "@node-rs/argon2": "^2.2.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.55.0",
     "next": "^16.4.0",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

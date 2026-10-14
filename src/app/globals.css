@@ -350,3 +350,9 @@
   body { background: white; }
   .card { box-shadow: none !important; }
 }
+
+/* Handwriting fonts for typed e-signatures (SIL Open Font License and Apache 2.0, served from /public/fonts). */
+@font-face { font-family: "Sig Dancing"; src: url("/fonts/DancingScript.ttf") format("truetype"); font-display: block; }
+@font-face { font-family: "Sig Vibes"; src: url("/fonts/GreatVibes.ttf") format("truetype"); font-display: block; }
+@font-face { font-family: "Sig Caveat"; src: url("/fonts/Caveat.ttf") format("truetype"); font-display: block; }
+@font-face { font-family: "Sig Apple"; src: url("/fonts/HomemadeApple.ttf") format("truetype"); font-display: block; }

@@ -16,6 +16,8 @@ import { requireUser } from "@/server/guard";
 import { listHomes, staffDetail } from "@/server/queries/hub";
 import { staffActivity } from "@/server/queries/staff";
 import { getSettings } from "@/server/settings";
+import { requestTime } from "@/server/clock";
+import { StaffDocumentsSection } from "@/components/docs/DocumentSections";
 
 export const metadata = { title: "Staff member" };
 
@@ -34,7 +36,7 @@ export default async function StaffMemberPage({ params, searchParams }: { params
   const { id } = await params;
   const { created } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [detail, homes, settings, activity] = await Promise.all([staffDetail(id), listHomes(), getSettings(), staffActivity(id)]);
+  const [detail, homes, settings, activity, now] = await Promise.all([staffDetail(id), listHomes(), getSettings(), staffActivity(id), requestTime()]);
   if (!detail) notFound();
   const { member, login, credentials } = detail;
   const manager = canManage(user);
@@ -268,6 +270,11 @@ export default async function StaffMemberPage({ params, searchParams }: { params
           )}
         </div>
       </div>
+      {manager && (
+        <div className="mt-10">
+          <StaffDocumentsSection staffId={member.id} now={now} />
+        </div>
+      )}
     </div>
   );
 }

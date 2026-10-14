@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Phone, Pill, Receipt, Settings2, Wrench } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Badge, Field } from "@/components/app/ui";
 import { HomeDetailsTab } from "@/components/homes/HomeDetailsTab";
@@ -9,6 +9,7 @@ import { HomeIssuesTab } from "@/components/homes/HomeIssuesTab";
 import { HomeMedsTab } from "@/components/homes/HomeMedsTab";
 import { HomeOverviewTab } from "@/components/homes/HomeOverviewTab";
 import { HomeScheduleTab } from "@/components/homes/HomeScheduleTab";
+import { HomeDocumentsSection } from "@/components/docs/DocumentSections";
 import { cn } from "@/lib/cn";
 import { dateKey, label, labels } from "@/lib/format";
 import { mayManageHome } from "@/lib/home-policy";
@@ -27,6 +28,7 @@ const TABS = [
   ["expenses", "Expenses", Receipt],
   ["issues", "Issues", Wrench],
   ["schedule", "Schedule", CalendarDays],
+  ["documents", "Documents", FolderOpen],
   ["details", "Details", Settings2],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -172,6 +174,7 @@ export default async function HomePage({ params, searchParams }: { params: Promi
       {tab === "medications" && <HomeMedsTab homeId={id} day={day} lateMinutes={settings.med_late_minutes} />}
       {tab === "expenses" && <HomeExpensesTab homeId={id} home={home} month={month} user={user} />}
       {tab === "issues" && <HomeIssuesTab homeId={id} home={home} show={query.show} user={user} staff={staff} />}
+      {tab === "documents" && <HomeDocumentsSection homeId={id} manager={manager} />}
       {tab === "schedule" && <HomeScheduleTab homeId={id} week={query.week} manager={manager} />}
       {tab === "details" && manager && <HomeDetailsTab homeId={id} staff={staff} />}
     </div>

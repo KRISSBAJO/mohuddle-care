@@ -527,3 +527,153 @@ export const notifications = pgTable(
   },
   table => [uniqueIndex("notifications_once").on(table.userId, table.dedupeKey), index("notifications_user_unread").on(table.userId, table.readAt)],
 );
+
+/*
+ * The kinds of document the agency keeps: for staff (I-9, CPR card), for people supported (ISP,
+ * insurance card) and for the business (licences, insurance). Admins add and change these.
+ */
+export const documentTypes = pgTable("document_types", {
+  id: id(),
+  name: text("name").notNull(),
+  category: text("category").$type<"staff" | "person" | "business">().notNull(),
+  description: text("description").notNull().default(""),
+  instructions: text("instructions").notNull().default(""),
+  // Staff: every staff member in these roles must have one (no roles means everyone). People: everyone. Business: the agency.
+  required: boolean("required").notNull().default(false),
+  roles: jsonb("roles").$type<string[]>().notNull().default(emptyList()),
+  // Business documents can belong to the agency or to each home (a fire inspection, say).
+  perHome: boolean("per_home").notNull().default(false),
+  expires: boolean("expires").notNull().default(false),
+  validityMonths: integer("validity_months"),
+  reminderDays: integer("reminder_days").notNull().default(30),
+  needsApproval: boolean("needs_approval").notNull().default(true),
+  // When an approved staff document has dates, the matching staff credential is updated too.
+  credentialType: text("credential_type").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/* A stored file and what it is. Replaced versions stay, marked superseded, so the history is kept. */
+export const documents = pgTable(
+  "documents",
+  {
+    id: id(),
+    typeId: uuid("type_id").references(() => documentTypes.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    ownerKind: text("owner_kind").$type<"staff" | "person" | "business">().notNull(),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "cascade" }),
+    individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "cascade" }),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "cascade" }),
+    status: text("status").$type<"submitted" | "approved" | "rejected" | "superseded" | "archived">().notNull().default("submitted"),
+    storageKey: text("storage_key").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    issuedOn: date("issued_on"),
+    expiresOn: date("expires_on"),
+    notes: text("notes").notNull().default(""),
+    reviewNote: text("review_note").notNull().default(""),
+    source: text("source").$type<"upload" | "request_link" | "staff_portal">().notNull().default("upload"),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    uploadedByName: text("uploaded_by_name").notNull().default(""),
+    requestItemId: uuid("request_item_id"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    supersededBy: uuid("superseded_by").references((): AnyPgColumn => documents.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("documents_staff").on(table.staffId),
+    index("documents_person").on(table.individualId),
+    index("documents_type").on(table.typeId),
+    index("documents_expiry").on(table.expiresOn),
+  ],
+);
+
+/*
+ * A request for documents, sent as a private link (which expires) and to the staff member's Hub.
+ * Only a hash of the link's token is stored. Whoever has the link can upload; nobody can view.
+ */
+export const documentRequests = pgTable("document_requests", {
+  id: id(),
+  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "cascade" }),
+  // A request about a person we support goes to someone outside, such as a guardian signing consent.
+  individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "cascade" }),
+  recipientName: text("recipient_name").notNull().default(""),
+  recipientRelation: text("recipient_relation").notNull().default(""),
+  title: text("title").notNull(),
+  message: text("message").notNull().default(""),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  dueOn: date("due_on"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const documentRequestItems = pgTable(
+  "document_request_items",
+  {
+    id: id(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => documentRequests.id, { onDelete: "cascade" }),
+    typeId: uuid("type_id").references(() => documentTypes.id, { onDelete: "set null" }),
+    label: text("label").notNull(),
+    // Upload a file, or read and sign a template.
+    kind: text("kind").$type<"upload" | "sign">().notNull().default("upload"),
+    templateId: uuid("template_id").references((): AnyPgColumn => signTemplates.id, { onDelete: "set null" }),
+    status: text("status").$type<"pending" | "submitted" | "approved" | "rejected">().notNull().default("pending"),
+    documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+    reviewNote: text("review_note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  table => [index("document_request_items_request").on(table.requestId)],
+);
+
+/*
+ * Documents to be read and signed: written in the Hub (sections, each initialled) or an uploaded PDF
+ * (each page initialled). The signed copy is filed under the chosen document type.
+ */
+export const signTemplates = pgTable("sign_templates", {
+  id: id(),
+  title: text("title").notNull(),
+  category: text("category").$type<"staff" | "person" | "business">().notNull().default("staff"),
+  typeId: uuid("type_id").references(() => documentTypes.id, { onDelete: "set null" }),
+  body: text("body").notNull().default(""),
+  sourceKey: text("source_key"),
+  sourceName: text("source_name").notNull().default(""),
+  sourcePages: integer("source_pages"),
+  initialEach: boolean("initial_each").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  active: boolean("active").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+/* The evidence for one signature: who, how, when, from where, and a fingerprint of what they signed. */
+export const signatures = pgTable("signatures", {
+  id: id(),
+  templateId: uuid("template_id").references(() => signTemplates.id, { onDelete: "set null" }),
+  templateVersion: integer("template_version").notNull().default(1),
+  requestItemId: uuid("request_item_id").references(() => documentRequestItems.id, { onDelete: "set null" }),
+  documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+  individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
+  signerName: text("signer_name").notNull(),
+  signerRelation: text("signer_relation").notNull().default(""),
+  method: text("method").$type<"drawn" | "typed">().notNull(),
+  typedName: text("typed_name").notNull().default(""),
+  typedInitials: text("typed_initials").notNull().default(""),
+  initialsCount: integer("initials_count").notNull().default(0),
+  contentHash: text("content_hash").notNull(),
+  signedHash: text("signed_hash").notNull().default(""),
+  ip: text("ip").notNull().default(""),
+  userAgent: text("user_agent").notNull().default(""),
+  consentedAt: timestamp("consented_at", { withTimezone: true }).notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }).notNull(),
+});

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, FolderOpen, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
 import { ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
@@ -47,6 +47,17 @@ const GROUPS: Group[] = [
       { key: "appointment_reminder_days", title: "Remind before a visit", help: "The escort and home manager are reminded this far ahead, and again on the day.", unit: "days", min: 0, max: 14 },
       { key: "appointment_document_hours", title: "Document a visit within", help: "After this, the visit shows as overdue and the team is told.", unit: "hours", min: 1, max: 168 },
       { key: "appointment_types", title: "Appointment types", help: "Offered when booking an appointment." },
+    ],
+  },
+  {
+    id: "documents",
+    title: "Documents",
+    icon: FolderOpen,
+    intro: "Private request links and who reviews what staff send in.",
+    link: ["/app/documents?tab=types", "Document types"],
+    items: [
+      { key: "document_link_days", title: "Request links work for", help: "After this, the link stops working and a fresh one must be sent.", unit: "days", min: 1, max: 60 },
+      { key: "notify_roles_documents", title: "Told about documents", help: "New uploads to review, signed documents, and documents expiring or expired.", roles: true },
     ],
   },
   {

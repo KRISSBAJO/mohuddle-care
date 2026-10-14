@@ -146,6 +146,18 @@ export const settingDefs = {
     schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
     fallback: ["admin", "coordinator"],
   },
+  document_link_days: {
+    label: "Document request links stop working after this many days",
+    kind: "number",
+    schema: z.coerce.number().int().min(1).max(60),
+    fallback: 14,
+  },
+  notify_roles_documents: {
+    label: "Login roles told about documents (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator"],
+  },
   expense_approval_dollars: {
     label: "Home expenses above this many dollars need approval (0 means every expense does)",
     kind: "number",

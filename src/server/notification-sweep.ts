@@ -167,6 +167,70 @@ export async function sweepNotifications(force = false) {
         dedupeKey: `incident:${overdue ? "filing-overdue" : "filing-soon"}:${incident.id}`,
       });
     }
+    // Documents near or past their expiry date: the staff member it belongs to and the document reviewers.
+    const docs = await db
+      .select({
+        id: schema.documents.id,
+        title: schema.documents.title,
+        expiresOn: schema.documents.expiresOn,
+        ownerKind: schema.documents.ownerKind,
+        staffId: schema.documents.staffId,
+        individualId: schema.documents.individualId,
+        homeId: schema.documents.homeId,
+        reminderDays: schema.documentTypes.reminderDays,
+        staffFirst: schema.staff.firstName,
+        staffLast: schema.staff.lastName,
+        personFirst: schema.individuals.firstName,
+        homeName: schema.homes.name,
+      })
+      .from(schema.documents)
+      .leftJoin(schema.documentTypes, eq(schema.documentTypes.id, schema.documents.typeId))
+      .leftJoin(schema.staff, eq(schema.staff.id, schema.documents.staffId))
+      .leftJoin(schema.individuals, eq(schema.individuals.id, schema.documents.individualId))
+      .leftJoin(schema.homes, eq(schema.homes.id, schema.documents.homeId))
+      .where(and(eq(schema.documents.status, "approved"), sql`${schema.documents.expiresOn} is not null`, lt(schema.documents.expiresOn, dateKey(new Date(now + 120 * 86_400_000)))));
+    for (const doc of docs) {
+      const daysLeft = Math.round((Date.parse(`${doc.expiresOn}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+      const expired = daysLeft < 0;
+      if (!expired && daysLeft > (doc.reminderDays ?? 30)) continue;
+      const whose = doc.staffFirst ? `${doc.staffFirst} ${doc.staffLast}` : doc.personFirst ? doc.personFirst : (doc.homeName ?? "The agency");
+      const reviewers = await recipients({ roles: settings.notify_roles_documents });
+      sent += await notify(reviewers, {
+        kind: expired ? "document:expired" : "document:expiring",
+        title: `${whose}: ${doc.title} ${expired ? "has expired" : `expires in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`}`,
+        body: `${expired ? "Expired" : "Expires"} ${fmt.day(doc.expiresOn)}. ${doc.ownerKind === "staff" ? "Request a renewal from their staff file." : "Upload the renewed document."}`,
+        href: `/app/documents/${doc.id}`,
+        tone: expired ? "bad" : "warn",
+        dedupeKey: `document:${expired ? "expired" : "expiring"}:${doc.id}`,
+      });
+      if (doc.staffId) {
+        sent += await notify(await recipients({ staffIds: [doc.staffId] }), {
+          kind: expired ? "document:expired" : "document:expiring",
+          title: `Your ${doc.title} ${expired ? "has expired" : `expires in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`}`,
+          body: "Renew it and send the new one to the office.",
+          href: "/app/my-documents",
+          tone: expired ? "bad" : "warn",
+          dedupeKey: `document:${expired ? "expired" : "expiring"}:${doc.id}:staff`,
+        });
+      }
+    }
+
+    // Requests past their due date with items still to send.
+    const overdueRequests = await db
+      .select({ id: schema.documentRequests.id, staffId: schema.documentRequests.staffId, title: schema.documentRequests.title, dueOn: schema.documentRequests.dueOn })
+      .from(schema.documentRequests)
+      .where(and(isNull(schema.documentRequests.revokedAt), isNull(schema.documentRequests.completedAt), lt(schema.documentRequests.dueOn, today)));
+    for (const request of overdueRequests) {
+      if (!request.staffId) continue;
+      sent += await notify(await recipients({ staffIds: [request.staffId] }), {
+        kind: "document:request-overdue",
+        title: `${request.title}: some documents are overdue`,
+        body: `They were needed by ${fmt.day(request.dueOn)}.`,
+        href: "/app/my-documents",
+        tone: "bad",
+        dedupeKey: `document:request-overdue:${request.id}`,
+      });
+    }
   } finally {
     state.milestoneSweepRunning = false;
   }

@@ -6,6 +6,16 @@ const schema = z.object({
   APP_URL: z.url().default("http://localhost:3400"),
   DATABASE_URL: z.string().startsWith("postgres"),
   SESSION_SECRET: z.string().min(32, "must be at least 32 characters"),
+  // Document storage. With S3_BUCKET set, files go to S3 (or any S3-compatible store via S3_ENDPOINT).
+  // Without it, they go to a private folder on this machine, which is fine for development only.
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default("us-east-1"),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_ENDPOINT: z.url().optional(),
+  S3_PREFIX: z.string().default("milestone/"),
+  STORAGE_DIR: z.string().default(".storage"),
+  MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 const parsed = schema.safeParse(process.env);

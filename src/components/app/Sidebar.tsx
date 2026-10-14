@@ -8,6 +8,8 @@ import {
   CalendarDays,
   CheckSquare,
   ClipboardList,
+  FolderLock,
+  FolderOpen,
   Home,
   Inbox,
   LayoutDashboard,
@@ -34,6 +36,8 @@ const items = [
   { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/app/homes", label: "Homes", icon: Home },
   { href: "/app/staff", label: "Staff", icon: UserRound },
+  { href: "/app/documents", label: "Documents", icon: FolderOpen, manager: true },
+  { href: "/app/my-documents", label: "My documents", icon: FolderLock },
   { href: "/app/enquiries", label: "Website messages", icon: Inbox, manager: true },
   { href: "/app/settings", label: "Settings", icon: Settings, manager: true },
 ];

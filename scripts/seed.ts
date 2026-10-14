@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/server/db/schema";
+import { DEFAULT_TEMPLATES } from "../src/lib/default-sign-templates";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
@@ -47,7 +48,7 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table signatures, document_request_items, document_requests, documents, sign_templates, notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
   const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
@@ -249,6 +250,12 @@ async function main() {
     { individualId: devon.id, type: "Dentist", provider: "Dr. Kim", clinic: "Bright Smiles Dental", scheduledAt: zoned(addDays(today, -1), "10:00"), reason: "Cleaning.", escortStaffId: jamal.id },
     { individualId: tasha.id, type: "Lab work", clinic: "Vanderbilt Lab", scheduledAt: zoned(addDays(today, 5), "08:00"), reason: "Lamotrigine level.", prep: "Take the morning dose after the blood draw.", followUpOf: neuro.id },
   ]);
+
+  // Starter documents to sign, filed under the matching document types (created by the migration).
+  const docTypes = await db.select({ id: schema.documentTypes.id, name: schema.documentTypes.name }).from(schema.documentTypes);
+  await db.insert(schema.signTemplates).values(
+    DEFAULT_TEMPLATES.map(template => ({ title: template.title, category: template.category, body: template.body, initialEach: true, typeId: docTypes.find(type => type.name === template.typeName)?.id ?? null })),
+  );
 
   // What daily notes cover: the agency default, plus examples for one home and two people.
   await db.insert(schema.noteRequirements).values([
