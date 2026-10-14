@@ -55,7 +55,7 @@ export default async function MyTimeOffPage() {
 
         <Panel title="Leave balance">
           <div className="p-5">
-            <p className={cn("font-display text-4xl font-bold", balance < 0 ? "text-flag" : "text-brand")}>{hours(balance)}</p>
+            <p className={cn("font-display text-2xl font-bold", balance < 0 ? "text-flag" : "text-brand")}>{hours(balance)}</p>
             <p className="text-sm text-mute">hours available</p>
             {settings.pto_accrual_hours_worked > 0 && <p className="mt-3 text-xs text-mute">You earn one hour for every {settings.pto_accrual_hours_worked} hours worked, up to {settings.pto_max_balance_hours} hours.</p>}
             <p className="mt-1 text-xs text-mute">Uses the balance: {settings.time_off_balance_types.join(", ") || "none"}.</p>

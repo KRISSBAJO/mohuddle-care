@@ -177,9 +177,9 @@
 .hub-main { max-width: 1600px; margin: auto; }
 .hub-page-header { margin-bottom: 30px; }
 .hub-page-header h1 { font-size: clamp(26px, 2.8vw, 36px); letter-spacing: -.035em; }
-.hub-stat { position: relative; border-radius: 18px; box-shadow: 0 2px 3px #173e3503; overflow: hidden; }
-.hub-stat::after { content: ''; position: absolute; width: 55px; height: 3px; bottom: 0; left: 24px; background: #a7c28c; border-radius: 4px; }
-.hub-stat-value { font-size: 40px; font-weight: 500; line-height: 1.1; letter-spacing: -.055em; }
+.hub-stat { position: relative; border-radius: 14px; box-shadow: 0 2px 3px #173e3503; overflow: hidden; }
+.hub-stat::after { content: ''; position: absolute; width: 36px; height: 2px; bottom: 0; left: 16px; background: #a7c28c; border-radius: 4px; }
+.hub-stat-value { font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .hub-panel { box-shadow: 0 2px 3px #173e3503; border-radius: 18px; }
 .hub-panel > header { background: #ffffff; padding-top: 18px; padding-bottom: 18px; }
 .hub-panel > header h2 { font-size: 14px; font-weight: 600; }

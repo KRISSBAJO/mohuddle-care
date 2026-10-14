@@ -53,7 +53,7 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
                 <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-sage" /></span>
                 {open.openBreak ? `On a ${open.openBreak.kind} break since ${fmt.time(open.openBreak.startAt)}` : "On the clock"}
               </p>
-              <p className="mt-2 font-display text-5xl font-bold">
+              <p className="mt-2 font-display text-3xl font-bold">
                 <LiveWorked since={open.entry.clockInAt.toISOString()} mealMinutes={mealTaken} openMealSince={open.openBreak?.kind === "meal" ? open.openBreak.startAt.toISOString() : null} />
               </p>
               <p className="mt-1 text-sm text-mute">
@@ -98,14 +98,14 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
       </section>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">This week</p>
-          <p className="mt-1 font-display text-2xl font-bold">{formatMinutes(history.weekMinutes)}</p>
+          <p className="mt-0.5 font-display text-xl font-bold">{formatMinutes(history.weekMinutes)}</p>
           <p className="text-xs text-mute">From Monday, less meal breaks</p>
         </div>
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Late, 3 weeks</p>
-          <p className={cn("mt-1 font-display text-2xl font-bold", history.lateCount ? "text-[#8a5a10]" : "text-sage")}>{history.lateCount}</p>
+          <p className={cn("mt-0.5 font-display text-xl font-bold", history.lateCount ? "text-[#8a5a10]" : "text-sage")}>{history.lateCount}</p>
           <p className="text-xs text-mute">Past {settings.clock_late_grace_minutes} minutes</p>
         </div>
         <Link href="/app/clock/timesheets" className="card block p-4 transition hover:-translate-y-0.5">

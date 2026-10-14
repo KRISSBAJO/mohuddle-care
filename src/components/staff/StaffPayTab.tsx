@@ -24,7 +24,7 @@ export async function StaffPayTab({ staffId, first, admin }: { staffId: string; 
         <Panel title="Pay rate" action={<span className="flex items-center gap-1 text-xs text-mute"><Lock className="h-3 w-3" /> Administrators only</span>}>
           <div className="border-b border-line p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Now</p>
-            <p className="mt-1 font-display text-3xl font-bold">{current !== null ? `${dollars(current)}/h` : "Not set"}</p>
+            <p className="mt-0.5 font-display text-xl font-bold">{current !== null ? `${dollars(current)}/h` : "Not set"}</p>
             {current === null && <p className="text-xs text-flag">Timesheets cannot estimate pay until a rate is set.</p>}
           </div>
           {rates.length > 0 && (

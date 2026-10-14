@@ -422,22 +422,22 @@ export async function StaffTimeTab({ id, manager }: { id: string; manager: boole
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Now</p>
           <p className={cn("mt-1 font-display text-xl font-bold", open ? "text-sage" : "text-mute")}>{open ? "On the clock" : "Off"}</p>
           <p className="text-xs text-mute">{open ? `Since ${fmt.time(open.clockInAt)} at ${open.home ?? "work"}` : "Not clocked in"}</p>
         </div>
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Worked this week</p>
           <p className="mt-1 font-display text-xl font-bold">{formatMinutes(time.weekMinutes)}</p>
           <p className="text-xs text-mute">From Monday, less meal breaks</p>
         </div>
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Late, 3 weeks</p>
           <p className={cn("mt-1 font-display text-xl font-bold", time.lateCount ? "text-[#8a5a10]" : "text-sage")}>{time.lateCount}</p>
           <p className="text-xs text-mute">Clock-ins past the grace period</p>
         </div>
-        <div className="card p-4">
+        <div className="card px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">To review</p>
           <p className={cn("mt-1 font-display text-xl font-bold", time.flagged ? "text-flag" : "text-sage")}>{time.flagged}</p>
           <p className="text-xs text-mute">Flagged punches not yet looked at</p>

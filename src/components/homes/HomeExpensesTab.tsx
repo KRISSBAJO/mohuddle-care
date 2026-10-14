@@ -35,7 +35,7 @@ export async function HomeExpensesTab({ homeId, home, month, user }: { homeId: s
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-mute">Approved spending</p>
-          <p className={cn("mt-2 font-display text-4xl font-bold", over && "text-flag")}>{money(data.spentCents)}</p>
+          <p className={cn("mt-1 font-display text-xl font-bold", over && "text-flag")}>{money(data.spentCents)}</p>
           {budget !== null ? (
             <>
               <div className="mt-3 h-3 overflow-hidden rounded-full bg-panel">
@@ -64,7 +64,7 @@ export async function HomeExpensesTab({ homeId, home, month, user }: { homeId: s
         </div>
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-mute">Waiting for approval</p>
-          <p className="mt-2 font-display text-4xl font-bold text-[#8a5a10]">{data.pendingCount}</p>
+          <p className="mt-1 font-display text-xl font-bold text-[#8a5a10]">{data.pendingCount}</p>
           <p className="mt-1 text-sm text-mute">{data.pendingCount ? `${money(data.pendingCents)} not yet counted` : "Nothing waiting"}</p>
           <p className="mt-4 text-xs text-mute">Coordinators and the home manager approve. Nobody approves their own expense.</p>
         </div>

@@ -142,7 +142,7 @@ export default async function HomesPage({ searchParams }: { searchParams: Promis
         action={manager ? <Link href="/app/homes/new" className="btn-brand"><Plus className="h-4 w-4" /> Add a home</Link> : undefined}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 min-[1700px]:grid-cols-6">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <Stat label="Places filled" value={`${summary.filled}/${summary.places}`} hint={`${occupancy}% across ${summary.homes} open homes`} icon={Users} href={tile("vacancies", "vacancies")} />
         <Stat label="Late medication" value={summary.lateMeds} hint="Doses past their time today" icon={Pill} tone={summary.lateMeds ? "bad" : "good"} href={tile("late-meds", "meds")} />
         <Stat label="Homes with urgent issues" value={summary.urgent} hint="Open and marked urgent" icon={AlertTriangle} tone={summary.urgent ? "bad" : "good"} href={tile("urgent", "issues")} />

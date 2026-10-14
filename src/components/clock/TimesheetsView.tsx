@@ -56,9 +56,9 @@ export async function TimesheetsView({ requested, settings, now, admin }: { requ
             ...(pay ? [["Gross pay (est.)", dollars(grossTotal), "text-brand"] as const] : []),
           ] as const
         ).map(([title, value, tone]) => (
-          <div key={title} className="card p-4">
+          <div key={title} className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
-            <p className={cn("mt-1 font-display text-2xl font-bold tabular-nums", tone)}>{value}</p>
+            <p className={cn("mt-0.5 font-display text-xl font-bold tabular-nums", tone)}>{value}</p>
           </div>
         ))}
       </div>

@@ -55,7 +55,7 @@ export async function ReportsView({ query, settings, now }: { query: Record<stri
             ["Handovers written", t.handoverRate === null ? "—" : `${t.handoverRate}%`, t.handoverRate !== null && t.handoverRate < 90 ? "text-[#8a5a10]" : "text-sage"],
           ] as const
         ).map(([title, value, tone]) => (
-          <div key={title} className="card p-4">
+          <div key={title} className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
             <p className={cn("mt-1 font-display text-xl font-bold tabular-nums", tone)}>{value}</p>
           </div>

@@ -55,7 +55,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Current staff" value={summary.current} hint={summary.left ? `${summary.left} former staff on record` : "Everyone on the team now"} icon={Users} href={hrefWith(defaults, {})} />
         <Stat label="No Mohuddle login yet" value={summary.noLogin} hint="Open a person to create one" icon={KeyRound} tone={summary.noLogin ? "warn" : "good"} href={hrefWith(defaults, { login: "none" })} />
         <Stat label="Expired credentials" value={summary.expired} hint="People with at least one" icon={AlertTriangle} tone={summary.expired ? "bad" : "good"} href={hrefWith(defaults, { cred: "expired", sort: "expiry" })} />

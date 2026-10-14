@@ -85,9 +85,9 @@ async function HomesView() {
             ["Needs a look", String(concerns), "Hard days, seizures or behaviour this week", concerns ? "text-plum" : ""],
           ] as const
         ).map(([title, value, hint, tone]) => (
-          <div key={title} className="card p-4">
+          <div key={title} className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
-            <p className={cn("mt-1 font-display text-2xl font-bold", tone)}>{value}</p>
+            <p className={cn("mt-0.5 font-display text-xl font-bold", tone)}>{value}</p>
             <p className="mt-0.5 text-xs text-mute">{hint}</p>
           </div>
         ))}
@@ -291,9 +291,9 @@ async function OwedView({ user, manager, day, home }: { user: { staffId: string 
             ["Still to write", totals.missing, totals.missing ? "text-[#8a5a10]" : ""],
             ["Overdue", totals.overdue, totals.overdue ? "text-flag" : "text-sage"],
           ].map(([title, value, tone]) => (
-            <div key={title as string} className="card p-4">
+            <div key={title as string} className="card px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
-              <p className={cn("mt-1 font-display text-2xl font-bold", tone as string)}>{value}</p>
+              <p className={cn("mt-0.5 font-display text-xl font-bold", tone as string)}>{value}</p>
             </div>
           ))}
         </div>

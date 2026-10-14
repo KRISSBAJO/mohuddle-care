@@ -34,7 +34,7 @@ export async function PersonHealthTab({ id, person, manager }: { id: string; per
             <p className="mt-2 text-sm text-mute">No doses recorded.</p>
           ) : (
             <>
-              <p className="mt-2 font-display text-2xl font-bold text-sage">{Math.round(((doses.given ?? 0) / total) * 100)}% given</p>
+              <p className="mt-1 font-display text-xl font-bold text-sage">{Math.round(((doses.given ?? 0) / total) * 100)}% given</p>
               <p className="text-xs text-mute">
                 {[["refused", doses.refused], ["held", doses.held], ["missed", doses.missed], ["not recorded", doses.due]]
                   .filter(([, n]) => n)

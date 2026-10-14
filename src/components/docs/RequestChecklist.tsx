@@ -18,7 +18,7 @@ export function RequestChecklist({ items, token, signHref, maxMb, instructions =
         const waiting = item.status === "submitted";
         const redo = item.status === "rejected";
         return (
-          <li key={item.id} className={cn("card p-4", done && "opacity-80", redo && "ring-2 ring-flag/30")}>
+          <li key={item.id} className={cn("card px-4 py-3", done && "opacity-80", redo && "ring-2 ring-flag/30")}>
             <div className="flex flex-wrap items-start gap-3">
               <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", done ? "bg-sage-soft text-sage" : waiting ? "bg-sky text-brand-deep" : redo ? "bg-flag-soft text-flag" : item.kind === "sign" ? "bg-plum-soft text-plum" : "bg-panel text-mute")}>
                 {done ? <CheckCircle2 className="h-5 w-5" /> : waiting ? <Clock className="h-5 w-5" /> : redo ? <RotateCcw className="h-5 w-5" /> : item.kind === "sign" ? <FileSignature className="h-5 w-5" /> : <Upload className="h-5 w-5" />}

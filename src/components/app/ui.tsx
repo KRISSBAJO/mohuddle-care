@@ -55,23 +55,23 @@ export function Stat({
   href?: string;
 }) {
   const body = (
-    <>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-mute">{label}</p>
-        <span className={cn("grid h-8 w-8 place-items-center rounded-lg", tones[tone])}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
+    <div className="flex items-center gap-3">
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", tones[tone])}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-mute">{label}</p>
+        <p className="hub-stat-value">{value}</p>
+        {hint && <p className="truncate text-xs text-mute">{hint}</p>}
       </div>
-      <p className="hub-stat-value mt-4 font-display">{value}</p>
-      {hint && <p className="mt-1 text-xs text-mute">{hint}</p>}
-    </>
+    </div>
   );
   return href ? (
-    <Link href={href} className="hub-stat card block p-6 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]">
+    <Link href={href} className="hub-stat card block px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]">
       {body}
     </Link>
   ) : (
-    <div className="hub-stat card p-6">{body}</div>
+    <div className="hub-stat card px-4 py-3">{body}</div>
   );
 }
 

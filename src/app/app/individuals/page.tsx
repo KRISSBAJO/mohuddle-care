@@ -54,7 +54,7 @@ export default async function IndividualsPage({ searchParams }: { searchParams: 
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Currently supported" value={summary.current} hint={summary.discharged ? `${summary.discharged} discharged on record` : "Everyone in our care now"} icon={Users} href={hrefWith(peopleDefaults, {})} />
         <Stat label="No log today" value={summary.noLog} hint={`Logs are due by ${result.logDueHour}:00`} icon={ClipboardList} tone={summary.noLog ? "warn" : "good"} href={hrefWith(peopleDefaults, { attention: "no-log" })} />
         <Stat label="Late medication" value={summary.late} hint="People with a dose not yet signed" icon={Pill} tone={summary.late ? "bad" : "good"} href={hrefWith(peopleDefaults, { attention: "late-meds" })} />

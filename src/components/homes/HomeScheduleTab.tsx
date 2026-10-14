@@ -100,9 +100,9 @@ export async function HomeScheduleTab({ homeId, week, manager }: { homeId: strin
           ["Coverage gaps", String(gaps.length), gaps.length ? "text-flag" : "text-sage", "patterns not fully staffed"],
           ["Notes owed", String(owedSum.missing), owedSum.overdue ? "text-flag" : owedSum.missing ? "text-[#8a5a10]" : "text-sage", owedSum.overdue ? `${owedSum.overdue} overdue` : `${owedSum.written} of ${owedSum.expected} written`],
         ].map(([title, value, tone, hint]) => (
-          <div key={title} className="card p-4">
+          <div key={title} className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{title}</p>
-            <p className={cn("mt-1 font-display text-2xl font-bold", tone)}>{value}</p>
+            <p className={cn("mt-0.5 font-display text-xl font-bold", tone)}>{value}</p>
             <p className="text-xs text-mute">{hint}</p>
           </div>
         ))}

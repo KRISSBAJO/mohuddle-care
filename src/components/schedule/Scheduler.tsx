@@ -635,7 +635,7 @@ export function Scheduler(props: Props) {
           const body = (
             <>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{card.title}</p>
-              <p className={cn("mt-1 font-display text-2xl font-bold", card.tone)}>{card.value}</p>
+              <p className={cn("mt-0.5 font-display text-xl font-bold", card.tone)}>{card.value}</p>
               <p className="text-[11px] text-mute">{card.hint}</p>
             </>
           );

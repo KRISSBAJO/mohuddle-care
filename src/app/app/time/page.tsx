@@ -105,9 +105,9 @@ function LiveView({ board, now }: { board: Board; now: number }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(stat => (
-          <div key={stat.title} className="card p-4">
+          <div key={stat.title} className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">{stat.title}</p>
-            <p className={cn("mt-1 font-display text-3xl font-bold", stat.tone === "good" && "text-sage", stat.tone === "warn" && "text-[#8a5a10]", stat.tone === "bad" && "text-flag")}>{stat.value}</p>
+            <p className={cn("mt-0.5 font-display text-xl font-bold", stat.tone === "good" && "text-sage", stat.tone === "warn" && "text-[#8a5a10]", stat.tone === "bad" && "text-flag")}>{stat.value}</p>
             <p className="text-xs text-mute">{stat.hint}</p>
           </div>
         ))}
