@@ -165,6 +165,12 @@
 
 /* Operations workspace: persistent navigation, clear priority, compact readable data. */
 .hub-shell { background: #f7f8f5; }
+/* The dashboard uses Inter for everything, including menus and dialogs placed outside the shell. */
+body:has(.hub-shell) {
+  --font-sans: var(--font-inter), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-inter), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
+}
 .hub-sidebar { background: linear-gradient(180deg, #153a32 0%, #11302a 100%); position: sticky; top: 0; height: 100dvh; width: 244px; padding: 22px 14px 16px; border-right: 1px solid #ffffff0f; }
 .hub-nav { scrollbar-width: thin; scrollbar-color: #ffffff22 transparent; }
 .hub-sidebar .hub-nav-active { background: #dcef98; color: #173e35; box-shadow: 0 4px 12px #071d1614; }
