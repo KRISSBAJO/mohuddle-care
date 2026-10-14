@@ -251,7 +251,7 @@
   .hub-progress-ring { width: 72px; height: 72px; }
   .hub-progress-ring > span { font-size: 20px; }
   .hub-topbar-title { font-size: 10px; }
-  .hub-topbar-account > div:first-child { display: none; }
+  .hub-topbar-account > div.text-right { display: none; }
   .life-section { padding: 50px 0; }
   .life-gallery { grid-template-columns: 1fr; gap: 28px; }
   .life-gallery-item > .care-photo { aspect-ratio: 4 / 3; }

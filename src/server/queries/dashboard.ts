@@ -30,17 +30,21 @@ export async function todayOverview() {
       homeId: schema.homes.id,
       staffFirst: schema.staff.firstName,
       staffLast: schema.staff.lastName,
+      staffPhone: schema.staff.phone,
+      pattern: schema.shiftPatterns.name,
     })
     .from(schema.shifts)
     .innerJoin(schema.homes, eq(schema.homes.id, schema.shifts.homeId))
     .leftJoin(schema.staff, eq(schema.staff.id, schema.shifts.staffId))
+    .leftJoin(schema.shiftPatterns, eq(schema.shiftPatterns.id, schema.shifts.patternId))
     .where(and(lte(schema.shifts.startsAt, now), gte(schema.shifts.endsAt, now), inArray(schema.shifts.status, ["open", "scheduled", "confirmed"])))
     .orderBy(asc(schema.homes.name));
 
   const openShifts = await db
-    .select({ id: schema.shifts.id, startsAt: schema.shifts.startsAt, kind: schema.shifts.kind, home: schema.homes.name })
+    .select({ id: schema.shifts.id, startsAt: schema.shifts.startsAt, endsAt: schema.shifts.endsAt, kind: schema.shifts.kind, home: schema.homes.name, homeId: schema.homes.id, pattern: schema.shiftPatterns.name })
     .from(schema.shifts)
     .innerJoin(schema.homes, eq(schema.homes.id, schema.shifts.homeId))
+    .leftJoin(schema.shiftPatterns, eq(schema.shiftPatterns.id, schema.shifts.patternId))
     .where(and(or(eq(schema.shifts.status, "open"), isNull(schema.shifts.staffId)), gte(schema.shifts.endsAt, now), lt(schema.shifts.startsAt, zonedTime(addDays(today, 7), "00:00"))))
     .orderBy(asc(schema.shifts.startsAt))
     .limit(8);
@@ -60,10 +64,12 @@ export async function todayOverview() {
       first: schema.individuals.firstName,
       last: schema.individuals.lastName,
       individualId: schema.individuals.id,
+      home: schema.homes.name,
     })
     .from(schema.medAdministrations)
     .innerJoin(schema.medications, eq(schema.medications.id, schema.medAdministrations.medicationId))
     .innerJoin(schema.individuals, eq(schema.individuals.id, schema.medAdministrations.individualId))
+    .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
     .where(and(eq(schema.medAdministrations.status, "due"), lte(schema.medAdministrations.scheduledFor, lateBefore)))
     .orderBy(asc(schema.medAdministrations.scheduledFor))
     .limit(8);
@@ -79,6 +85,7 @@ export async function todayOverview() {
       severity: schema.incidents.severity,
       status: schema.incidents.status,
       reportable: schema.incidents.reportable,
+      stateFiledAt: schema.incidents.stateFiledAt,
       first: schema.individuals.firstName,
       last: schema.individuals.lastName,
       home: schema.homes.name,
