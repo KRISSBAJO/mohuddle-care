@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "milestone",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/kriss/milestone/node_modules/next/dist/bin/next",
+        "dev",
+        "C:/Users/kriss/milestone",
+        "--turbopack",
+        "--port",
+        "3400",
+        "--hostname",
+        "127.0.0.1"
+      ],
+      "port": 3400
+    }
+  ]
+}

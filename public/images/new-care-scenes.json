@@ -1,0 +1,23 @@
+{
+  "tool": "Built-in ImageGen",
+  "generatedOn": "2026-10-12",
+  "note": "Fictional illustrative subjects, not actual Milestone clients or staff.",
+  "assets": [
+    {
+      "file": "care-art.png",
+      "prompt": "Use case: photorealistic-natural. Asset: landscape 3:2 editorial website photograph for person-centered disability day services. Three adults enjoying a watercolor art activity in a bright welcoming community studio: an adult Black woman with Down syndrome in a soft ivory cardigan painting independently, an adult Latino man in a rust shirt seated in a manual wheelchair painting, and a female support professional in a sage linen shirt sharing a relaxed smile while seated alongside. Focus on agency, joy and creative everyday life, respectful eye-level view, hands and paint materials naturally rendered, realistic skin texture, sunlit plants, warm wood, muted forest greens and terracotta, premium candid documentary photography, subtle film grain, no medical uniforms, no text or logos, no watermark. All people fictional illustrative subjects."
+    },
+    {
+      "file": "care-kitchen.png",
+      "prompt": "Use case: photorealistic-natural. Asset: landscape 3:2 premium editorial website photograph for supported living and personal assistance. In a beautiful ordinary warm residential kitchen, a young adult white man with Down syndrome in an oatmeal shirt is preparing a colorful salad himself at a wooden counter. A Black female direct support professional in her thirties in a sage shirt stands alongside engaged in friendly conversation, supporting rather than taking over. Natural eye-level candid photo, warm afternoon sunlight, calm joy, believable hands and vegetables, plants and muted ivory cabinetry, forest green and honey wood palette, realistic skin textures, polished documentary lifestyle photography, subtle film grain, no text, no logos, no hospital or medical uniforms, no watermark. Fictional illustrative people."
+    },
+    {
+      "file": "care-team.png",
+      "prompt": "Use case: photorealistic-natural. Asset: landscape 3:2 editorial website photograph for careers and employment application card at a home and community care provider. Three diverse care professionals in their thirties and forties: Black woman in sage casual blouse, Asian man in ivory polo, Latina nurse in muted forest green scrubs, gathered around a warm wood table in a bright welcoming small office with leafy plants. Relaxed authentic collaboration, open notebook without readable words, discussing and smiling naturally, chest-up and seated eye-level framing, soft daylight, muted forest green ivory warm ochre palette, realistic skin and hands, high-end documentary photography, subtle film grain, no logos, text, badges or watermarks, no visible patient data. Entirely fictional illustrative people."
+    },
+    {
+      "file": "care-family.png",
+      "prompt": "Use case: photorealistic-natural. Asset: landscape 3:2 editorial website photograph for foster parenting application card and family support. A caring multiracial foster-family scene in a cozy sunlit living room: a Black father in his forties in a forest green overshirt and a white mother in her forties in an ivory knit cardigan, sharing a picture book with a twelve-year-old girl with brown skin and curly hair seated comfortably between them on a neutral couch. Natural warmth, laughter and genuine connection, respectful ordinary family life, wooden coffee table plants muted ochre cushions, high-end candid lifestyle photograph, realistic faces skin texture and hands, soft window light, no staged camera pose, no text logos watermarks, no medical setting. All subjects fictional illustrative people."
+    }
+  ]
+}
