@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 /* Roles decide what a signed-in person may do inside the Hub. */
 export const userRole = pgEnum("user_role", ["admin", "coordinator", "nurse", "dsp"]);
@@ -34,6 +34,9 @@ export const incidentSeverity = pgEnum("incident_severity", ["low", "moderate", 
 export const incidentStatus = pgEnum("incident_status", ["open", "under_review", "closed"]);
 export const taskPriority = pgEnum("task_priority", ["low", "normal", "high"]);
 export const taskStatus = pgEnum("task_status", ["open", "done"]);
+export const expenseStatus = pgEnum("expense_status", ["pending", "approved", "rejected"]);
+export const issuePriority = pgEnum("issue_priority", ["low", "normal", "high", "urgent"]);
+export const issueStatus = pgEnum("issue_status", ["open", "in_progress", "resolved"]);
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -52,6 +55,10 @@ export const homes = pgTable("homes", {
   // The schedule reports a coverage gap only for these.
   staffedKinds: jsonb("staffed_kinds").$type<("day" | "evening" | "overnight")[]>().notNull().default(sql`'["day","evening","overnight"]'::jsonb`),
   openDays: jsonb("open_days").$type<number[]>().notNull().default(sql`'[1,2,3,4,5,6,7]'::jsonb`),
+  // The person responsible for the home day to day, usually its residential manager.
+  managerStaffId: uuid("manager_staff_id").references((): AnyPgColumn => staff.id, { onDelete: "set null" }),
+  // Spending limit per calendar month, in cents. Null means no budget set.
+  monthlyBudgetCents: integer("monthly_budget_cents"),
   createdAt: createdAt(),
 });
 
@@ -273,3 +280,54 @@ export const auditLog = pgTable("audit_log", {
   entityId: text("entity_id").notNull().default(""),
   at: createdAt(),
 });
+
+/*
+ * Money spent for a home. Amounts are cents. Small amounts are approved on entry; larger ones wait
+ * for a coordinator or the home manager, set by expense_approval_dollars. Nobody reviews their own.
+ */
+export const homeExpenses = pgTable(
+  "home_expenses",
+  {
+    id: id(),
+    homeId: uuid("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    spentOn: date("spent_on").notNull(),
+    category: text("category").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    vendor: text("vendor").notNull().default(""),
+    description: text("description").notNull().default(""),
+    paymentMethod: text("payment_method").notNull().default("company_card"),
+    submittedBy: uuid("submitted_by").references(() => users.id, { onDelete: "set null" }),
+    status: expenseStatus("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [index("home_expenses_home_day").on(table.homeId, table.spentOn)],
+);
+
+/* Problems with a home itself: repairs, safety, supplies, the van. Not incidents involving a person. */
+export const homeIssues = pgTable(
+  "home_issues",
+  {
+    id: id(),
+    homeId: uuid("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    details: text("details").notNull().default(""),
+    category: text("category").notNull(),
+    priority: issuePriority("priority").notNull().default("normal"),
+    status: issueStatus("status").notNull().default("open"),
+    reportedBy: uuid("reported_by").references(() => users.id, { onDelete: "set null" }),
+    assignedTo: uuid("assigned_to").references(() => staff.id, { onDelete: "set null" }),
+    dueOn: date("due_on"),
+    resolution: text("resolution").notNull().default(""),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index("home_issues_home_status").on(table.homeId, table.status)],
+);

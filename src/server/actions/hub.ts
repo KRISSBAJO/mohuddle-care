@@ -150,6 +150,7 @@ export async function recordMedication(adminId: string, status: "given" | "refus
     await tx.insert(schema.auditLog).values({ userId: user.id, action: `med:${status}`, entity: "med_administration", entityId: adminId });
   });
   revalidatePath("/app/medications");
+  revalidatePath("/app/homes/[id]", "page");
   revalidatePath("/app");
 }
 

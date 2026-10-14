@@ -53,9 +53,9 @@ async function main() {
     .insert(schema.homes)
     .values([
       { name: "Hillcrest House", type: "group_home", address: "4120 Hillcrest Drive", city: "Nashville", capacity: 4, phone: "615-555-0141" },
-      { name: "Maple Family Home", type: "family_model", address: "88 Maple Court", city: "Murfreesboro", capacity: 2, phone: "615-555-0162" },
-      { name: "Riverside Apartments", type: "supported_living", address: "2200 Riverside Way, Apt 4B and 4C", city: "Nashville", capacity: 3, phone: "" },
-      { name: "Murfreesboro Pike Day Program", type: "day_program", address: "2131 Murfreesboro Pike, Suite 202A", city: "Nashville", capacity: 12, phone: "615-964-7088" },
+      { name: "Maple Family Home", type: "family_model", address: "88 Maple Court", city: "Murfreesboro", capacity: 2, phone: "615-555-0162", staffedKinds: [] },
+      { name: "Riverside Apartments", type: "supported_living", address: "2200 Riverside Way, Apt 4B and 4C", city: "Nashville", capacity: 3, phone: "", staffedKinds: [] },
+      { name: "Murfreesboro Pike Day Program", type: "day_program", address: "2131 Murfreesboro Pike, Suite 202A", city: "Nashville", capacity: 12, phone: "615-964-7088", staffedKinds: ["day"], openDays: [1, 2, 3, 4, 5] },
     ])
     .returning();
 
@@ -76,11 +76,24 @@ async function main() {
   const [angela, marcus, priya, jamal, sofia, terrence, hannah, luis, grace] = staffRows;
 
   const adminHash = await hash(adminPassword, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
-  await db.insert(schema.users).values([
-    { email: adminEmail, name: "Angela Reyes", role: "admin", passwordHash: adminHash, staffId: angela.id },
-    { email: "jamal.carter@milestonecare.net", name: "Jamal Carter", role: "dsp", passwordHash: adminHash, staffId: jamal.id },
-    { email: "priya.n@milestonecare.net", name: "Priya Natarajan", role: "nurse", passwordHash: adminHash, staffId: priya.id },
-  ]);
+  const [adminUser, jamalUser] = await db
+    .insert(schema.users)
+    .values([
+      { email: adminEmail, name: "Angela Reyes", role: "admin", passwordHash: adminHash, staffId: angela.id },
+      { email: "jamal.carter@milestonecare.net", name: "Jamal Carter", role: "dsp", passwordHash: adminHash, staffId: jamal.id },
+      { email: "priya.n@milestonecare.net", name: "Priya Natarajan", role: "nurse", passwordHash: adminHash, staffId: priya.id },
+    ])
+    .returning();
+
+  // Each home's manager and monthly budget.
+  for (const [home, manager, cents] of [
+    [hillcrest, marcus, 240_000],
+    [maple, grace, 90_000],
+    [dayProgram, luis, 120_000],
+    [riverside, hannah, 60_000],
+  ] as const) {
+    await db.update(schema.homes).set({ managerStaffId: manager.id, monthlyBudgetCents: cents }).where(sql`id = ${home.id}`);
+  }
 
   const expSoon = addDays(today, 12);
   const expLater = addDays(today, 140);
@@ -240,6 +253,23 @@ async function main() {
     { kind: "contact", name: "Case manager, TennCare ECF CHOICES", email: "referrals@example.org", phone: "", interest: "Day Services", message: "Referral for a 31-year-old man in Smyrna. Please send intake paperwork.", handled: true },
   ]);
 
+  await db.insert(schema.homeExpenses).values([
+    { homeId: hillcrest.id, spentOn: addDays(today, -12), category: "Groceries", amountCents: 18_640, vendor: "Kroger, Nolensville Pike", description: "Weekly groceries", paymentMethod: "company_card", submittedBy: jamalUser.id, status: "approved", reviewedBy: adminUser.id, reviewedAt: new Date() },
+    { homeId: hillcrest.id, spentOn: addDays(today, -5), category: "Groceries", amountCents: 17_215, vendor: "Kroger, Nolensville Pike", description: "Weekly groceries", paymentMethod: "company_card", submittedBy: jamalUser.id, status: "approved", reviewedBy: adminUser.id, reviewedAt: new Date() },
+    { homeId: hillcrest.id, spentOn: addDays(today, -9), category: "Household supplies", amountCents: 4_320, vendor: "Walmart", description: "Cleaning supplies and paper towels", paymentMethod: "petty_cash", submittedBy: jamalUser.id, status: "approved" },
+    { homeId: hillcrest.id, spentOn: addDays(today, -1), category: "Repairs and maintenance", amountCents: 28_500, vendor: "Music City Plumbing", description: "Kitchen tap replaced", paymentMethod: "invoice", submittedBy: jamalUser.id, status: "pending" },
+    { homeId: maple.id, spentOn: addDays(today, -8), category: "Groceries", amountCents: 9_120, vendor: "Publix", description: "Groceries for Kevin", paymentMethod: "staff_paid", submittedBy: adminUser.id, status: "approved" },
+    { homeId: dayProgram.id, spentOn: addDays(today, -6), category: "Activities and outings", amountCents: 7_850, vendor: "Michaels", description: "Art supplies for the program", paymentMethod: "company_card", submittedBy: adminUser.id, status: "approved" },
+  ]);
+
+  await db.insert(schema.homeIssues).values([
+    { homeId: hillcrest.id, title: "Smoke detector chirping in hallway", details: "Low battery chirp started last night. Battery is a 9V.", category: "Safety", priority: "urgent", reportedBy: jamalUser.id, assignedTo: marcus.id, dueOn: today },
+    { homeId: hillcrest.id, title: "Kitchen tap leaking", details: "Drips constantly from the base.", category: "Repairs", priority: "high", status: "in_progress", reportedBy: jamalUser.id, assignedTo: marcus.id, dueOn: addDays(today, 2), resolution: "Plumber came, part on order." },
+    { homeId: hillcrest.id, title: "Van tyre pressure light on", details: "Came on during the drive back from swimming.", category: "Vehicle", priority: "normal", reportedBy: adminUser.id, assignedTo: marcus.id, dueOn: addDays(today, -2) },
+    { homeId: riverside.id, title: "Wi-Fi drops in apartment 4C", details: "Samuel says it cuts out most evenings.", category: "Phones and IT", priority: "low", reportedBy: adminUser.id, assignedTo: hannah.id },
+    { homeId: maple.id, title: "Back door lock sticks", details: "Hard to open from outside.", category: "Repairs", priority: "normal", status: "resolved", reportedBy: adminUser.id, assignedTo: grace.id, resolution: "Locksmith adjusted the strike plate.", resolvedAt: new Date() },
+  ]);
+
   await db.insert(schema.settings).values([
     { key: "credential_warning_days", value: 30 },
     { key: "daily_log_due_hour", value: 22 },
@@ -247,6 +277,7 @@ async function main() {
     { key: "incident_report_hours", value: 24 },
     { key: "shift_coverage_minimum", value: 1 },
     { key: "required_daily_checks", value: checks },
+    { key: "expense_approval_dollars", value: 100 },
     { key: "credential_types", value: ["CPR and First Aid", "DIDD Core Training", "Background Check", "Medication Administration", "Driver Licence"] },
   ]);
 

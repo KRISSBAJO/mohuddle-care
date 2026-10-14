@@ -42,6 +42,10 @@ export const labels = {
   incidentSeverity: { low: "Low", moderate: "Moderate", high: "High", critical: "Critical" },
   incidentStatus: { open: "Open", under_review: "Under review", closed: "Closed" },
   taskPriority: { low: "Low", normal: "Normal", high: "High" },
+  issuePriority: { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" },
+  issueStatus: { open: "Open", in_progress: "In progress", resolved: "Resolved" },
+  expenseStatus: { pending: "Waiting for approval", approved: "Approved", rejected: "Rejected" },
+  paymentMethod: { company_card: "Company card", petty_cash: "Petty cash", staff_paid: "Staff paid, to reimburse", invoice: "Invoice" },
 } as const;
 
 export type LabelGroup = keyof typeof labels;
@@ -133,3 +137,31 @@ export function age(dob: string | null | undefined, today = dateKey()): number |
 }
 
 export const initials = (first: string, last: string) => `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+
+const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const wholeDollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/* Money is stored in cents and shown in dollars. */
+export const money = (cents: number | null | undefined, whole = false) => (whole ? wholeDollars : dollars).format((cents ?? 0) / 100);
+
+/* "12.50" or "$1,200" typed by a person, as cents. Null when it is not a valid amount. */
+export function parseMoney(input: string): number | null {
+  const cleaned = input.replace(/[$,\s]/g, "");
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(cleaned)) return null;
+  return Math.round(Number(cleaned) * 100);
+}
+
+/* A calendar month "2026-10": its first day, and the first day of the next month. */
+export function monthRange(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return { from: `${month}-01`, to: `${next}-01` };
+}
+
+export function shiftMonth(month: string, by: number) {
+  const [y, m] = month.split("-").map(Number);
+  const index = y * 12 + (m - 1) + by;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
+export const monthLabel = (month: string) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${month}-15T12:00:00Z`));

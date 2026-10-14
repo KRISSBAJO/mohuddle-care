@@ -191,7 +191,8 @@ export async function updateHome(id: string, _previous: FormState, formData: For
   await db.update(schema.homes).set(parsed.data).where(eq(schema.homes.id, id));
   await db.insert(schema.auditLog).values({ userId: user.id, action: "update", entity: "home", entityId: id });
   revalidatePath("/app/homes");
-  redirect("/app/homes?saved=1");
+  revalidatePath(`/app/homes/${id}`);
+  return {};
 }
 
 /*

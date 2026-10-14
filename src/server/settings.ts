@@ -99,6 +99,24 @@ export const settingDefs = {
       "Goal activity offered",
     ],
   },
+  expense_approval_dollars: {
+    label: "Home expenses above this many dollars need approval (0 means every expense does)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(100000),
+    fallback: 100,
+  },
+  expense_categories: {
+    label: "Expense categories for homes (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Groceries", "Household supplies", "Repairs and maintenance", "Utilities", "Transportation", "Activities and outings", "Medical supplies", "Other"],
+  },
+  issue_categories: {
+    label: "Home issue categories (one per line)",
+    kind: "list",
+    schema: z.array(z.string().min(1)).min(1),
+    fallback: ["Repairs", "Safety", "Supplies", "Vehicle", "Utilities", "Neighbours", "Phones and IT", "Other"],
+  },
   credential_types: {
     label: "Credential types tracked for staff (one per line)",
     kind: "list",
