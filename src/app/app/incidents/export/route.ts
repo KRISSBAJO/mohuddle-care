@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const params = Object.fromEntries(new URL(request.url).searchParams.entries());
   const rows = await exportIncidents(parseIncidentQuery(params));
   const csv = toCsv([
-    ["Occurred (Central)", "Reported", "Person", "Home", "Category", "Severity", "Status", "Reportable", "Filing deadline", "Closed", "Reported by", "What happened", "What was done"],
+    ["Occurred (Central)", "Reported", "Person", "Home", "Category", "Severity", "Status", "Reportable", "Filing deadline", "Filed with state", "State reference", "Closed", "Reported by", "What happened", "What was done"],
     ...rows.map(row => [
       stamp(row.occurredAt),
       stamp(row.createdAt),
@@ -24,6 +24,8 @@ export async function GET(request: Request) {
       label("incidentStatus", row.status),
       row.reportable ? "Yes" : "No",
       row.reportable ? stamp(row.deadline) : "",
+      stamp(row.stateFiledAt),
+      row.stateReference,
       stamp(row.closedAt),
       row.reporter ?? "",
       row.description,

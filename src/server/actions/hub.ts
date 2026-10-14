@@ -181,18 +181,6 @@ export async function createIncident(_p: FormState, formData: FormData): Promise
   redirect(`/app/incidents/${row.id}`);
 }
 
-export async function setIncidentStatus(id: string, status: "open" | "under_review" | "closed") {
-  const user = await requireManager();
-  await db
-    .update(schema.incidents)
-    .set({ status, closedAt: status === "closed" ? new Date() : null })
-    .where(eq(schema.incidents.id, id));
-  await audit(user.id, `incident:${status}`, "incident", id);
-  revalidatePath(`/app/incidents/${id}`);
-  revalidatePath("/app/incidents");
-  revalidatePath("/app");
-}
-
 /* ---------- Tasks ---------- */
 
 const taskSchema = z.object({

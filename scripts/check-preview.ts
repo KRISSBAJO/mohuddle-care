@@ -19,10 +19,10 @@ async function main() {
     assert.equal(unauthenticated.status, 307);
     assert.ok(unauthenticated.headers.get("location")?.includes("/login"));
     const { rows: people } = await pool.query("select id from individuals limit 1");
-    const { rows: incidents } = await pool.query("select id from incidents limit 1");
+    const { rows: incidents } = await pool.query("select id from incidents order by status");
     const routes = ["/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];
     if (people[0]) routes.push(`/app/individuals/${people[0].id}`, `/app/individuals/${people[0].id}/edit`);
-    if (incidents[0]) routes.push(`/app/incidents/${incidents[0].id}`);
+    for (const incident of incidents) routes.push(`/app/incidents/${incident.id}`);
     routes.push("/app/incidents?status=active&sort=deadline&dir=desc&reportable=yes&period=all&per=10&page=3", "/app/incidents?q=headphones&severity=moderate&category=behavioural&home=none&attention=serious", "/app/homes/new", "/app/homes?view=table&sort=budget&dir=asc", "/app/homes?attention=late-meds&type=group_home&q=hill&per=6&page=4", "/app/homes?status=all&sort=vacancies", "/app/account", "/app/staff?q=a&role=dsp&login=none&cred=any&sort=expiry&dir=desc&per=10&page=2", "/app/staff?status=all&sort=home", "/app/individuals?q=e&attention=no-log&sort=lastLog&dir=desc&per=10&page=3", "/app/individuals?status=all&sort=age", "/app/schedule?view=staff", "/app/schedule?view=day&day=2026-10-14", "/app/schedule?week=2025-03-09", "/app/schedule?week=not-a-date");
     const { rows: staff } = await pool.query("select id from staff where active limit 1");
     const { rows: homes } = await pool.query("select id from homes where active limit 1");

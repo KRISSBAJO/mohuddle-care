@@ -242,6 +242,10 @@ export const incidents = pgTable("incidents", {
   reportable: boolean("reportable").notNull().default(false),
   status: incidentStatus("status").notNull().default("open"),
   closedAt: timestamp("closed_at", { withTimezone: true }),
+  // Reportable incidents: when the report was filed with the state, its reference and who filed it.
+  stateFiledAt: timestamp("state_filed_at", { withTimezone: true }),
+  stateReference: text("state_reference").notNull().default(""),
+  stateFiledBy: uuid("state_filed_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
 
@@ -336,4 +340,20 @@ export const homeIssues = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   table => [index("home_issues_home_status").on(table.homeId, table.status)],
+);
+
+/* Follow-up notes on an incident. The original account is never edited; anything learned later is added here. */
+export const incidentNotes = pgTable(
+  "incident_notes",
+  {
+    id: id(),
+    incidentId: uuid("incident_id")
+      .notNull()
+      .references(() => incidents.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    kind: text("kind").notNull().default("note"),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  table => [index("incident_notes_incident").on(table.incidentId, table.createdAt)],
 );

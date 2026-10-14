@@ -77,8 +77,8 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
 
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Stat label="Filing overdue" value={summary.overdue} hint={`Reportable, past ${hours} hours, not closed`} icon={FileWarning} tone={summary.overdue ? "bad" : "good"} href={tile({ attention: "filing-overdue" })} />
-          <Stat label="Filing due" value={summary.dueSoon} hint="Reportable and still inside the deadline" icon={AlertOctagon} tone={summary.dueSoon ? "warn" : "good"} href={tile({ attention: "filing-due", sort: "deadline" })} />
+          <Stat label="Filing overdue" value={summary.overdue} hint={`Reportable, not filed within ${hours} hours`} icon={FileWarning} tone={summary.overdue ? "bad" : "good"} href={tile({ attention: "filing-overdue" })} />
+          <Stat label="Filing due" value={summary.dueSoon} hint="Reportable, not filed yet, still in time" icon={AlertOctagon} tone={summary.dueSoon ? "warn" : "good"} href={tile({ attention: "filing-due", sort: "deadline" })} />
           <Stat label="Serious and open" value={summary.serious} hint="High or critical, not closed" icon={AlertTriangle} tone={summary.serious ? "bad" : "good"} href={tile({ attention: "serious", sort: "severity" })} />
           <Stat label="Open" value={summary.open} hint="Waiting for a coordinator" icon={ClipboardList} tone={summary.open ? "warn" : "good"} href={tile({ status: "open" })} />
           <Stat label="Under review" value={summary.review} hint="Being looked into" icon={ClipboardList} tone="brand" href={tile({ status: "under_review" })} />
@@ -172,7 +172,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
             </thead>
             <tbody>
               {rows.map(row => {
-                const live = row.reportable && row.status !== "closed";
+                const live = row.reportable && !row.stateFiledAt;
                 const left = row.deadline.getTime() - now;
                 return (
                   <tr key={row.id} className={cn("group hover:bg-panel/50", live && left < 0 && "bg-flag-soft/30")}>
@@ -203,7 +203,10 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
                       {!row.reportable ? (
                         <span className="text-xs text-dim">Not reportable</span>
                       ) : !live ? (
-                        <Badge tone="neutral">Reportable · closed</Badge>
+                        <span>
+                          <Badge tone="good">Filed {fmt.day(row.stateFiledAt!)}</Badge>
+                          {row.stateReference && <span className="mt-0.5 block text-[11px] text-mute">#{row.stateReference}</span>}
+                        </span>
                       ) : (
                         <span>
                           <Badge tone={left < 0 ? "bad" : left < 6 * 3_600_000 ? "warn" : "brand"}>{timeLeft(left)}</Badge>

@@ -16,8 +16,8 @@ export const incidentSorts = {
 export const incidentPeriods = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days", "365": "Last 12 months", all: "Any time" } as const;
 export const incidentAttention = {
   any: "Anything",
-  "filing-overdue": "Filing overdue",
-  "filing-due": "Filing due soon",
+  "filing-overdue": "Not filed, overdue",
+  "filing-due": "Not filed, still in time",
   serious: "High or critical, not closed",
   "no-actions": "No actions recorded",
 } as const;
@@ -109,8 +109,9 @@ async function incidentWhere(query: IncidentQuery) {
       sql`(${i.description} ilike ${term} or ${i.actionsTaken} ilike ${term} or (${schema.individuals.firstName} || ' ' || ${schema.individuals.lastName}) ilike ${term} or ${schema.homes.name} ilike ${term})`,
     );
   }
-  if (query.attention === "filing-overdue") conditions.push(sql`${i.reportable} and ${i.status} <> 'closed' and ${deadline} < ${now.toISOString()}`);
-  if (query.attention === "filing-due") conditions.push(sql`${i.reportable} and ${i.status} <> 'closed' and ${deadline} >= ${now.toISOString()}`);
+  // A reportable incident is waiting to be filed until a filing date is recorded, whatever its status.
+  if (query.attention === "filing-overdue") conditions.push(sql`${i.reportable} and ${i.stateFiledAt} is null and ${deadline} < ${now.toISOString()}`);
+  if (query.attention === "filing-due") conditions.push(sql`${i.reportable} and ${i.stateFiledAt} is null and ${deadline} >= ${now.toISOString()}`);
   if (query.attention === "serious") conditions.push(sql`${i.severity} in ('high', 'critical') and ${i.status} <> 'closed'`);
   if (query.attention === "no-actions") conditions.push(sql`trim(${i.actionsTaken}) = ''`);
   return { where: and(...conditions), deadline, hours: settings.incident_report_hours };
@@ -128,6 +129,8 @@ function baseSelect(deadline: SQL) {
       severity: i.severity,
       status: i.status,
       reportable: i.reportable,
+      stateFiledAt: i.stateFiledAt,
+      stateReference: i.stateReference,
       description: i.description,
       actionsTaken: i.actionsTaken,
       individualId: i.individualId,
@@ -154,7 +157,7 @@ function orderFor(query: IncidentQuery, deadline: SQL) {
     occurred: [sql`${i.occurredAt} ${dir}`],
     severity: [sql`${severityRank} ${dir}`, newest],
     // Only reportable incidents that are not closed have a live deadline; the rest go last.
-    deadline: [sql`case when ${i.reportable} and ${i.status} <> 'closed' then 0 else 1 end asc`, sql`${deadline} ${dir}`, newest],
+    deadline: [sql`case when ${i.reportable} and ${i.stateFiledAt} is null then 0 else 1 end asc`, sql`${deadline} ${dir}`, newest],
     status: [sql`${statusRank} ${dir}`, newest],
     category: [sql`${i.category}::text ${dir}`, newest],
     person: [sql`${schema.individuals.firstName} ${dir} nulls last`, sql`${schema.individuals.lastName} ${dir}`, newest],
@@ -185,8 +188,8 @@ export async function searchIncidents(query: IncidentQuery) {
     .select({
       open: sql<number>`count(*) filter (where ${i.status} = 'open')`,
       review: sql<number>`count(*) filter (where ${i.status} = 'under_review')`,
-      overdue: sql<number>`count(*) filter (where ${i.reportable} and ${i.status} <> 'closed' and ${deadline} < ${now})`,
-      dueSoon: sql<number>`count(*) filter (where ${i.reportable} and ${i.status} <> 'closed' and ${deadline} >= ${now})`,
+      overdue: sql<number>`count(*) filter (where ${i.reportable} and ${i.stateFiledAt} is null and ${deadline} < ${now})`,
+      dueSoon: sql<number>`count(*) filter (where ${i.reportable} and ${i.stateFiledAt} is null and ${deadline} >= ${now})`,
       serious: sql<number>`count(*) filter (where ${i.severity} in ('high', 'critical') and ${i.status} <> 'closed')`,
       last30: sql<number>`count(*) filter (where ${i.occurredAt} >= now() - interval '30 days')`,
       prior30: sql<number>`count(*) filter (where ${i.occurredAt} >= now() - interval '60 days' and ${i.occurredAt} < now() - interval '30 days')`,
@@ -234,3 +237,60 @@ export const incidentFilterOptions = async () => {
     .orderBy(schema.individuals.firstName, schema.individuals.lastName);
   return { homes, people };
 };
+
+/* Everything the incident page shows: the report, the person, the timeline and related incidents. */
+export async function incidentRecord(id: string) {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
+  const settings = await getSettings();
+  const i = schema.incidents;
+  const [row] = await db
+    .select({
+      incident: i,
+      person: schema.individuals,
+      home: schema.homes.name,
+      reporter: sql<string | null>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`,
+      filedBy: sql<string | null>`(select u.name from users u where u.id = ${i.stateFiledBy})`,
+    })
+    .from(i)
+    .leftJoin(schema.individuals, eq(schema.individuals.id, i.individualId))
+    .leftJoin(schema.homes, eq(schema.homes.id, i.homeId))
+    .leftJoin(schema.staff, eq(schema.staff.id, i.reportedBy))
+    .where(eq(i.id, id))
+    .limit(1);
+  if (!row) return null;
+
+  const notes = await db
+    .select({ id: schema.incidentNotes.id, kind: schema.incidentNotes.kind, body: schema.incidentNotes.body, at: schema.incidentNotes.createdAt, by: schema.users.name })
+    .from(schema.incidentNotes)
+    .leftJoin(schema.users, eq(schema.users.id, schema.incidentNotes.userId))
+    .where(eq(schema.incidentNotes.incidentId, id));
+  // Status changes made before the timeline existed were only in the audit log.
+  const legacy = await db
+    .select({ id: schema.auditLog.id, action: schema.auditLog.action, at: schema.auditLog.at, by: schema.users.name })
+    .from(schema.auditLog)
+    .leftJoin(schema.users, eq(schema.users.id, schema.auditLog.userId))
+    .where(and(eq(schema.auditLog.entity, "incident"), eq(schema.auditLog.entityId, id), sql`${schema.auditLog.action} in ('incident:under_review', 'incident:closed', 'incident:open')`));
+  const legacyText: Record<string, string> = { "incident:under_review": "Review started.", "incident:closed": "Closed.", "incident:open": "Reopened." };
+  const timeline = [
+    { id: "reported", kind: "reported", body: "Incident reported.", at: row.incident.createdAt, by: row.reporter },
+    ...notes,
+    ...legacy.map(entry => ({ id: entry.id, kind: entry.action.replace("incident:", ""), body: legacyText[entry.action], at: entry.at, by: entry.by })),
+  ].sort((a, b) => a.at.getTime() - b.at.getTime());
+
+  const others = row.person
+    ? await db
+        .select({ id: i.id, occurredAt: i.occurredAt, category: i.category, severity: i.severity, status: i.status })
+        .from(i)
+        .where(and(eq(i.individualId, row.person.id), sql`${i.id} <> ${id}`))
+        .orderBy(desc(i.occurredAt))
+        .limit(5)
+    : [];
+
+  return {
+    ...row,
+    deadline: new Date(row.incident.occurredAt.getTime() + settings.incident_report_hours * 3_600_000),
+    hours: settings.incident_report_hours,
+    timeline,
+    others,
+  };
+}

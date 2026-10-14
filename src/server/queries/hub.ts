@@ -161,25 +161,6 @@ export function shiftsForWeek(weekStartDay: string) {
     .orderBy(asc(schema.shifts.startsAt));
 }
 
-export async function incidentDetail(id: string) {
-  const rows = await db
-    .select({
-      incident: schema.incidents,
-      first: schema.individuals.firstName,
-      last: schema.individuals.lastName,
-      individualId: schema.individuals.id,
-      home: schema.homes.name,
-      reporter: sql<string | null>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`,
-    })
-    .from(schema.incidents)
-    .leftJoin(schema.individuals, eq(schema.individuals.id, schema.incidents.individualId))
-    .leftJoin(schema.homes, eq(schema.homes.id, schema.incidents.homeId))
-    .leftJoin(schema.staff, eq(schema.staff.id, schema.incidents.reportedBy))
-    .where(eq(schema.incidents.id, id))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
 export function listTasks(status: "open" | "done" = "open") {
   return db
     .select({

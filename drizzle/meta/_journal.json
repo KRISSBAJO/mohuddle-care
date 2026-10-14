@@ -43,6 +43,13 @@
       "when": 1791990241019,
       "tag": "0005_mighty_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791991806496,
+      "tag": "0006_massive_jocasta",
+      "breakpoints": true
     }
   ]
 }
