@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/server/db/schema";
 import { DEFAULT_TEMPLATES } from "../src/lib/default-sign-templates";
+import { DEMO_CONTACTS, DEMO_INSURANCE } from "../src/lib/demo-care-team";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
@@ -48,7 +49,7 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table signatures, document_request_items, document_requests, documents, sign_templates, notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  await db.execute(sql`truncate table person_contacts, person_insurance, signatures, document_request_items, document_requests, documents, sign_templates, notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
   const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
@@ -256,6 +257,12 @@ async function main() {
   await db.insert(schema.signTemplates).values(
     DEFAULT_TEMPLATES.map(template => ({ title: template.title, category: template.category, body: template.body, initialEach: true, typeId: docTypes.find(type => type.name === template.typeName)?.id ?? null })),
   );
+
+  // Example care teams and insurance (every name, number and ID is invented).
+  for (const [first, person] of [["Brianna", brianna], ["Tasha", tasha]] as const) {
+    await db.insert(schema.personContacts).values(DEMO_CONTACTS[first].map(contact => ({ ...contact, individualId: person.id })));
+    await db.insert(schema.personInsurance).values(DEMO_INSURANCE[first].map(({ renewInDays, ...cover }) => ({ ...cover, individualId: person.id, effectiveTo: renewInDays === null ? null : addDays(today, renewInDays) })));
+  }
 
   // What daily notes cover: the agency default, plus examples for one home and two people.
   await db.insert(schema.noteRequirements).values([

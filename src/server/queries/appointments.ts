@@ -111,7 +111,7 @@ export async function appointmentDetail(id: string) {
     .limit(1);
   if (!row) return null;
   const linkedIds = [row.appointment.followUpOf, row.appointment.nextAppointmentId].filter((value): value is string => Boolean(value));
-  const [linked, meds, history] = await Promise.all([
+  const [linked, meds, history, insurance, contacts] = await Promise.all([
     linkedIds.length
       ? db.select({ id: schema.appointments.id, type: schema.appointments.type, scheduledAt: schema.appointments.scheduledAt, status: schema.appointments.status }).from(schema.appointments).where(or(...linkedIds.map(linkedId => eq(schema.appointments.id, linkedId))))
       : [],
@@ -122,6 +122,8 @@ export async function appointmentDetail(id: string) {
       .where(and(eq(schema.appointments.individualId, row.person.id), sql`${schema.appointments.id} <> ${id}`, eq(schema.appointments.type, row.appointment.type)))
       .orderBy(desc(schema.appointments.scheduledAt))
       .limit(5),
+    db.select().from(schema.personInsurance).where(and(eq(schema.personInsurance.individualId, row.person.id), eq(schema.personInsurance.active, true))).orderBy(asc(schema.personInsurance.rank)),
+    db.select().from(schema.personContacts).where(and(eq(schema.personContacts.individualId, row.person.id), eq(schema.personContacts.isPrimary, true))),
   ]);
   return {
     ...row,
@@ -129,6 +131,8 @@ export async function appointmentDetail(id: string) {
     next: linked.find(item => item.id === row.appointment.nextAppointmentId) ?? null,
     meds,
     history,
+    insurance,
+    contacts,
   };
 }
 

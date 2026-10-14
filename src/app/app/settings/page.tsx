@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, FolderOpen, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Stethoscope, Wallet, type LucideIcon } from "lucide-react";
 import { ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
@@ -47,6 +47,16 @@ const GROUPS: Group[] = [
       { key: "appointment_reminder_days", title: "Remind before a visit", help: "The escort and home manager are reminded this far ahead, and again on the day.", unit: "days", min: 0, max: 14 },
       { key: "appointment_document_hours", title: "Document a visit within", help: "After this, the visit shows as overdue and the team is told.", unit: "hours", min: 1, max: 168 },
       { key: "appointment_types", title: "Appointment types", help: "Offered when booking an appointment." },
+    ],
+  },
+  {
+    id: "people",
+    title: "People supported",
+    icon: UsersRound,
+    intro: "The lists used on each person's care team and insurance.",
+    items: [
+      { key: "care_team_roles", title: "Care team roles", help: "Who can be added to a person's care team." },
+      { key: "insurance_types", title: "Insurance types", help: "Offered when recording a person's insurance." },
     ],
   },
   {

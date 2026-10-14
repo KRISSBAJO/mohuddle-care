@@ -270,6 +270,19 @@ export default async function AppointmentPage({ params, searchParams }: { params
                   </ul>
                 )}
               </div>
+              {detail.insurance.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-mute">Insurance</p>
+                  <ul className="mt-1 space-y-1">
+                    {detail.insurance.map(cover => (
+                      <li key={cover.id}><span className="font-semibold">{cover.payer}</span> {cover.kind} · ID <span className="font-mono">{cover.memberId}</span>{cover.groupNumber ? ` · group ${cover.groupNumber}` : ""}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {detail.contacts.filter(contact => /physician|coordinator|guardian|pharmacy/i.test(contact.role)).map(contact => (
+                <p key={contact.id}><span className="text-mute">{contact.role}: </span>{contact.name}{contact.phone ? ` ${contact.phone}` : ""}</p>
+              ))}
               {(person.guardianName || person.emergencyContact) && (
                 <p><span className="text-mute">Guardian or contact: </span>{person.guardianName || person.emergencyContact} {person.guardianPhone || person.emergencyPhone}</p>
               )}

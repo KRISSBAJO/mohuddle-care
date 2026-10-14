@@ -17,12 +17,14 @@ import {
   Stethoscope,
   Target,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 import { IndividualFields } from "@/components/app/IndividualForm";
 import { ModalForm } from "@/components/app/ModalForm";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar, Badge } from "@/components/app/ui";
 import { PersonAppointmentsTab } from "@/components/person/PersonAppointmentsTab";
+import { PersonCareTeamTab } from "@/components/person/PersonCareTeamTab";
 import { PersonDocumentsSection } from "@/components/docs/DocumentSections";
 import { requestTime } from "@/server/clock";
 import { PersonCarePlanTab } from "@/components/person/PersonCarePlanTab";
@@ -50,6 +52,7 @@ const TABS = [
   ["medications", "Medications", Pill],
   ["appointments", "Appointments", Stethoscope],
   ["health", "Health", HeartPulse],
+  ["care-team", "Care team", UsersRound],
   ["logs", "Daily logs", ClipboardList],
   ["incidents", "Incidents", ShieldAlert],
   ["documents", "Documents", FolderOpen],
@@ -240,6 +243,7 @@ export default async function IndividualPage({ params, searchParams }: { params:
       {tab === "health" && <PersonHealthTab id={id} person={person} manager={manager} />}
       {tab === "logs" && <PersonLogsTab id={id} person={person} query={query} adlOrder={settings.adl_items} />}
       {tab === "incidents" && <PersonIncidentsTab id={id} person={person} />}
+      {tab === "care-team" && <PersonCareTeamTab id={id} person={person} editor={manager || user.role === "nurse"} />}
       {tab === "documents" && <PersonDocumentsSection individualId={id} manager={manager} now={await requestTime()} />}
       {tab === "tasks" && <PersonTasksTab id={id} person={person} />}
       {tab === "profile" && <PersonProfileTab id={id} person={person} home={home} manager={manager} />}

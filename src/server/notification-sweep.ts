@@ -215,6 +215,24 @@ export async function sweepNotifications(force = false) {
       }
     }
 
+    // Insurance cover ending within 30 days, or already ended and still marked active.
+    const cover = await db
+      .select({ id: schema.personInsurance.id, kind: schema.personInsurance.kind, payer: schema.personInsurance.payer, effectiveTo: schema.personInsurance.effectiveTo, individualId: schema.personInsurance.individualId, first: schema.individuals.firstName, last: schema.individuals.lastName, homeId: schema.individuals.homeId })
+      .from(schema.personInsurance)
+      .innerJoin(schema.individuals, eq(schema.individuals.id, schema.personInsurance.individualId))
+      .where(and(eq(schema.personInsurance.active, true), eq(schema.individuals.active, true), lt(schema.personInsurance.effectiveTo, dateKey(new Date(now + 30 * 86_400_000)))));
+    for (const row of cover) {
+      const ended = row.effectiveTo! < today;
+      sent += await notify(await recipients({ roles: settings.notify_roles_documents, staffIds: [await managerOf(row.homeId)] }), {
+        kind: ended ? "insurance:ended" : "insurance:renewal",
+        title: `${row.first} ${row.last}: ${row.kind} ${ended ? "cover has ended" : "renews soon"}`,
+        body: `${row.payer}, ${ended ? "ended" : "ends"} ${fmt.day(row.effectiveTo)}. Check eligibility and update the record.`,
+        href: `/app/individuals/${row.individualId}?tab=care-team`,
+        tone: ended ? "bad" : "warn",
+        dedupeKey: `insurance:${ended ? "ended" : "renewal"}:${row.id}:${row.effectiveTo}`,
+      });
+    }
+
     // Requests past their due date with items still to send.
     const overdueRequests = await db
       .select({ id: schema.documentRequests.id, staffId: schema.documentRequests.staffId, title: schema.documentRequests.title, dueOn: schema.documentRequests.dueOn })

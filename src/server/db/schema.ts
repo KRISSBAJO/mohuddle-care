@@ -677,3 +677,51 @@ export const signatures = pgTable("signatures", {
   consentedAt: timestamp("consented_at", { withTimezone: true }).notNull(),
   signedAt: timestamp("signed_at", { withTimezone: true }).notNull(),
 });
+
+/* The people around someone we support: coordinators, clinicians, guardians, pharmacy and so on. */
+export const personContacts = pgTable(
+  "person_contacts",
+  {
+    id: id(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    name: text("name").notNull(),
+    organization: text("organization").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    altPhone: text("alt_phone").notNull().default(""),
+    email: text("email").notNull().default(""),
+    fax: text("fax").notNull().default(""),
+    address: text("address").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  table => [index("person_contacts_person").on(table.individualId)],
+);
+
+/* Insurance cover for a person: Medicaid or TennCare, Medicare, private and so on, in order of billing. */
+export const personInsurance = pgTable(
+  "person_insurance",
+  {
+    id: id(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    rank: text("rank").$type<"primary" | "secondary" | "tertiary">().notNull().default("primary"),
+    payer: text("payer").notNull().default(""),
+    plan: text("plan").notNull().default(""),
+    memberId: text("member_id").notNull().default(""),
+    groupNumber: text("group_number").notNull().default(""),
+    policyHolder: text("policy_holder").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    effectiveFrom: date("effective_from"),
+    effectiveTo: date("effective_to"),
+    notes: text("notes").notNull().default(""),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  table => [index("person_insurance_person").on(table.individualId)],
+);
