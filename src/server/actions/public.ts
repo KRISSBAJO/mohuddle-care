@@ -1,7 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { db, schema } from "@/server/db";
+import { site } from "@/lib/site";
+import { agencyIdBySlug } from "@/server/agency";
+import { asAgency, db, schema } from "@/server/db";
 
 const enquirySchema = z.object({
   kind: z.enum(["contact", "referral", "careers", "foster", "demo"]).default("contact"),
@@ -22,7 +24,10 @@ export async function submitEnquiry(_previous: EnquiryState, formData: FormData)
   const values = { ...parsed.data };
   Reflect.deleteProperty(values, "website");
   try {
-    await db.insert(schema.enquiries).values(values);
+    // Nobody is signed in on the public site; the enquiry goes to the agency the site belongs to.
+    await asAgency(await agencyIdBySlug(site.agencySlug), async () => {
+      await db.insert(schema.enquiries).values(values);
+    });
   } catch {
     return { ok: false, error: "We could not save your message. Please try again or call our team." };
   }

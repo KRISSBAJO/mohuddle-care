@@ -1,5 +1,6 @@
 import "server-only";
-import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, ilike, inArray, isNull, not, or, sql, type SQL } from "drizzle-orm";
+import { hasPassword } from "@/server/accounts";
 import { addDays, dateKey } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { getSettings } from "@/server/settings";
@@ -75,8 +76,8 @@ export async function searchStaff(query: StaffQuery) {
   if (query.home === "none") conditions.push(isNull(schema.staff.homeId));
   else if (query.home) conditions.push(eq(schema.staff.homeId, query.home));
   if (query.login === "none") conditions.push(isNull(schema.users.id));
-  if (query.login === "invited") conditions.push(and(eq(schema.users.active, true), isNull(schema.users.passwordHash)));
-  if (query.login === "on") conditions.push(and(eq(schema.users.active, true), isNotNull(schema.users.passwordHash)));
+  if (query.login === "invited") conditions.push(and(eq(schema.users.active, true), not(hasPassword)));
+  if (query.login === "on") conditions.push(and(eq(schema.users.active, true), hasPassword));
   if (query.login === "off") conditions.push(eq(schema.users.active, false));
   if (query.cred === "expired") conditions.push(hasExpired);
   if (query.cred === "expiring") conditions.push(hasExpiring);
@@ -116,7 +117,7 @@ export async function searchStaff(query: StaffQuery) {
       home: schema.homes.name,
       loginRole: schema.users.role,
       loginActive: schema.users.active,
-      loginReady: sql<boolean | null>`${schema.users.passwordHash} is not null`,
+      loginReady: hasPassword,
       hasLogin: sql<boolean>`${schema.users.id} is not null`,
       soonest,
     })

@@ -4,13 +4,12 @@ import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Link2, Mail, MessageSquare, RefreshCw } from "lucide-react";
 import type { LinkResult } from "@/server/actions/documents";
-import { site } from "@/lib/site";
 
 /* Shows a private link once, with copy, text and email buttons. The text and email open on this device. */
-export function ShareLink({ link, expires, first, onDone }: { link: string; expires?: string; first?: string; onDone?: () => void }) {
+export function ShareLink({ link, expires, first, agency, onDone }: { link: string; expires?: string; first?: string; agency?: string; onDone?: () => void }) {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
-  const message = `Hi${first ? ` ${first}` : ""}, please upload your documents for ${site.name} here: ${link}${expires ? ` (works until ${expires})` : ""}`;
+  const message = `Hi${first ? ` ${first}` : ""}, please upload your documents${agency ? ` for ${agency}` : ""} here: ${link}${expires ? ` (works until ${expires})` : ""}`;
   return (
     <div className="rounded-xl border border-sage/40 bg-sage-soft/60 p-4" role="status">
       <p className="flex items-center gap-1.5 text-sm font-semibold text-sage"><Link2 className="h-4 w-4" /> Private link ready</p>
@@ -36,7 +35,7 @@ export function ShareLink({ link, expires, first, onDone }: { link: string; expi
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <a href={`sms:?&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><MessageSquare className="h-3.5 w-3.5" /> Text it</a>
-        <a href={`mailto:?subject=${encodeURIComponent(`Documents for ${site.name}`)}&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><Mail className="h-3.5 w-3.5" /> Email it</a>
+        <a href={`mailto:?subject=${encodeURIComponent(agency ? `Documents for ${agency}` : "Documents to send")}&body=${encodeURIComponent(message)}`} className="btn-ghost btn-sm"><Mail className="h-3.5 w-3.5" /> Email it</a>
         <button
           type="button"
           className="btn-ghost btn-sm"
@@ -55,7 +54,7 @@ export function ShareLink({ link, expires, first, onDone }: { link: string; expi
 /* A button that replaces a request's link with a new one and shows it. */
 export function FreshLinkButton({ action }: { action: (previous: LinkResult) => Promise<LinkResult> }) {
   const [state, run, pending] = useActionState<LinkResult, FormData>(previous => action(previous), {});
-  if (state.link) return <ShareLink link={state.link} expires={state.expires} />;
+  if (state.link) return <ShareLink link={state.link} expires={state.expires} agency={state.agency} />;
   return (
     <form action={run} className="inline">
       <button className="btn-ghost btn-sm" disabled={pending}><RefreshCw className="h-3.5 w-3.5" /> {pending ? "Making…" : "Send a fresh link"}</button>

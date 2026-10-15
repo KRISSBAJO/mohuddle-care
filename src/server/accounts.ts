@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
-import { db, schema } from "./db";
+import { and, count, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { db, schema, systemDb } from "./db";
 import { env } from "./env";
 import { getSettings } from "./settings";
 
@@ -23,15 +23,20 @@ export async function issueLoginLink(tx: Tx, userId: string, purpose: LinkPurpos
   return { url: new URL(`/setup-password/${token}`, env.APP_URL).toString(), expiresAt };
 }
 
-/* Looks up a link that is unused, unexpired and belongs to an active login. */
+/*
+ * Looks up a link that is unused, unexpired and belongs to an active login. The person opening it is
+ * not signed in, so this looks across agencies; the link says which agency and login it is for.
+ */
 export async function findValidLink(token: string) {
   if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) return null;
-  const rows = await db
+  const rows = await systemDb
     .select({
       tokenHash: schema.loginTokens.tokenHash,
       purpose: schema.loginTokens.purpose,
       expiresAt: schema.loginTokens.expiresAt,
       userId: schema.users.id,
+      agencyId: schema.users.agencyId,
+      loginId: schema.users.loginId,
       name: schema.users.name,
       email: schema.users.email,
     })
@@ -50,3 +55,15 @@ export async function findValidLink(token: string) {
 }
 
 export { hashToken as hashLoginToken };
+
+/* Whether this person has chosen a password, for a query on users. */
+export const hasPassword = sql<boolean>`exists (select 1 from ${schema.logins} where ${schema.logins.id} = ${schema.users.loginId} and ${schema.logins.hasPassword})`;
+
+/*
+ * Whether a login also belongs to another agency. One agency must never set or reset the password of
+ * a login another agency relies on, or its staff could sign in there as that person.
+ */
+export async function loginUsedElsewhere(loginId: string, agencyId: string) {
+  const [row] = await systemDb.select({ n: count() }).from(schema.users).where(and(eq(schema.users.loginId, loginId), ne(schema.users.agencyId, agencyId)));
+  return row.n > 0;
+}

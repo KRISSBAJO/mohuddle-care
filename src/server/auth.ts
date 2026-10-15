@@ -1,12 +1,13 @@
 import "server-only";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
 import { and, eq, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
-import { db, schema } from "./db";
+import { asAgency, db, schema } from "./db";
 import { env } from "./env";
+import { sessionTokenHash as tokenHash } from "./session-token";
 import { getSettings } from "./settings";
 
 // The last-used time is written at most this often, so ordinary page loads do not each write to the database.
@@ -16,16 +17,20 @@ export const hashPassword = (password: string) =>
   hash(password, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
 export const verifyPassword = (passwordHash: string, password: string) => verify(passwordHash, password);
 
-const tokenHash = (token: string) => createHash("sha256").update(token + env.SESSION_SECRET).digest("hex");
-
-/* Starts a session. It ends after the agency's maximum length; a shared device also ends at clock-out. */
-export async function createSession(userId: string, shared = false) {
-  const settings = await getSettings();
+/*
+ * Starts a session for someone's place in one agency. It ends after that agency's maximum length; a
+ * shared device also ends at clock-out. Switching agency starts a new session.
+ */
+export async function createSession(user: { id: string; agencyId: string }, shared = false) {
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + settings.session_max_hours * 3_600_000);
-  await db.insert(schema.sessions).values({ tokenHash: tokenHash(token), userId, expiresAt, shared });
-  // Old sessions are cleared now and then, so the table does not grow forever.
-  await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
+  const expiresAt = await asAgency(user.agencyId, async () => {
+    const settings = await getSettings();
+    const ends = new Date(Date.now() + settings.session_max_hours * 3_600_000);
+    await db.insert(schema.sessions).values({ tokenHash: tokenHash(token), userId: user.id, expiresAt: ends, shared });
+    // Old sessions are cleared now and then, so the table does not grow forever.
+    await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
+    return ends;
+  });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -45,6 +50,9 @@ export async function destroySession() {
 
 export type SessionUser = {
   id: string;
+  /* The agency this session is working in. */
+  agencyId: string;
+  loginId: string;
   email: string;
   name: string;
   role: "admin" | "coordinator" | "nurse" | "dsp";
@@ -61,6 +69,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const rows = await db
     .select({
       id: schema.users.id,
+      agencyId: schema.users.agencyId,
+      loginId: schema.users.loginId,
       email: schema.users.email,
       name: schema.users.name,
       role: schema.users.role,
@@ -86,7 +96,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (now - row.lastSeenAt.getTime() > TOUCH_EVERY_MS) {
     await db.update(schema.sessions).set({ lastSeenAt: new Date(now) }).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), lt(schema.sessions.lastSeenAt, new Date(now - TOUCH_EVERY_MS))));
   }
-  return { id: row.id, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared };
+  return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared };
 });
 
 export const canManage = (user: SessionUser) => user.role === "admin" || user.role === "coordinator";

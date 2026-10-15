@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fmt } from "@/lib/format";
+import { currentAgency } from "@/server/agency";
 import { db, schema } from "@/server/db";
 import { approveDocument, DocumentError, rejectDocument } from "@/server/docs/service";
 import { createRequest, freshLink, revokeRequest } from "@/server/docs/requests";
@@ -13,7 +14,7 @@ import type { FormState } from "./auth";
 
 const uuid = z.uuid();
 const day = z.union([z.literal(""), z.iso.date()]).transform(value => value || null);
-export type LinkResult = FormState & { link?: string; expires?: string; first?: string };
+export type LinkResult = FormState & { link?: string; expires?: string; first?: string; agency?: string };
 
 function refresh(doc?: { id: string; staffId: string | null; individualId: string | null; homeId: string | null }) {
   revalidatePath("/app/documents", "layout");
@@ -123,7 +124,7 @@ export async function requestStaffDocuments(staffId: string, _previous: LinkResu
   });
   const settings = await getSettings();
   refresh({ id: "", staffId, individualId: null, homeId: null });
-  return { link, first: member.firstName, expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
+  return { link, agency: (await currentAgency())?.name, first: member.firstName, expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
 }
 
 /* A new link for a request. The old link stops working straight away. */
@@ -134,7 +135,7 @@ export async function freshRequestLink(requestId: string): Promise<LinkResult> {
   if (!link) return { error: "This request no longer exists." };
   const settings = await getSettings();
   revalidatePath("/app/documents", "layout");
-  return { link, expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
+  return { link, agency: (await currentAgency())?.name, expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
 }
 
 export async function withdrawRequest(requestId: string): Promise<FormState> {

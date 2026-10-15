@@ -18,7 +18,8 @@ if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed a p
 const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@milestonecare.net").toLowerCase();
 const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "Milestone-demo-2026";
 
-const pool = new Pool({ connectionString: url });
+// One connection, so the agency set on it below covers every insert.
+const pool = new Pool({ connectionString: url, max: 1 });
 const db = drizzle(pool, { schema });
 
 const TZ = "America/Chicago";
@@ -50,7 +51,19 @@ async function main() {
   const today = dateKey();
   const monday = weekStart(today);
 
-  await db.execute(sql`truncate table person_contacts, person_insurance, signatures, document_request_items, document_requests, documents, sign_templates, notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
+  // The demo is Milestone's. The wipe below empties every agency, so it refuses once there are others.
+  const agencies = await db.select({ id: schema.agencies.id, slug: schema.agencies.slug }).from(schema.agencies);
+  if (agencies.some(agency => agency.slug !== "milestone")) throw new Error("This database has agencies other than Milestone, and the seed would wipe them too. Refusing.");
+  const [agency] = agencies.length
+    ? agencies
+    : await db
+        .insert(schema.agencies)
+        .values({ slug: "milestone", name: "Milestone", legalName: "Milestone Home Healthcare Service", phone: "615-964-7088", email: "contact@milestonecare.net", address: "2131 Murfreesboro Pike, Suite 202A", cityStateZip: "Nashville, TN 37217" })
+        .returning({ id: schema.agencies.id, slug: schema.agencies.slug });
+  // New rows take their agency from this setting.
+  await db.execute(sql`select set_config('app.agency_id', ${agency.id}, false)`);
+
+  await db.execute(sql`truncate table logins, person_contacts, person_insurance, signatures, document_request_items, document_requests, documents, sign_templates, notifications, appointments, note_requirements, shift_patterns, audit_log, login_tokens, sessions, users, enquiries, tasks, incidents, med_administrations, medications, daily_logs, shifts, plan_goals, individuals, credentials, staff, homes, settings restart identity cascade`);
 
   // Weekdays run three 8-hour shifts; weekends two 12-hour shifts. Admins change these in Settings, Shift patterns.
   const [weekdayDay, weekdayEvening, weekdayNight, weekendDay, weekendNight] = await db
@@ -91,12 +104,16 @@ async function main() {
   const [angela, marcus, priya, jamal, sofia, terrence, hannah, luis, grace] = staffRows;
 
   const adminHash = await hash(adminPassword, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
+  const [adminLogin, jamalLogin, priyaLogin] = await db
+    .insert(schema.logins)
+    .values([adminEmail, "jamal.carter@milestonecare.net", "priya.n@milestonecare.net"].map(email => ({ email, passwordHash: adminHash })))
+    .returning();
   const [adminUser, jamalUser] = await db
     .insert(schema.users)
     .values([
-      { email: adminEmail, name: "Angela Reyes", role: "admin", passwordHash: adminHash, staffId: angela.id },
-      { email: "jamal.carter@milestonecare.net", name: "Jamal Carter", role: "dsp", passwordHash: adminHash, staffId: jamal.id },
-      { email: "priya.n@milestonecare.net", name: "Priya Natarajan", role: "nurse", passwordHash: adminHash, staffId: priya.id },
+      { email: adminEmail, name: "Angela Reyes", role: "admin", loginId: adminLogin.id, staffId: angela.id },
+      { email: "jamal.carter@milestonecare.net", name: "Jamal Carter", role: "dsp", loginId: jamalLogin.id, staffId: jamal.id },
+      { email: "priya.n@milestonecare.net", name: "Priya Natarajan", role: "nurse", loginId: priyaLogin.id, staffId: priya.id },
     ])
     .returning();
 

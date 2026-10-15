@@ -19,7 +19,7 @@ export function RequestDocumentsForm({ action, types, templates, first }: { acti
   const [open, setOpen] = useState(false);
   const needed = (option: TypeOption) => option.required && (option.state === "missing" || option.state === "expired" || option.state === "rejected" || option.state === "expiring");
 
-  if (state.link) return <ShareLink link={state.link} expires={state.expires} first={state.first} onDone={() => setOpen(false)} />;
+  if (state.link) return <ShareLink link={state.link} expires={state.expires} first={state.first} agency={state.agency} onDone={() => setOpen(false)} />;
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn-brand btn-sm">

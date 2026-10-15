@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
@@ -20,10 +20,12 @@ export async function POST(request: Request) {
   const parsed = subscription.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "This browser sent a subscription that could not be read." }, { status: 400 });
   const { endpoint, keys, device, test } = parsed.data;
+  // A device belongs to one person per agency: a home's shared tablet follows whoever signed up last.
+  await db.delete(schema.pushSubscriptions).where(and(eq(schema.pushSubscriptions.endpoint, endpoint), ne(schema.pushSubscriptions.userId, user.id)));
   await db
     .insert(schema.pushSubscriptions)
     .values({ userId: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth, device })
-    .onConflictDoUpdate({ target: schema.pushSubscriptions.endpoint, set: { userId: user.id, p256dh: keys.p256dh, auth: keys.auth, device } });
+    .onConflictDoUpdate({ target: [schema.pushSubscriptions.userId, schema.pushSubscriptions.endpoint], set: { p256dh: keys.p256dh, auth: keys.auth, device } });
   if (test) await pushTo([user.id], { title: "Notifications are on", body: "Shift reminders, breaks and alerts will show here.", href: "/app", tag: `push-test-${user.id}` });
   return new Response(null, { status: 204 });
 }

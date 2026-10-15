@@ -6,7 +6,7 @@ import { safeFileName, sniffType } from "@/lib/documents";
 import { canManage, getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { env } from "@/server/env";
-import { storage } from "@/server/docs/storage";
+import { agencyKey, storage } from "@/server/docs/storage";
 
 const input = z.object({
   title: z.string().trim().min(2, "Give the document a name.").max(160),
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   if (pages > 60) return NextResponse.json({ error: "Documents to sign can have up to 60 pages." }, { status: 400 });
   const id = randomUUID();
   const name = safeFileName(file.name, "application/pdf");
-  const key = `templates/${id}/${name}`;
+  const key = await agencyKey(`templates/${id}/${name}`);
   await storage().put(key, bytes, "application/pdf");
   await db.insert(schema.signTemplates).values({
     id,

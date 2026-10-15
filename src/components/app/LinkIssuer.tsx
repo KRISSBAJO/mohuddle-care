@@ -17,6 +17,18 @@ export function LinkIssuer({ action, label, children }: Props) {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
+  if (state.note) {
+    return (
+      <div className="rounded-xl border border-sage/40 bg-sage-soft/60 p-4" role="status">
+        <p className="text-sm font-semibold text-sage">Login added</p>
+        <p className="mt-1 text-xs text-mute">{state.note}</p>
+        <button type="button" className="mt-3 text-xs font-semibold text-brand" onClick={() => router.refresh()}>
+          Done
+        </button>
+      </div>
+    );
+  }
+
   if (state.link) {
     return (
       <div className="rounded-xl border border-sage/40 bg-sage-soft/60 p-4" role="status">

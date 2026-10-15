@@ -1,13 +1,11 @@
 import "dotenv/config";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import { DEMO_CONTACTS, DEMO_INSURANCE } from "../src/lib/demo-care-team";
 import * as schema from "../src/server/db/schema";
+import { agencyDb } from "./agency-db";
 
 /* Adds the example care teams and insurance to an existing demo database, once. */
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle(pool, { schema });
+const { pool, db } = agencyDb();
 const addDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
 async function main() {

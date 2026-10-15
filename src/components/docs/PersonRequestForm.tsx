@@ -21,7 +21,7 @@ export function PersonRequestForm({
 }) {
   const [state, formAction, pending] = useActionState<LinkResult, FormData>(action, {});
   const [open, setOpen] = useState(false);
-  if (state.link) return <ShareLink link={state.link} expires={state.expires} first={state.first} onDone={() => setOpen(false)} />;
+  if (state.link) return <ShareLink link={state.link} expires={state.expires} first={state.first} agency={state.agency} onDone={() => setOpen(false)} />;
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn-brand btn-sm">

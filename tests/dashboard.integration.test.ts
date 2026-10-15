@@ -6,8 +6,12 @@ import { addDays, dateKey, zonedTime } from "../src/lib/format";
 
 test("Today prepares medications without opening MAR, is idempotent, and counts more than eight late doses", { skip: process.env.RUN_DB_TESTS !== "1" }, async () => {
   assert.notEqual(process.env.NODE_ENV, "production", "Use a development database only.");
-  const { db, schema, pool } = await import("../src/server/db");
+  const { asAgency, db, schema, pool, systemPool } = await import("../src/server/db");
+  const { agencyIdBySlug } = await import("../src/server/agency");
   const { todayOverview } = await import("../src/server/queries/dashboard");
+  const agencyId = await agencyIdBySlug("milestone");
+  assert.ok(agencyId, "The demo agency must exist.");
+  await asAgency(agencyId, async () => {
   let personId: string | undefined;
   try {
     const before = await todayOverview();
@@ -29,6 +33,8 @@ test("Today prepares medications without opening MAR, is idempotent, and counts 
     assert.equal(unique.n, 1, "Repeated dashboard loads must never duplicate doses");
   } finally {
     if (personId) await db.delete(schema.individuals).where(eq(schema.individuals.id, personId));
-    await pool.end();
   }
+  });
+  await pool.end();
+  await systemPool.end();
 });

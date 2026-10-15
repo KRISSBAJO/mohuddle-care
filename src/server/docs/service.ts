@@ -9,7 +9,7 @@ import { db, schema } from "@/server/db";
 import { env } from "@/server/env";
 import { notify, recipients } from "@/server/notify";
 import { getSettings } from "@/server/settings";
-import { storage } from "./storage";
+import { agencyKey, storage } from "./storage";
 
 export type Owner = { kind: "staff"; staffId: string } | { kind: "person"; individualId: string } | { kind: "business"; homeId: string | null };
 type Doc = typeof schema.documents.$inferSelect;
@@ -44,7 +44,7 @@ export async function storeDocument(input: {
   const id = randomUUID();
   const fileName = safeFileName(input.fileName, type);
   const ownerId = input.owner.kind === "staff" ? input.owner.staffId : input.owner.kind === "person" ? input.owner.individualId : (input.owner.homeId ?? "agency");
-  const key = `documents/${input.owner.kind}/${ownerId}/${id}/${fileName}`;
+  const key = await agencyKey(`documents/${input.owner.kind}/${ownerId}/${id}/${fileName}`);
   await storage().put(key, input.bytes, type);
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   try {

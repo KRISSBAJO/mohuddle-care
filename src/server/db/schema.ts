@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 /* Roles decide what a signed-in person may do inside the Hub. */
 export const userRole = pgEnum("user_role", ["admin", "coordinator", "nurse", "dsp"]);
@@ -44,8 +44,53 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 const emptyList = () => sql`'[]'::jsonb`;
 const emptyMap = () => sql`'{}'::jsonb`;
 
+/* ---------- Agencies ---------- */
+
+/*
+ * One agency (tenant) using Mohuddle. Every other table, except logins, carries an agency_id, and
+ * Postgres row rules show the app only the rows of the agency it is working for (see drizzle/0029).
+ */
+export const agencies = pgTable("agencies", {
+  id: id(),
+  // The agency's own web address: slug.mohuddle.com.
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  legalName: text("legal_name").notNull(),
+  phone: text("phone").notNull().default(""),
+  email: text("email").notNull().default(""),
+  address: text("address").notNull().default(""),
+  cityStateZip: text("city_state_zip").notNull().default(""),
+  timezone: text("timezone").notNull().default("America/Chicago"),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/*
+ * The agency a row belongs to. Filled in from the connection's agency, which the app sets for every
+ * query (src/server/db/index.ts), so inserts do not pass it. With no agency set, inserts fail.
+ */
+const agencyId = () =>
+  uuid("agency_id")
+    .notNull()
+    .default(sql`nullif(current_setting('app.agency_id', true), '')::uuid`)
+    .references(() => agencies.id);
+
+/*
+ * A person's sign-in: one email and password, whichever agencies they work for. Each agency they
+ * belong to has its own row in users, with its own role. Not visible to other agencies.
+ */
+export const logins = pgTable("logins", {
+  id: id(),
+  email: text("email").notNull().unique(),
+  // Null until the person opens their setup link and chooses a password.
+  passwordHash: text("password_hash"),
+  hasPassword: boolean("has_password").generatedAlwaysAs(sql`password_hash is not null`),
+  createdAt: createdAt(),
+});
+
 export const homes = pgTable("homes", {
   id: id(),
+  agencyId: agencyId(),
   name: text("name").notNull(),
   type: homeType("type").notNull(),
   address: text("address").notNull().default(""),
@@ -79,38 +124,51 @@ export const homes = pgTable("homes", {
   createdAt: createdAt(),
 });
 
-export const staff = pgTable("staff", {
-  id: id(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  role: staffRole("role").notNull().default("dsp"),
-  email: text("email").notNull().unique(),
-  phone: text("phone").notNull().default(""),
-  homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
-  hiredAt: date("hired_at"),
-  // HR basics: payroll number, how they are employed, where they live and who to call for them.
-  employeeNumber: text("employee_number").notNull().default(""),
-  employmentType: text("employment_type").notNull().default(""),
-  address: text("address").notNull().default(""),
-  emergencyContact: text("emergency_contact").notNull().default(""),
-  emergencyPhone: text("emergency_phone").notNull().default(""),
-  active: boolean("active").notNull().default(true),
-  createdAt: createdAt(),
-});
+export const staff = pgTable(
+  "staff",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    role: staffRole("role").notNull().default("dsp"),
+    email: text("email").notNull(),
+    phone: text("phone").notNull().default(""),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    hiredAt: date("hired_at"),
+    // HR basics: payroll number, how they are employed, where they live and who to call for them.
+    employeeNumber: text("employee_number").notNull().default(""),
+    employmentType: text("employment_type").notNull().default(""),
+    address: text("address").notNull().default(""),
+    emergencyContact: text("emergency_contact").notNull().default(""),
+    emergencyPhone: text("emergency_phone").notNull().default(""),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("staff_agency_email").on(table.agencyId, table.email)],
+);
 
-export const users = pgTable("users", {
-  id: id(),
-  email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  role: userRole("role").notNull().default("dsp"),
-  // Null until the person opens their setup link and chooses a password.
-  passwordHash: text("password_hash"),
-  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
-  active: boolean("active").notNull().default(true),
-  createdAt: createdAt(),
-});
+/* Someone's place in one agency: their role there and their staff record. Signs in with a login. */
+export const users = pgTable(
+  "users",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    loginId: uuid("login_id")
+      .notNull()
+      .references(() => logins.id),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    role: userRole("role").notNull().default("dsp"),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("users_agency_email").on(table.agencyId, table.email), uniqueIndex("users_agency_login").on(table.agencyId, table.loginId)],
+);
 
 export const sessions = pgTable("sessions", {
+  agencyId: agencyId(),
   tokenHash: text("token_hash").primaryKey(),
   userId: uuid("user_id")
     .notNull()
@@ -127,21 +185,23 @@ export const pushSubscriptions = pgTable(
   "push_subscriptions",
   {
     id: id(),
+    agencyId: agencyId(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    endpoint: text("endpoint").notNull().unique(),
+    endpoint: text("endpoint").notNull(),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
     device: text("device").notNull().default(""),
     createdAt: createdAt(),
     lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   },
-  table => [index("push_subscriptions_user").on(table.userId)],
+  table => [index("push_subscriptions_user").on(table.userId), uniqueIndex("push_subscriptions_device").on(table.userId, table.endpoint)],
 );
 
 /* One-time links for first sign-in and password resets. Only a hash of the token is stored. */
 export const loginTokens = pgTable("login_tokens", {
+  agencyId: agencyId(),
   tokenHash: text("token_hash").primaryKey(),
   userId: uuid("user_id")
     .notNull()
@@ -155,6 +215,7 @@ export const loginTokens = pgTable("login_tokens", {
 
 export const credentials = pgTable("credentials", {
   id: id(),
+  agencyId: agencyId(),
   staffId: uuid("staff_id")
     .notNull()
     .references(() => staff.id, { onDelete: "cascade" }),
@@ -166,6 +227,7 @@ export const credentials = pgTable("credentials", {
 
 export const individuals = pgTable("individuals", {
   id: id(),
+  agencyId: agencyId(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   dob: date("dob"),
@@ -203,6 +265,7 @@ export const individuals = pgTable("individuals", {
 
 export const planGoals = pgTable("plan_goals", {
   id: id(),
+  agencyId: agencyId(),
   individualId: uuid("individual_id")
     .notNull()
     .references(() => individuals.id, { onDelete: "cascade" }),
@@ -223,6 +286,7 @@ export const planGoals = pgTable("plan_goals", {
 /* Named shift times admins set up, such as "Weekday day 07:00-15:00" or "Weekend night 19:00-07:00". */
 export const shiftPatterns = pgTable("shift_patterns", {
   id: id(),
+  agencyId: agencyId(),
   name: text("name").notNull(),
   start: text("start_time").notNull(),
   end: text("end_time").notNull(),
@@ -235,6 +299,7 @@ export const shiftPatterns = pgTable("shift_patterns", {
 
 export const shifts = pgTable("shifts", {
   id: id(),
+  agencyId: agencyId(),
   homeId: uuid("home_id")
     .notNull()
     .references(() => homes.id, { onDelete: "cascade" }),
@@ -250,6 +315,7 @@ export const shifts = pgTable("shifts", {
 
 export const dailyLogs = pgTable("daily_logs", {
   id: id(),
+  agencyId: agencyId(),
   individualId: uuid("individual_id")
     .notNull()
     .references(() => individuals.id, { onDelete: "cascade" }),
@@ -323,6 +389,7 @@ export const noteRequirements = pgTable(
   "note_requirements",
   {
     id: id(),
+    agencyId: agencyId(),
     scope: text("scope").$type<"all" | "home" | "person">().notNull(),
     homeId: uuid("home_id").references(() => homes.id, { onDelete: "cascade" }),
     individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "cascade" }),
@@ -354,6 +421,7 @@ export const communityNotes = pgTable(
   "community_notes",
   {
     id: id(),
+    agencyId: agencyId(),
     individualId: uuid("individual_id")
       .notNull()
       .references(() => individuals.id, { onDelete: "cascade" }),
@@ -390,6 +458,7 @@ export const noteEvents = pgTable(
   "note_events",
   {
     id: id(),
+    agencyId: agencyId(),
     noteKind: text("note_kind").$type<"daily" | "community">().notNull(),
     noteId: uuid("note_id").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
@@ -406,6 +475,7 @@ export const weightRecords = pgTable(
   "weight_records",
   {
     id: id(),
+    agencyId: agencyId(),
     individualId: uuid("individual_id")
       .notNull()
       .references(() => individuals.id, { onDelete: "cascade" }),
@@ -427,6 +497,7 @@ export const dailyLogGoals = pgTable(
   "daily_log_goals",
   {
     id: id(),
+    agencyId: agencyId(),
     logId: uuid("log_id")
       .notNull()
       .references(() => dailyLogs.id, { onDelete: "cascade" }),
@@ -445,6 +516,7 @@ export const dailyLogGoals = pgTable(
 
 export const medications = pgTable("medications", {
   id: id(),
+  agencyId: agencyId(),
   individualId: uuid("individual_id")
     .notNull()
     .references(() => individuals.id, { onDelete: "cascade" }),
@@ -466,6 +538,7 @@ export const medAdministrations = pgTable(
   "med_administrations",
   {
     id: id(),
+    agencyId: agencyId(),
     medicationId: uuid("medication_id")
       .notNull()
       .references(() => medications.id, { onDelete: "cascade" }),
@@ -483,6 +556,7 @@ export const medAdministrations = pgTable(
 
 export const incidents = pgTable("incidents", {
   id: id(),
+  agencyId: agencyId(),
   individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
   homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
   reportedBy: uuid("reported_by").references(() => staff.id, { onDelete: "set null" }),
@@ -532,6 +606,7 @@ export const incidents = pgTable("incidents", {
 
 export const tasks = pgTable("tasks", {
   id: id(),
+  agencyId: agencyId(),
   title: text("title").notNull(),
   details: text("details").notNull().default(""),
   assignedTo: uuid("assigned_to").references(() => staff.id, { onDelete: "set null" }),
@@ -553,6 +628,7 @@ export const taskComments = pgTable(
   "task_comments",
   {
     id: id(),
+    agencyId: agencyId(),
     taskId: uuid("task_id")
       .notNull()
       .references(() => tasks.id, { onDelete: "cascade" }),
@@ -565,6 +641,7 @@ export const taskComments = pgTable(
 
 export const enquiries = pgTable("enquiries", {
   id: id(),
+  agencyId: agencyId(),
   kind: text("kind").notNull().default("contact"),
   name: text("name").notNull(),
   email: text("email").notNull(),
@@ -576,14 +653,20 @@ export const enquiries = pgTable("enquiries", {
 });
 
 /* Business rules live here, not in code. See src/server/settings.ts for the keys and defaults. */
-export const settings = pgTable("settings", {
-  key: text("key").primaryKey(),
-  value: jsonb("value").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const settings = pgTable(
+  "settings",
+  {
+    agencyId: agencyId(),
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [primaryKey({ name: "settings_pkey", columns: [table.agencyId, table.key] })],
+);
 
 export const auditLog = pgTable("audit_log", {
   id: id(),
+  agencyId: agencyId(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   action: text("action").notNull(),
   entity: text("entity").notNull(),
@@ -599,6 +682,7 @@ export const homeExpenses = pgTable(
   "home_expenses",
   {
     id: id(),
+    agencyId: agencyId(),
     homeId: uuid("home_id")
       .notNull()
       .references(() => homes.id, { onDelete: "cascade" }),
@@ -623,6 +707,7 @@ export const homeIssues = pgTable(
   "home_issues",
   {
     id: id(),
+    agencyId: agencyId(),
     homeId: uuid("home_id")
       .notNull()
       .references(() => homes.id, { onDelete: "cascade" }),
@@ -647,6 +732,7 @@ export const incidentNotes = pgTable(
   "incident_notes",
   {
     id: id(),
+    agencyId: agencyId(),
     incidentId: uuid("incident_id")
       .notNull()
       .references(() => incidents.id, { onDelete: "cascade" }),
@@ -666,6 +752,7 @@ export const appointments = pgTable(
   "appointments",
   {
     id: id(),
+    agencyId: agencyId(),
     individualId: uuid("individual_id")
       .notNull()
       .references(() => individuals.id, { onDelete: "cascade" }),
@@ -709,6 +796,7 @@ export const notifications = pgTable(
   "notifications",
   {
     id: id(),
+    agencyId: agencyId(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -730,6 +818,7 @@ export const notifications = pgTable(
  */
 export const documentTypes = pgTable("document_types", {
   id: id(),
+  agencyId: agencyId(),
   name: text("name").notNull(),
   category: text("category").$type<"staff" | "person" | "business">().notNull(),
   description: text("description").notNull().default(""),
@@ -755,6 +844,7 @@ export const documents = pgTable(
   "documents",
   {
     id: id(),
+    agencyId: agencyId(),
     typeId: uuid("type_id").references(() => documentTypes.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     ownerKind: text("owner_kind").$type<"staff" | "person" | "business">().notNull(),
@@ -794,6 +884,7 @@ export const documents = pgTable(
  */
 export const documentRequests = pgTable("document_requests", {
   id: id(),
+  agencyId: agencyId(),
   staffId: uuid("staff_id").references(() => staff.id, { onDelete: "cascade" }),
   // A request about a person we support goes to someone outside, such as a guardian signing consent.
   individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "cascade" }),
@@ -815,6 +906,7 @@ export const documentRequestItems = pgTable(
   "document_request_items",
   {
     id: id(),
+    agencyId: agencyId(),
     requestId: uuid("request_id")
       .notNull()
       .references(() => documentRequests.id, { onDelete: "cascade" }),
@@ -837,6 +929,7 @@ export const documentRequestItems = pgTable(
  */
 export const signTemplates = pgTable("sign_templates", {
   id: id(),
+  agencyId: agencyId(),
   title: text("title").notNull(),
   category: text("category").$type<"staff" | "person" | "business">().notNull().default("staff"),
   typeId: uuid("type_id").references(() => documentTypes.id, { onDelete: "set null" }),
@@ -857,6 +950,7 @@ export const signTemplates = pgTable("sign_templates", {
 /* The evidence for one signature: who, how, when, from where, and a fingerprint of what they signed. */
 export const signatures = pgTable("signatures", {
   id: id(),
+  agencyId: agencyId(),
   templateId: uuid("template_id").references(() => signTemplates.id, { onDelete: "set null" }),
   templateVersion: integer("template_version").notNull().default(1),
   requestItemId: uuid("request_item_id").references(() => documentRequestItems.id, { onDelete: "set null" }),
@@ -882,6 +976,7 @@ export const personContacts = pgTable(
   "person_contacts",
   {
     id: id(),
+    agencyId: agencyId(),
     individualId: uuid("individual_id")
       .notNull()
       .references(() => individuals.id, { onDelete: "cascade" }),
@@ -905,6 +1000,7 @@ export const personInsurance = pgTable(
   "person_insurance",
   {
     id: id(),
+    agencyId: agencyId(),
     individualId: uuid("individual_id")
       .notNull()
       .references(() => individuals.id, { onDelete: "cascade" }),
@@ -938,6 +1034,7 @@ export const timeEntries = pgTable(
   "time_entries",
   {
     id: id(),
+    agencyId: agencyId(),
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),
@@ -983,6 +1080,7 @@ export const timeBreaks = pgTable(
   "time_breaks",
   {
     id: id(),
+    agencyId: agencyId(),
     entryId: uuid("entry_id")
       .notNull()
       .references(() => timeEntries.id, { onDelete: "cascade" }),
@@ -998,6 +1096,7 @@ export const handovers = pgTable(
   "handovers",
   {
     id: id(),
+    agencyId: agencyId(),
     homeId: uuid("home_id")
       .notNull()
       .references(() => homes.id, { onDelete: "cascade" }),
@@ -1017,6 +1116,7 @@ export const handoverReads = pgTable(
   "handover_reads",
   {
     id: id(),
+    agencyId: agencyId(),
     handoverId: uuid("handover_id")
       .notNull()
       .references(() => handovers.id, { onDelete: "cascade" }),
@@ -1034,6 +1134,7 @@ export const timeEntryChanges = pgTable(
   "time_entry_changes",
   {
     id: id(),
+    agencyId: agencyId(),
     entryId: uuid("entry_id")
       .notNull()
       .references(() => timeEntries.id, { onDelete: "cascade" }),
@@ -1052,6 +1153,7 @@ export const timeCorrections = pgTable(
   "time_corrections",
   {
     id: id(),
+    agencyId: agencyId(),
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),
@@ -1076,6 +1178,7 @@ export const payPeriods = pgTable(
   "pay_periods",
   {
     id: id(),
+    agencyId: agencyId(),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     status: text("status").$type<"open" | "locked">().notNull().default("open"),
@@ -1084,7 +1187,7 @@ export const payPeriods = pgTable(
     exportedAt: timestamp("exported_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  table => [uniqueIndex("pay_period_start").on(table.startDate)],
+  table => [uniqueIndex("pay_period_start").on(table.agencyId, table.startDate)],
 );
 
 export type SheetSnapshot = { regular: number; overtime: number; total: number; holiday: number; adjustments: number; punches: number };
@@ -1094,6 +1197,7 @@ export const timesheets = pgTable(
   "timesheets",
   {
     id: id(),
+    agencyId: agencyId(),
     periodId: uuid("period_id")
       .notNull()
       .references(() => payPeriods.id, { onDelete: "cascade" }),
@@ -1121,6 +1225,7 @@ export const timeAdjustments = pgTable(
   "time_adjustments",
   {
     id: id(),
+    agencyId: agencyId(),
     periodId: uuid("period_id")
       .notNull()
       .references(() => payPeriods.id, { onDelete: "cascade" }),
@@ -1144,6 +1249,7 @@ export const payRates = pgTable(
   "pay_rates",
   {
     id: id(),
+    agencyId: agencyId(),
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),
@@ -1159,6 +1265,7 @@ export const payRates = pgTable(
 /* Extra pay per hour: certain hours (nights), certain days (weekends), or at a certain home. */
 export const payDifferentials = pgTable("pay_differentials", {
   id: id(),
+  agencyId: agencyId(),
   name: text("name").notNull(),
   kind: text("kind").$type<"hours" | "days" | "home">().notNull(),
   startTime: text("start_time").notNull().default(""),
@@ -1175,6 +1282,7 @@ export const timeOffRequests = pgTable(
   "time_off_requests",
   {
     id: id(),
+    agencyId: agencyId(),
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),
@@ -1200,6 +1308,7 @@ export const leaveLedger = pgTable(
   "leave_ledger",
   {
     id: id(),
+    agencyId: agencyId(),
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),

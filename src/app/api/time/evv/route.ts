@@ -1,7 +1,7 @@
 import { and, eq, gte, ilike, inArray, isNotNull, lt } from "drizzle-orm";
 import { addDays, label, zonedTime } from "@/lib/format";
 import { csvCell } from "@/lib/payroll";
-import { site } from "@/lib/site";
+import { currentAgency } from "@/server/agency";
 import { canManage, getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 
@@ -46,6 +46,7 @@ export async function GET(request: Request) {
     : [];
 
   const header = ["Service", "Member name", "Medicaid ID", "Date of birth", "Provider", "Caregiver", "Caregiver ID", "Service date", "Start time", "End time", "Hours", "Location", "Start latitude", "Start longitude", "End latitude", "End longitude", "Verification", "Exceptions"];
+  const agency = await currentAgency();
   const lines = [header.map(csvCell).join(",")];
   for (const row of entries) {
     const { entry } = row;
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
           `${person.last}, ${person.first}`,
           medicaid.find(item => item.individualId === person.id)?.memberId ?? "",
           person.dob ?? "",
-          site.legalName,
+          agency?.legalName ?? "",
           `${row.staffLast}, ${row.staffFirst}`,
           row.employeeNumber,
           start.day,

@@ -5,7 +5,7 @@ import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFP
 import { dateKey, fmt } from "@/lib/format";
 import { needsAction, pdfBox, type SignField } from "@/lib/sign-fields";
 import { fill, pdfSafe, sections } from "@/lib/signing";
-import { site } from "@/lib/site";
+import { currentAgency } from "@/server/agency";
 import { db, schema } from "@/server/db";
 import { defaultExpiry, DocumentError, storeDocument, tellReviewers, type Owner } from "./service";
 import { readAll } from "./storage";
@@ -75,6 +75,8 @@ type Evidence = {
   consentedAt: Date;
   signedAt: Date;
   reference: string;
+  /* The agency's legal name, printed on every page. */
+  agency: string;
 };
 
 function signatureBlock(page: PDFPage, signature: PDFImage, y: number, evidence: Evidence, fonts: { regular: PDFFont; bold: PDFFont }) {
@@ -91,7 +93,7 @@ function certificate(pdf: PDFDocument, evidence: Evidence, signature: PDFImage, 
   let y = PAGE.height - PAGE.margin;
   page.drawText("Certificate of electronic signature", { x: PAGE.margin, y, size: 16, font: fonts.bold, color: INK });
   y -= 18;
-  page.drawText(pdfSafe(`${site.legalName} · Mohuddle`), { x: PAGE.margin, y, size: 9, font: fonts.regular, color: MUTE });
+  page.drawText(pdfSafe(`${evidence.agency} · Mohuddle`), { x: PAGE.margin, y, size: 9, font: fonts.regular, color: MUTE });
   y -= 30;
   const rows: [string, string][] = [
     ["Document", `${evidence.title} (version ${evidence.version})`],
@@ -168,7 +170,7 @@ async function textPdf(template: Template, filled: string, evidence: Evidence, s
   const textWidth = PAGE.width - PAGE.margin * 2 - 84;
   let page = pdf.addPage([PAGE.width, PAGE.height]);
   let y = PAGE.height - PAGE.margin;
-  page.drawText(pdfSafe(site.legalName), { x: PAGE.margin, y, size: 9, font: fonts.bold, color: MUTE });
+  page.drawText(pdfSafe(evidence.agency), { x: PAGE.margin, y, size: 9, font: fonts.bold, color: MUTE });
   y -= 26;
   for (const line of wrap(pdfSafe(evidence.title), fonts.bold, 18, PAGE.width - PAGE.margin * 2)) {
     page.drawText(line, { x: PAGE.margin, y, size: 18, font: fonts.bold, color: INK });
@@ -280,7 +282,7 @@ export async function signingContent(template: Template, signerName: string) {
     if (template.fields.length) hash.update(JSON.stringify(template.fields));
     return { kind: "pdf" as const, source, pages: template.sourcePages ?? 1, fields: template.fields, contentHash: hash.digest("hex") };
   }
-  const filled = fill(template.body, { name: signerName, date: fmt.dayLong(dateKey()), agency: site.legalName });
+  const filled = fill(template.body, { name: signerName, date: fmt.dayLong(dateKey()), agency: (await currentAgency())?.legalName ?? "" });
   return { kind: "text" as const, filled, pages: sections(filled).length, contentHash: createHash("sha256").update(`${template.id}:${template.version}:${filled}`).digest("hex") };
 }
 
@@ -333,6 +335,7 @@ export async function signItem(input: {
     consentedAt: input.consentedAt,
     signedAt,
     reference,
+    agency: (await currentAgency())?.legalName ?? "",
   };
   const bytes =
     content.kind === "pdf"

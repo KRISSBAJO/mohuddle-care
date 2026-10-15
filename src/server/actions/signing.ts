@@ -7,6 +7,7 @@ import { fmt } from "@/lib/format";
 import { LIBRARY_TEMPLATES } from "@/lib/default-sign-templates";
 import { cleanFields } from "@/lib/sign-fields";
 import { sections } from "@/lib/signing";
+import { currentAgency } from "@/server/agency";
 import { db, schema } from "@/server/db";
 import { createRequestFor } from "@/server/docs/requests";
 import { requireManager } from "@/server/guard";
@@ -134,5 +135,5 @@ export async function requestPersonDocuments(individualId: string, _previous: Li
   const settings = await getSettings();
   revalidatePath(`/app/individuals/${individualId}`);
   revalidatePath("/app/documents", "layout");
-  return { link, first: recipientName.split(" ")[0], expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
+  return { link, agency: (await currentAgency())?.name, first: recipientName.split(" ")[0], expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
 }

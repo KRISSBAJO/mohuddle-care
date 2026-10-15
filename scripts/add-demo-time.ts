@@ -1,10 +1,9 @@
 import "dotenv/config";
 import { and, eq, gte, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import { addDays, dateKey, zonedTime } from "../src/lib/format";
 import { parseHolidays, periodFor, timesheet, type Punch } from "../src/lib/payroll";
 import * as schema from "../src/server/db/schema";
+import { agencyDb } from "./agency-db";
 
 /*
  * Adds about a month of time clock data to the demo database, without touching anything else:
@@ -16,8 +15,7 @@ import * as schema from "../src/server/db/schema";
  *   pnpm tsx scripts/add-demo-time.ts --remove
  * takes it all out again. Staff entered by hand are left alone.
  */
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle(pool, { schema });
+const { pool, db } = agencyDb();
 const MANIFEST = "demo_time_manifest";
 const DEMO_STAFF = ["Jamal", "Sofia", "Marcus", "Terrence", "Hannah", "Grace", "Luis"];
 const CHECKS = ["Medications counted and locked away", "House secure: doors and windows checked", "Vehicle keys returned and fuel noted", "Petty cash counted", "Kitchen clean and food stored safely", "Fire exits clear"];

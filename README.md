@@ -96,8 +96,8 @@ ownership, final-state protection, and daylight-saving transition boundaries.
 
 ## Not built yet
 
-Email notifications, document uploads, billing and claims, family portal, mobile app, and the
-real DIDD reporting integration. The seed data is fictional.
+Email notifications, billing and claims, family portal, mobile app, and the real DIDD reporting
+integration. Multi-agency is in progress: see docs/multi-tenancy.md. The seed data is fictional.
 
 ## Original-site content audit — 12 October 2026
 

@@ -5,6 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { currentAgencyId } from "@/server/db";
 import { env } from "@/server/env";
 
 /*
@@ -22,6 +23,13 @@ type Storage = {
   signedUrl(key: string, fileName: string, inline: boolean): Promise<string | null>;
   remove(key: string): Promise<void>;
 };
+
+/* Where a new file goes: under its agency's own folder, so each agency's files stay apart. */
+export async function agencyKey(path: string) {
+  const agencyId = await currentAgencyId();
+  if (!agencyId) throw new Error("No agency is set, so the file has nowhere to go.");
+  return `agencies/${agencyId}/${path}`;
+}
 
 const safeKey = (key: string) => {
   if (key.includes("..") || key.startsWith("/") || !/^[\w./-]+$/.test(key)) throw new Error("Unsafe storage key.");

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, ilike } from "drizzle-orm";
 import { age } from "@/lib/format";
-import { site } from "@/lib/site";
+import { currentAgency } from "@/server/agency";
 import { db, schema } from "@/server/db";
 import { getSettings } from "@/server/settings";
 
@@ -82,7 +82,7 @@ export async function incidentFormData() {
       waivers: settings.waiver_types,
       mcos: settings.mco_options,
     },
-    provider: site.legalName,
+    provider: (await currentAgency())?.legalName ?? "",
     tier1Hours: settings.incident_tier1_hours,
     fileHours: settings.incident_report_hours,
   };

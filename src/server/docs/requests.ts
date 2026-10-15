@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { fmt } from "@/lib/format";
-import { db, schema } from "@/server/db";
+import { asAgency, db, schema, systemDb } from "@/server/db";
 import { env } from "@/server/env";
 import { notify, recipients } from "@/server/notify";
 import { getSettings } from "@/server/settings";
@@ -78,6 +78,18 @@ export async function revokeRequest(requestId: string, userId: string) {
  * The request behind a link, if the link still works. Only the staff member's first name and the
  * list of what is asked for come back: a link never shows any document already on file.
  */
+/*
+ * Runs fn as the agency a private link belongs to, as whoever opens it is not signed in. Without a
+ * link it runs as the session; with a link that matches nothing, as no agency at all.
+ */
+export async function asLinkAgency<T>(token: string | null | undefined, fn: () => Promise<T>): Promise<T> {
+  if (!token) return fn();
+  const [row] = /^[\w-]{20,80}$/.test(token)
+    ? await systemDb.select({ agencyId: schema.documentRequests.agencyId }).from(schema.documentRequests).where(eq(schema.documentRequests.tokenHash, hash(token))).limit(1)
+    : [];
+  return asAgency(row?.agencyId ?? null, fn);
+}
+
 export async function requestByToken(token: string) {
   if (!/^[\w-]{20,80}$/.test(token)) return { state: "invalid" as const };
   const [row] = await db

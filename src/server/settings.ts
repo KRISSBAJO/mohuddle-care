@@ -659,5 +659,5 @@ export async function saveSetting(key: SettingKey, raw: unknown) {
   await db
     .insert(schema.settings)
     .values({ key, value: parsed.data, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { value: parsed.data, updatedAt: new Date() } });
+    .onConflictDoUpdate({ target: [schema.settings.agencyId, schema.settings.key], set: { value: parsed.data, updatedAt: new Date() } });
 }

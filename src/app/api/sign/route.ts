@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { asLinkAgency } from "@/server/docs/requests";
 import { signAccess } from "@/server/docs/sign-access";
 import { DocumentError } from "@/server/docs/service";
 import { pngFromDataUrl, signItem } from "@/server/docs/sign";
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
   const parsed = input.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues.some(issue => issue.path[0] === "consent") ? "Agree to sign electronically first." : "Refresh the page and try again." }, { status: 400 });
   const data = parsed.data;
+  return asLinkAgency(data.token, () => sign(data, request));
+}
+
+async function sign(data: z.infer<typeof input>, request: Request) {
   const access = await signAccess(data.itemId, data.token);
   if ("error" in access) return NextResponse.json({ error: access.error }, { status: 403 });
   if (access.item.status === "approved") return NextResponse.json({ error: "This document has already been signed." }, { status: 409 });

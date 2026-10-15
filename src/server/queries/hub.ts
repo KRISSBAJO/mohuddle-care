@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { hasPassword } from "@/server/accounts";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 
@@ -195,7 +196,7 @@ export async function staffWithCredentials() {
   const homeName = new Map(homes.map(home => [home.id, home.name]));
   const logins = people.length
     ? await db
-        .select({ staffId: schema.users.staffId, role: schema.users.role, active: schema.users.active, hasPassword: sql<boolean>`${schema.users.passwordHash} is not null` })
+        .select({ staffId: schema.users.staffId, role: schema.users.role, active: schema.users.active, hasPassword: hasPassword })
         .from(schema.users)
         .where(inArray(schema.users.staffId, people.map(person => person.id)))
     : [];
@@ -232,7 +233,7 @@ export async function staffDetail(id: string) {
       email: schema.users.email,
       role: schema.users.role,
       active: schema.users.active,
-      hasPassword: sql<boolean>`${schema.users.passwordHash} is not null`,
+      hasPassword: hasPassword,
     })
     .from(schema.users)
     .where(eq(schema.users.staffId, id))

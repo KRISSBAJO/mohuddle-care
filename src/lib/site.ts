@@ -1,5 +1,7 @@
 /* Facts about the organisation that the public site shows. Change them here, once. */
 export const site = {
+  // The Mohuddle agency this public site belongs to. Its enquiries arrive in that agency's inbox.
+  agencySlug: "milestone",
   name: "Milestone",
   legalName: "Milestone Home Healthcare Service",
   tagline: "Person-centered support across Middle Tennessee",

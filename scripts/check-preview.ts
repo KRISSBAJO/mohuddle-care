@@ -1,14 +1,15 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
-import { Pool } from "pg";
 import { SESSION_COOKIE } from "../src/lib/session-cookie";
+import { agencyDb } from "./agency-db";
 
 async function main() {
   const url = new URL(process.env.APP_URL ?? "http://localhost:3400");
   assert.ok(["localhost", "127.0.0.1"].includes(url.hostname), "Preview checks only run against localhost.");
   assert.notEqual(process.env.NODE_ENV, "production", "Use a development database.");
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // Works as one agency, like the app: it signs in as that agency's admin and sees only its records.
+  const { pool } = agencyDb();
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token + process.env.SESSION_SECRET).digest("hex");
   try {

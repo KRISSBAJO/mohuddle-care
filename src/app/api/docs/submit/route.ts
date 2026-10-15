@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
-import { requestByToken, touchRequest } from "@/server/docs/requests";
+import { asLinkAgency, requestByToken, touchRequest } from "@/server/docs/requests";
 import { DocumentError, storeDocument, tellReviewers, type Owner } from "@/server/docs/service";
 
 /*
@@ -16,6 +16,10 @@ export async function POST(request: Request) {
   const token = String(form.get("token") ?? "");
   if (!(file instanceof File)) return NextResponse.json({ error: "Choose a file." }, { status: 400 });
   if (!/^[0-9a-f-]{36}$/.test(itemId)) return NextResponse.json({ error: "Refresh the page and try again." }, { status: 400 });
+  return asLinkAgency(token, () => submit(file, itemId, token));
+}
+
+async function submit(file: File, itemId: string, token: string) {
 
   const [item] = await db.select().from(schema.documentRequestItems).where(eq(schema.documentRequestItems.id, itemId)).limit(1);
   if (!item || item.kind !== "upload") return NextResponse.json({ error: "This item is no longer requested." }, { status: 400 });
