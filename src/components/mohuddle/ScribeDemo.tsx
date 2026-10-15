@@ -9,7 +9,6 @@ export function ScribeDemo() {
     ["Meals", "Ate all of her oatmeal and drank two cups of water."],
     ["Health", "Took her morning Sertraline with no problem."],
     ["Plan goal", "Made a salad for lunch with one reminder to wash the lettuce."],
-    ["Behaviour", "Cried and shouted for about five minutes when the TV channel changed. Staff offered space and headphones; she calmed."],
   ];
   return (
     <div className="mh-demo relative rounded-[28px] bg-white p-5 text-[#173e35] shadow-[0_40px_70px_-34px_rgba(23,62,53,.45)] sm:p-6" aria-label="Example: a spoken note filling in a daily note" role="img">

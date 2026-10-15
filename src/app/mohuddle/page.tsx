@@ -4,6 +4,7 @@ import { ArrowRight, Clock, HeartPulse, Lock, Mic, ShieldCheck, Sparkles } from 
 import { Logo } from "@/components/marketing/Logo";
 import { DemoForm } from "@/components/mohuddle/DemoForm";
 import { Motion } from "@/components/mohuddle/Motion";
+import { OutlineMarquee } from "@/components/mohuddle/OutlineMarquee";
 import { AlertsScene } from "@/components/mohuddle/AlertsScene";
 import { Bento } from "@/components/mohuddle/Bento";
 import { PrivacyFlow } from "@/components/mohuddle/PrivacyFlow";
@@ -60,7 +61,7 @@ export default function MohuddleHome() {
 
       <main id="main">
         <section className="mh-hero relative overflow-hidden text-[#173e35]">
-          <div className="relative mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-14 px-4 pb-20 pt-14 sm:px-6 lg:grid-cols-[1.08fr_1fr] lg:pb-28 lg:pt-20">
+          <div className="relative mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-12 px-4 pb-14 pt-10 sm:px-6 lg:grid-cols-[1.08fr_1fr] lg:pb-14 lg:pt-10">
             <div>
               <p className="mh-rise inline-flex items-center gap-2 rounded-full border border-[#d5e2c3] bg-white/70 px-3.5 py-1.5 text-xs font-semibold text-[#377658]" style={delay(0)}>
                 <span className="grid h-5 w-5 place-items-center rounded-full bg-[#dcef98]"><Sparkles className="h-3 w-3 text-[#173e35]" /></span> New: speak your notes
@@ -107,20 +108,7 @@ export default function MohuddleHome() {
           </div>
         </section>
 
-        <div className="mh-marquee border-y border-[#e3e8dc] bg-white py-4" aria-hidden="true">
-          <div className="mh-marquee-track">
-            {[0, 1].map(copy => (
-              <div key={copy} className="flex shrink-0 items-center gap-10 pr-10">
-                {["Speak your note", "Shift huddle", "Medications", "Time clock and EVV", "Incidents and Tier 1", "Note review", "Plan goals", "Weight chart", "Documents and signing", "Phone alerts", "Ask Mohuddle"].map(item => (
-                  <span key={item} className="flex items-center gap-10 whitespace-nowrap text-lg font-semibold text-[#173e35]/70">
-                    {item}
-                    <Sparkles className="h-4 w-4 text-[#9cc63b]" />
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
+        <OutlineMarquee items={["Speak your note", "Shift huddle", "Medications", "Time clock", "Note review", "Plan goals", "Phone alerts", "Ask Mohuddle"]} />
 
         <section className="bg-white py-14">
           <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 sm:px-6 lg:grid-cols-4">

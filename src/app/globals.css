@@ -373,7 +373,7 @@ body:has(.hub-shell) {
 .mh-title { font-size: clamp(44px, 5vw, 74px); line-height: 1.0; font-weight: 600; letter-spacing: -0.055em; color: #173e35; }
 .mh-title-em { display: block; color: #377658; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 400; letter-spacing: -0.06em; }
 /* The demo sits on a sage panel shaped like the agency site's hero photo. */
-.mh-stage { position: relative; padding: 44px 28px 28px 52px; border-radius: 160px 28px 28px 28px; background: linear-gradient(160deg, #dfe8d9 0%, #cfdec7 100%); }
+.mh-stage { position: relative; padding: 30px 22px 22px 36px; border-radius: 160px 28px 28px 28px; background: linear-gradient(160deg, #dfe8d9 0%, #cfdec7 100%); }
 .mh-stamp { position: absolute; bottom: -22px; left: -18px; width: 112px; height: 112px; border-radius: 50%; background: #dcef98; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transform: rotate(12deg); box-shadow: 0 0 0 8px #f7f7ef; color: #173e35; }
 .mh-stamp strong { font-size: 24px; line-height: 1; letter-spacing: -0.03em; }
 .mh-stamp span { margin-top: 4px; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; line-height: 1.25; max-width: 76px; }
@@ -515,3 +515,10 @@ body:has(.hub-shell) {
 .mh-motion .mh-hand-minute { animation: mh-minute 8s linear infinite; }
 @keyframes mh-hour { from { transform: rotate(240deg); } to { transform: rotate(600deg); } }
 @keyframes mh-minute { to { transform: rotate(360deg); } }
+
+/* Outlined words gliding past, like the OmoFlow strip. */
+.mh-outline-marquee { -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+.mh-outline-word { font-family: var(--font-inter), "Helvetica Neue", Arial, sans-serif; font-size: clamp(52px, 7.2vw, 108px); font-weight: 500; line-height: 1; letter-spacing: -.045em; color: transparent; -webkit-text-stroke: 1.3px #b8c2b2; transition: color .4s ease, -webkit-text-stroke-color .4s ease; }
+.mh-outline-word:hover { color: #173e35; -webkit-text-stroke-color: #173e35; }
+.mh-motion .mh-outline-marquee .mh-marquee-track { animation: mh-marquee 40s linear infinite; }
+.mh-outline-marquee.is-paused .mh-marquee-track, .mh-outline-marquee:hover .mh-marquee-track { animation-play-state: paused; }
