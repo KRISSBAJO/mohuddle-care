@@ -40,7 +40,7 @@ export async function SignPage({ itemId, token, backHref }: { itemId: string; to
         signerRelation={access.signerRelation}
         agency={site.legalName}
         initialEach={access.template.initialEach}
-        content={content.kind === "text" ? { kind: "text", sections: sections(content.filled) } : { kind: "pdf", pages: content.pages, sourceUrl: `/api/sign/source/${access.item.id}${token ? `?token=${token}` : ""}` }}
+        content={content.kind === "text" ? { kind: "text", sections: sections(content.filled) } : { kind: "pdf", pages: content.pages, fields: content.fields, sourceUrl: `/api/sign/source/${access.item.id}${token ? `?token=${token}` : ""}` }}
         doneHref={backHref}
       />
     </div>

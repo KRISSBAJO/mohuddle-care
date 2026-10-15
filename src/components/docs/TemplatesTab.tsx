@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { asc } from "drizzle-orm";
-import { FileSignature, FileText, Upload } from "lucide-react";
+import { BookOpen, FileSignature, FileText, MousePointerSquareDashed, Upload } from "lucide-react";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Select } from "@/components/app/Select";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
+import { LIBRARY_TEMPLATES } from "@/lib/default-sign-templates";
 import { sections } from "@/lib/signing";
-import { saveTextTemplate, setTemplateActive } from "@/server/actions/signing";
+import { addLibraryTemplate, saveTextTemplate, setTemplateActive } from "@/server/actions/signing";
 import { db, schema } from "@/server/db";
 import { ensureDefaultTemplates } from "@/server/docs/default-templates";
 import { env } from "@/server/env";
@@ -66,6 +68,8 @@ export async function TemplatesTab() {
   await ensureDefaultTemplates();
   const [templates, types] = await Promise.all([db.select().from(schema.signTemplates).orderBy(asc(schema.signTemplates.category), asc(schema.signTemplates.title)), documentTypes()]);
   const typeName = new Map(types.map(type => [type.id, type.name]));
+  // Library documents not added yet.
+  const available = LIBRARY_TEMPLATES.filter(entry => !templates.some(template => template.title === entry.title));
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -80,7 +84,7 @@ export async function TemplatesTab() {
         </div>
         <div className="card p-5">
           <h2 className="flex items-center gap-2 font-bold"><Upload className="h-4 w-4 text-brand" /> Upload a PDF to sign</h2>
-          <p className="mt-1 text-sm text-mute">Every page is initialled and a signature page with a certificate is added.</p>
+          <p className="mt-1 text-sm text-mute">Then place the signature, initials, date and name exactly where they go on your form. Without fields, every page is initialled and a signature page is added.</p>
           <div className="mt-3">
             <FileUpload
               endpoint="/api/sign/templates"
@@ -140,9 +144,17 @@ export async function TemplatesTab() {
                         <span className="text-xs text-dim">Version {template.version}</span>
                         {!template.active && <Badge tone="neutral">Retired</Badge>}
                       </p>
-                      <p className="text-xs text-mute">{template.typeId ? `Filed as ${typeName.get(template.typeId) ?? "a retired type"}` : "Not filed under a type"}{template.initialEach ? ` · initialled on every ${template.sourceKey ? "page" : "section"}` : ""}</p>
+                      <p className="text-xs text-mute">
+                        {template.typeId ? `Filed as ${typeName.get(template.typeId) ?? "a retired type"}` : "Not filed under a type"}
+                        {template.sourceKey && template.fields.length
+                          ? ` · ${template.fields.length} ${template.fields.length === 1 ? "field" : "fields"} placed`
+                          : template.initialEach ? ` · initialled on every ${template.sourceKey ? "page" : "section"}` : ""}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {template.sourceKey && (
+                        <Link href={`/app/documents/templates/${template.id}`} className="btn-ghost btn-sm"><MousePointerSquareDashed className="h-4 w-4" /> {template.fields.length ? "Edit fields" : "Place fields"}</Link>
+                      )}
                       {!template.sourceKey && (
                         <ModalForm action={saveTextTemplate.bind(null, template.id)} title={`Edit ${template.title}`} triggerLabel="Edit" triggerIcon="pencil" triggerTone="ghost" submitLabel="Save">
                           <TextFields template={template} types={types} prefix={`tpl-${template.id.slice(0, 8)}`} />
@@ -170,6 +182,22 @@ export async function TemplatesTab() {
           </ul>
         )}
       </Panel>
+
+      {available.length > 0 && (
+        <Panel title="Template library" action={<span className="text-xs text-mute">Starting wording; check it against your own policies</span>}>
+          <ul className="grid gap-px bg-line/60 sm:grid-cols-2 lg:grid-cols-3">
+            {available.map(entry => (
+              <li key={entry.title} className="flex flex-col gap-2 bg-white p-5">
+                <p className="flex items-start gap-2 text-sm font-semibold"><BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> {entry.title}</p>
+                <p className="text-xs text-mute">{entry.category === "staff" ? "Signed by staff" : entry.category === "person" ? "Signed by the person or guardian" : "Signed for the business"} · {sections(entry.body).length} sections, each initialled</p>
+                <div className="mt-auto pt-1">
+                  <ConfirmAction action={addLibraryTemplate.bind(null, entry.title)} label="Add and edit" tone="ghost" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
     </div>
   );
 }

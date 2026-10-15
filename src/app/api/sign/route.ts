@@ -13,6 +13,7 @@ const input = z.object({
   signature: z.string().max(1_000_000),
   initials: z.string().max(1_000_000),
   initialsCount: z.number().int().min(0).max(500),
+  appliedFields: z.array(z.string().max(40)).max(400).default([]),
   consent: z.literal(true),
   consentedAt: z.iso.datetime(),
 });
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       signaturePng: pngFromDataUrl(data.signature, "signature"),
       initialsPng: pngFromDataUrl(data.initials, "initials"),
       initialsCount: data.initialsCount,
+      appliedFields: data.appliedFields,
       ip: (request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "").split(",")[0].trim(),
       userAgent: request.headers.get("user-agent") ?? "",
       consentedAt,

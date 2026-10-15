@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { dateKey, fmt } from "@/lib/format";
+import { needsAction, pdfBox, type SignField } from "@/lib/sign-fields";
 import { fill, pdfSafe, sections } from "@/lib/signing";
 import { site } from "@/lib/site";
 import { db, schema } from "@/server/db";
@@ -184,13 +185,46 @@ async function textPdf(template: Template, filled: string, evidence: Evidence, s
   return Buffer.from(await pdf.save());
 }
 
-/* An uploaded PDF: initials stamped on every page, then a signature page and the certificate. */
+/* Text fitted into a field's box: as large as the box allows, up to 12 points. */
+function fieldText(page: PDFPage, text: string, box: { x: number; y: number; width: number; height: number }, font: PDFFont) {
+  const clean = pdfSafe(text);
+  let size = Math.min(12, box.height * 0.62);
+  while (size > 5 && font.widthOfTextAtSize(clean, size) > box.width - 4) size -= 0.5;
+  page.drawText(clean, { x: box.x + 2, y: box.y + (box.height - size) / 2 + size * 0.18, size, font, color: INK });
+}
+
+/* Each placed field stamped where it was put: signature, initials, the signing date and the printed name. */
+function stampFields(pdf: PDFDocument, fields: SignField[], evidence: Evidence, signature: PDFImage, initials: PDFImage, font: PDFFont) {
+  const pages = pdf.getPages();
+  const signedOn = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "long", day: "numeric", year: "numeric" }).format(evidence.signedAt);
+  for (const field of fields) {
+    const page = pages[field.page - 1];
+    if (!page) continue;
+    const { width, height } = page.getSize();
+    const box = pdfBox(field, width, height);
+    if (field.kind === "signature") fitImage(page, signature, { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 });
+    else if (field.kind === "initials") fitImage(page, initials, { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 });
+    else if (field.kind === "date") fieldText(page, signedOn, box, font);
+    else fieldText(page, evidence.signerName, box, font);
+  }
+}
+
+/*
+ * An uploaded PDF. With fields placed: each is stamped where it was put. Without: initials on every
+ * page and a signature page. The certificate is always added at the end.
+ */
 async function sourcePdf(source: Buffer, template: Template, evidence: Evidence, signaturePng: Buffer, initialsPng: Buffer) {
   const pdf = await PDFDocument.load(source);
   pdf.setProducer("Mohuddle");
   const fonts = { regular: await pdf.embedFont(StandardFonts.Helvetica), bold: await pdf.embedFont(StandardFonts.HelveticaBold) };
   const signature = await pdf.embedPng(signaturePng);
   const initials = await pdf.embedPng(initialsPng);
+  if (template.fields.length) {
+    stampFields(pdf, template.fields, evidence, signature, initials, fonts.regular);
+    certificate(pdf, evidence, signature, initials, fonts);
+    footers(pdf, fonts.regular, evidence.reference);
+    return Buffer.from(await pdf.save());
+  }
   if (template.initialEach) {
     for (const page of pdf.getPages()) {
       const { width } = page.getSize();
@@ -210,7 +244,10 @@ async function sourcePdf(source: Buffer, template: Template, evidence: Evidence,
 export async function signingContent(template: Template, signerName: string) {
   if (template.sourceKey) {
     const source = await readAll(template.sourceKey);
-    return { kind: "pdf" as const, source, pages: template.sourcePages ?? 1, contentHash: createHash("sha256").update(source).digest("hex") };
+    // The fingerprint covers where the fields are, so moving a field makes it a different document.
+    const hash = createHash("sha256").update(source);
+    if (template.fields.length) hash.update(JSON.stringify(template.fields));
+    return { kind: "pdf" as const, source, pages: template.sourcePages ?? 1, fields: template.fields, contentHash: hash.digest("hex") };
   }
   const filled = fill(template.body, { name: signerName, date: fmt.dayLong(dateKey()), agency: site.legalName });
   return { kind: "text" as const, filled, pages: sections(filled).length, contentHash: createHash("sha256").update(`${template.id}:${template.version}:${filled}`).digest("hex") };
@@ -232,6 +269,8 @@ export async function signItem(input: {
   signaturePng: Buffer;
   initialsPng: Buffer;
   initialsCount: number;
+  /* On a PDF with placed fields: the signature and initials fields the signer applied. */
+  appliedFields: string[];
   ip: string;
   userAgent: string;
   consentedAt: Date;
@@ -239,7 +278,13 @@ export async function signItem(input: {
   uploadedBy: string | null;
 }) {
   const content = await signingContent(input.template, input.signerName);
-  if (input.template.initialEach && input.initialsCount !== content.pages) {
+  const fields = content.kind === "pdf" ? content.fields : [];
+  if (fields.length) {
+    const needed = fields.filter(needsAction);
+    const done = needed.filter(field => input.appliedFields.includes(field.id)).length;
+    if (done !== needed.length) throw new DocumentError(`Sign and initial every marked place before you finish (${done} of ${needed.length} done).`);
+    input.initialsCount = fields.filter(field => field.kind === "initials").length;
+  } else if (input.template.initialEach && input.initialsCount !== content.pages) {
     throw new DocumentError(`Initial every ${content.kind === "pdf" ? "page" : "section"} before you sign (${input.initialsCount} of ${content.pages} done).`);
   }
   const signedAt = new Date();

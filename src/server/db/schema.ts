@@ -845,6 +845,9 @@ export const signTemplates = pgTable("sign_templates", {
   sourceName: text("source_name").notNull().default(""),
   sourcePages: integer("source_pages"),
   initialEach: boolean("initial_each").notNull().default(true),
+  // On an uploaded PDF: where to initial, sign, date and print the name (see src/lib/sign-fields.ts).
+  // When there are none, every page is initialled and a signature page is added.
+  fields: jsonb("fields").$type<{ id: string; kind: "signature" | "initials" | "date" | "name"; page: number; x: number; y: number; w: number; h: number }[]>().notNull().default(emptyList()),
   version: integer("version").notNull().default(1),
   active: boolean("active").notNull().default(true),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),

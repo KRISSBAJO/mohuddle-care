@@ -4,6 +4,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fmt } from "@/lib/format";
+import { LIBRARY_TEMPLATES } from "@/lib/default-sign-templates";
+import { cleanFields } from "@/lib/sign-fields";
 import { sections } from "@/lib/signing";
 import { db, schema } from "@/server/db";
 import { createRequestFor } from "@/server/docs/requests";
@@ -41,6 +43,49 @@ export async function saveTextTemplate(id: string | null, _previous: FormState, 
   }
   await db.insert(schema.auditLog).values({ userId: user.id, action: id ? "sign-template:update" : "sign-template:create", entity: "sign_template", entityId: id ?? "" });
   revalidatePath("/app/documents", "layout");
+  return {};
+}
+
+/*
+ * Saves where the fields go on an uploaded PDF. A change makes a new version, so earlier signatures
+ * keep pointing at what was actually signed.
+ */
+export async function saveTemplateFields(id: string, json: string): Promise<FormState & { saved?: number }> {
+  const user = await requireManager();
+  if (!uuid.safeParse(id).success) return { error: "This document no longer exists." };
+  const [template] = await db.select().from(schema.signTemplates).where(eq(schema.signTemplates.id, id)).limit(1);
+  if (!template?.sourceKey || !template.sourcePages) return { error: "Fields can only be placed on an uploaded PDF." };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return { error: "The fields could not be read. Reload and try again." };
+  }
+  const result = cleanFields(raw, template.sourcePages);
+  if ("error" in result) return result;
+  const changed = JSON.stringify(result.fields) !== JSON.stringify(template.fields);
+  if (changed) {
+    await db.update(schema.signTemplates).set({ fields: result.fields, version: template.version + 1 }).where(eq(schema.signTemplates.id, id));
+    await db.insert(schema.auditLog).values({ userId: user.id, action: "sign-template:fields", entity: "sign_template", entityId: id });
+  }
+  revalidatePath("/app/documents");
+  return { saved: result.fields.length };
+}
+
+/* Copies a document from the library into the agency's documents to sign, ready to edit. */
+export async function addLibraryTemplate(title: string): Promise<FormState> {
+  const user = await requireManager();
+  const entry = LIBRARY_TEMPLATES.find(item => item.title === title);
+  if (!entry) return { error: "That document is not in the library." };
+  const [existing] = await db.select({ id: schema.signTemplates.id }).from(schema.signTemplates).where(eq(schema.signTemplates.title, entry.title)).limit(1);
+  if (existing) return { error: "That document is already in your documents to sign." };
+  const types = await db.select({ id: schema.documentTypes.id, name: schema.documentTypes.name }).from(schema.documentTypes);
+  const [row] = await db
+    .insert(schema.signTemplates)
+    .values({ title: entry.title, category: entry.category, typeId: types.find(type => type.name === entry.typeName)?.id ?? null, body: entry.body, initialEach: true, createdBy: user.id })
+    .returning({ id: schema.signTemplates.id });
+  await db.insert(schema.auditLog).values({ userId: user.id, action: "sign-template:library", entity: "sign_template", entityId: row.id });
+  revalidatePath("/app/documents");
   return {};
 }
 

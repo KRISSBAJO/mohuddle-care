@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, CheckCircle2, FileSignature, Loader2, PenLine, ShieldCheck, Type } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { needsAction, type SignField } from "@/lib/sign-fields";
 import { initialsOf, type Section } from "@/lib/signing";
+import { PdfPages } from "./PdfPages";
 import { SIGNATURE_FONTS, SignaturePad, typedToPng, type PadHandle } from "./SignaturePad";
 
 type Props = {
@@ -14,7 +16,7 @@ type Props = {
   signerRelation: string;
   agency: string;
   initialEach: boolean;
-  content: { kind: "text"; sections: Section[] } | { kind: "pdf"; pages: number; sourceUrl: string };
+  content: { kind: "text"; sections: Section[] } | { kind: "pdf"; pages: number; sourceUrl: string; fields?: SignField[] };
   doneHref?: string;
 };
 
@@ -34,12 +36,18 @@ export function SignDocument(props: Props) {
   const [signed, setSigned] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A PDF with placed fields: the signer taps each signature and initials field where it sits on the page.
+  const placed = useMemo(() => (content.kind === "pdf" ? content.fields ?? [] : []), [content]);
+  const [applied, setApplied] = useState<Set<string>>(new Set());
+  const toApply = useMemo(() => placed.filter(needsAction), [placed]);
+  const fieldsLeft = useMemo(() => toApply.filter(field => !applied.has(field.id)), [toApply, applied]);
   const total = content.kind === "text" ? content.sections.length : content.pages;
-  const needed = initialEach ? total : 0;
+  const needed = placed.length ? 0 : initialEach ? total : 0;
   const remaining = useMemo(() => Array.from({ length: needed }, (_, index) => index).filter(index => !initialled.has(index)), [needed, initialled]);
+  const complete = placed.length ? fieldsLeft.length === 0 : remaining.length === 0 && signed;
 
   const goNext = () => {
-    const target = remaining.length ? `initial-${remaining[0]}` : "sign-here";
+    const target = placed.length ? (fieldsLeft.length ? `field-${fieldsLeft[0].id}` : "finish-here") : remaining.length ? `initial-${remaining[0]}` : "sign-here";
     document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
@@ -58,7 +66,8 @@ export function SignDocument(props: Props) {
         typedInitials: adopted.typedInitials,
         signature: adopted.signature,
         initials: adopted.initials,
-        initialsCount: initialled.size,
+        initialsCount: placed.length ? placed.filter(field => field.kind === "initials").length : initialled.size,
+        appliedFields: [...applied],
         consent: true,
         consentedAt: consentAt,
       }),
@@ -122,11 +131,17 @@ export function SignDocument(props: Props) {
         <>
           <div className="sticky top-0 z-20 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
             <p className="text-sm">
-              {initialEach && <span className="font-semibold">{initialled.size} of {needed} initialled</span>}
-              {initialEach && " · "}
-              <span className={signed ? "font-semibold text-sage" : "text-mute"}>{signed ? "Signed" : "Signature needed"}</span>
+              {placed.length ? (
+                <span className="font-semibold">{toApply.length - fieldsLeft.length} of {toApply.length} places done</span>
+              ) : (
+                <>
+                  {initialEach && <span className="font-semibold">{initialled.size} of {needed} initialled</span>}
+                  {initialEach && " · "}
+                  <span className={signed ? "font-semibold text-sage" : "text-mute"}>{signed ? "Signed" : "Signature needed"}</span>
+                </>
+              )}
             </p>
-            {remaining.length > 0 || !signed ? (
+            {!complete ? (
               <button type="button" onClick={goNext} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink shadow-sm hover:brightness-95">
                 <ArrowDown className="h-4 w-4" /> Next
               </button>
@@ -152,6 +167,46 @@ export function SignDocument(props: Props) {
                   </section>
                 ))}
               </div>
+            ) : placed.length ? (
+              <div className="mt-6">
+                <p className="mb-3 text-sm text-mute">Read each page. Tap every highlighted place to initial or sign; the date and your name are filled in for you.</p>
+                <PdfPages
+                  url={content.sourceUrl}
+                  overlay={number =>
+                    placed
+                      .filter(field => field.page === number)
+                      .map(field => {
+                        const box = { left: `${field.x * 100}%`, top: `${field.y * 100}%`, width: `${field.w * 100}%`, height: `${field.h * 100}%` };
+                        if (!needsAction(field)) {
+                          return (
+                            <span key={field.id} className="absolute flex items-center overflow-hidden whitespace-nowrap rounded bg-sky/40 px-1 text-[clamp(8px,1.4vw,13px)] font-semibold text-[#0b2239]" style={box}>
+                              {field.kind === "date" ? new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "long", day: "numeric", year: "numeric" }).format(new Date()) : props.signerName}
+                            </span>
+                          );
+                        }
+                        const done = applied.has(field.id);
+                        return (
+                          <button
+                            key={field.id}
+                            id={`field-${field.id}`}
+                            type="button"
+                            disabled={done}
+                            onClick={() => setApplied(current => new Set(current).add(field.id))}
+                            className={cn("absolute flex scroll-mt-32 items-center justify-center rounded-md border-2 text-[clamp(8px,1.3vw,12px)] font-bold transition", done ? "border-transparent bg-transparent" : "animate-pulse border-accent bg-accent-soft/90 text-ink hover:animate-none")}
+                            style={box}
+                          >
+                            {done ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- the signer's own signature or initials
+                              <img src={field.kind === "signature" ? adopted.signature : adopted.initials} alt={field.kind === "signature" ? "Your signature" : "Your initials"} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="inline-flex items-center gap-1"><PenLine className="h-3 w-3" /> {field.kind === "signature" ? "Sign" : "Initial"}</span>
+                            )}
+                          </button>
+                        );
+                      })
+                  }
+                />
+              </div>
             ) : (
               <div className="mt-6 space-y-4">
                 <iframe src={content.sourceUrl} title={props.title} className="h-[70vh] w-full rounded-xl border border-line bg-panel" />
@@ -171,6 +226,7 @@ export function SignDocument(props: Props) {
               </div>
             )}
 
+            {!placed.length && (
             <div id="sign-here" className="mt-10 scroll-mt-28 border-t border-line pt-6">
               <p className="mb-2 text-sm font-semibold">Signature</p>
               <button
@@ -192,9 +248,10 @@ export function SignDocument(props: Props) {
               <p className="mt-2 text-sm font-semibold">{props.signerName}{props.signerRelation ? `, ${props.signerRelation}` : ""}</p>
               <p className="text-xs text-mute">{new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(new Date())}</p>
             </div>
+            )}
             {error && <p className="mt-4 rounded-lg bg-flag-soft px-3 py-2 text-sm font-medium text-flag" role="alert">{error}</p>}
-            {signed && remaining.length === 0 && (
-              <div className="mt-6 flex justify-end">
+            {complete && (
+              <div id="finish-here" className="mt-6 flex justify-end">
                 <button type="button" disabled={pending} onClick={finish} className="btn-brand">
                   {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature className="h-4 w-4" />} {pending ? "Signing…" : "Finish and sign"}
                 </button>

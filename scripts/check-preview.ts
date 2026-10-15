@@ -38,6 +38,8 @@ async function main() {
     routes.push("/app?tab=shifts", "/app?tab=care", "/app?tab=incidents", "/app?tab=team", "/app?tab=nonsense");
     routes.push("/app/documents", "/app/documents?tab=review", "/app/documents?tab=staff", "/app/documents?tab=people", "/app/documents?tab=business", "/app/documents?tab=requests", "/app/documents?tab=signing", "/app/documents?tab=types", "/app/documents?q=cpr", "/app/my-documents", "/docs/r/not-a-real-token-but-long-enough");
     if (people[0]) routes.push(`/app/individuals/${people[0].id}?tab=documents`);
+    const { rows: pdfTemplates } = await pool.query("select id from sign_templates where source_key is not null limit 1");
+    if (pdfTemplates[0]) routes.push(`/app/documents/templates/${pdfTemplates[0].id}`);
     if (people[0]) routes.push(`/app/individuals/${people[0].id}?tab=care-team`);
     routes.push("/app/tasks?view=open", "/app/tasks?view=overdue&group=assignee", "/app/tasks?view=done", "/app/tasks?view=unassigned&group=home&priority=high&q=book", "/app/tasks?person=bad&home=bad");
     const { rows: taskRows } = await pool.query("select id from tasks limit 1");
