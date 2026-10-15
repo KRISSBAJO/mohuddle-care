@@ -7,6 +7,7 @@ import { usePosition } from "@/components/clock/usePosition";
 import { cn } from "@/lib/cn";
 import { locationVerdict } from "@/lib/timeclock";
 import type { FormState } from "@/server/actions/auth";
+import { DraftKeeper } from "@/components/app/DraftKeeper";
 
 type Person = { id: string; first: string; last: string; noteWritten: boolean; dosesDue: { id: string; medication: string; scheduledFor: string }[] };
 
@@ -43,6 +44,7 @@ export function ClockOutForm({
   radius,
   fullName,
   summary,
+  draftKey,
 }: {
   action: (previous: FormState, formData: FormData) => Promise<FormState>;
   home: string;
@@ -58,6 +60,8 @@ export function ClockOutForm({
   radius: number;
   fullName: string;
   summary: React.ReactNode;
+  /* Where this device keeps an unsaved copy of the handover, per staff member and punch. */
+  draftKey: string;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
   const [note, setNote] = useState("");
@@ -114,6 +118,7 @@ export function ClockOutForm({
       className="space-y-4"
     >
       {summary}
+      <DraftKeeper name={draftKey} label="handover" />
 
       {(notesMissing.length > 0 || dosesMissing.length > 0) && (
         <Section title="Still to do" hint="Open each one in a new tab, then refresh this page." tone={(must("notes") && notesMissing.length) || (must("doses") && dosesMissing.length) ? "must" : "warn"}>
@@ -140,7 +145,7 @@ export function ClockOutForm({
       {hasHome && (
         <Section title={`Handover for the next shift at ${home}`} hint="The next staff member reads this before they can clock in." tone={must("handover") ? "must" : undefined}>
           <label htmlFor="handover-note" className="label">How the shift went{must("handover") ? "" : " (optional)"}</label>
-          <textarea id="handover-note" rows={4} maxLength={4000} className="field" value={note} onChange={event => setNote(event.target.value)} placeholder="Quiet evening. Brianna had a headache after dinner, gave water and rest, fine by 8pm. Groceries are low on milk." />
+          <textarea id="handover-note" name="handoverNote" rows={4} maxLength={4000} className="field" value={note} onChange={event => setNote(event.target.value)} placeholder="Quiet evening. Brianna had a headache after dinner, gave water and rest, fine by 8pm. Groceries are low on milk." />
           {minChars > 0 && must("handover") && <p className={cn("mt-1 text-right text-xs", note.trim().length >= minChars ? "text-sage" : "text-dim")}>{note.trim().length} / {minChars} characters</p>}
           {people.length > 0 && (
             <div className="mt-4 space-y-2">

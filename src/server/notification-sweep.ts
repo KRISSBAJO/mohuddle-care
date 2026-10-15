@@ -6,6 +6,7 @@ import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { liveBoard } from "@/server/queries/timeclock";
 import { unsignedSheets, workweekMinutes } from "@/server/queries/payroll";
 import { notesOwed } from "@/server/queries/notes-owed";
+import { sendMorningDigest } from "@/server/digest";
 import { shiftReminders } from "@/server/shift-reminders";
 import { getSettings } from "@/server/settings";
 
@@ -290,8 +291,9 @@ export async function sweepNotifications(force = false) {
       });
     }
 
-    // Staff's own shift and break reminders.
+    // Staff's own shift and break reminders, and the managers' morning summary.
     sent += await shiftReminders(now, settings);
+    sent += await sendMorningDigest(now, settings);
 
     // Time clock: shifts with nobody clocked in, and people still clocked in long after their shift.
     const board = await liveBoard(now, settings);

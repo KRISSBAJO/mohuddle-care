@@ -50,6 +50,7 @@ export default async function ClockOutPage() {
       <PageHeader eyebrow="Time clock" title="Clock out" description={`Finish your shift at ${open.home ?? "work"}: hand over to the next person, then sign.`} />
       <ClockOutForm
         action={clockOut}
+        draftKey={`clock-out:${user.id}:${open.entry.id}`}
         home={open.home ?? "the home"}
         homePoint={{ latitude: open.homeLatitude, longitude: open.homeLongitude }}
         hasHome={Boolean(open.entry.homeId)}

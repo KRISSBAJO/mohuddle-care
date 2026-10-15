@@ -152,6 +152,7 @@ export default async function NewDailyLogPage({ searchParams }: { searchParams: 
           requiredChecks={settings.required_daily_checks}
           summaryMin={settings.daily_log_summary_min_chars}
           signer={user.name}
+          draftKey={`daily-new:${user.id}:${initialPerson || "any"}:${initialShift || "none"}`}
           configs={configs}
           defaultConfig={defaultConfig}
           scribe={settings.scribe_enabled === "on"}

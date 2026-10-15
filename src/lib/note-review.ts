@@ -11,13 +11,15 @@ export const REVIEW_WORDS: Record<ReviewStatus, string> = { submitted: "To revie
 export const REVIEW_TONE = { submitted: "warn", returned: "bad", approved: "good" } as const;
 export const KIND_WORDS: Record<NoteKind, string> = { daily: "Shift note", community: "Community Participation" };
 
-export type FlagKey = "late" | "no_punch" | "outside_punch" | "attention" | "resubmitted";
+export type FlagKey = "late" | "no_punch" | "outside_punch" | "attention" | "resubmitted" | "copied" | "early";
 export const FLAG_WORDS: Record<FlagKey, string> = {
   late: "Written late",
   no_punch: "No clock punch",
   outside_punch: "Outside the punch",
   attention: "Behaviour, seizure or low mood",
   resubmitted: "Resubmitted",
+  copied: "Same words as another note",
+  early: "Written before the shift ended",
 };
 
 /* What the checks need to know about one note. Times are milliseconds; null when the note has none. */
@@ -30,6 +32,9 @@ export type NoteFacts = {
   punches: { in: number; out: number | null }[] | null;
   attention: boolean;
   resubmitted: boolean;
+  /* Worked out by the caller: the text matches another note by the same writer, and it was signed too early. */
+  copied?: boolean;
+  early?: boolean;
 };
 
 /* The checks a note fails, from those switched on. A punch still open counts up to now. */
@@ -52,6 +57,8 @@ export function reviewFlags(facts: NoteFacts, enabled: FlagKey[], toleranceMinut
   }
   if (on("attention") && facts.attention) flags.push("attention");
   if (on("resubmitted") && facts.resubmitted) flags.push("resubmitted");
+  if (on("copied") && facts.copied) flags.push("copied");
+  if (on("early") && facts.early) flags.push("early");
   return flags;
 }
 
@@ -95,4 +102,40 @@ export function readNoteRefs(values: string[]): { kind: NoteKind; id: string }[]
     seen.add(value);
     return [{ kind: match[1] as NoteKind, id: match[2] }];
   });
+}
+
+/* Notes shorter than this are not compared: "Calm shift, no concerns." is fine to repeat. */
+export const COPY_MIN_WORDS = 15;
+
+/* Three-word runs of a note's text, lower case, for comparing two notes. */
+export function shingles(text: string): Set<string> {
+  const words = text.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+  const out = new Set<string>();
+  if (words.length < COPY_MIN_WORDS) return out;
+  for (let i = 0; i + 2 < words.length; i++) out.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  return out;
+}
+
+/*
+ * How alike two notes are, from 0 to 100: three-word runs they share, against the average of both
+ * (the Dice measure). Changing one word in a 30-word note still scores about 90.
+ */
+export function similarity(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const run of a) if (b.has(run)) shared += 1;
+  return Math.round(((2 * shared) / (a.size + b.size)) * 100);
+}
+
+export type CopyMatch = { id: string; kind: NoteKind; person: string; day: string; percent: number };
+
+/* The most alike earlier or other note, when at or above the threshold. */
+export function closestCopy(note: { id: string; runs: Set<string> }, others: { id: string; kind: NoteKind; person: string; day: string; runs: Set<string> }[], threshold: number): CopyMatch | null {
+  let best: CopyMatch | null = null;
+  for (const other of others) {
+    if (other.id === note.id) continue;
+    const percent = similarity(note.runs, other.runs);
+    if (percent >= threshold && (!best || percent > best.percent)) best = { id: other.id, kind: other.kind, person: other.person, day: other.day, percent };
+  }
+  return best;
 }

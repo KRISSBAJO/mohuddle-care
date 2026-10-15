@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { shiftMinutes } from "@/lib/log-note";
-import { mayReview, noteRights, reviewFlags, type FlagKey, type NoteKind, type ReviewStatus } from "@/lib/note-review";
+import { closestCopy, mayReview, noteRights, reviewFlags, shingles, type CopyMatch, type FlagKey, type NoteKind, type ReviewStatus } from "@/lib/note-review";
 import type { SessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import type { Settings } from "@/server/settings";
@@ -29,6 +29,8 @@ export type ReviewRow = {
   status: ReviewStatus;
   returnReason: string;
   flags: FlagKey[];
+  /* The other note this one matches, when flagged as copied. */
+  copyOf: CopyMatch | null;
 };
 
 /* A note's start and end as instants, from its day and clock times. Null when it has no times. */
@@ -67,11 +69,14 @@ async function notesBetween(filters: ReviewFilters, settings: Settings, now: num
             mood: schema.dailyLogs.mood,
             seizure: schema.dailyLogs.seizure,
             behaviour: schema.dailyLogs.behaviourOccurred,
+            ...dailyText,
+            shiftEnd: schema.shifts.endsAt,
           })
           .from(schema.dailyLogs)
           .innerJoin(schema.individuals, eq(schema.individuals.id, schema.dailyLogs.individualId))
           .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
           .leftJoin(schema.staff, eq(schema.staff.id, schema.dailyLogs.staffId))
+          .leftJoin(schema.shifts, eq(schema.shifts.id, schema.dailyLogs.shiftId))
           .where(
             and(
               gte(schema.dailyLogs.logDate, filters.from),
@@ -103,6 +108,7 @@ async function notesBetween(filters: ReviewFilters, settings: Settings, now: num
             createdAt: schema.communityNotes.createdAt,
             status: schema.communityNotes.reviewStatus,
             returnReason: schema.communityNotes.returnReason,
+            ...communityText,
           })
           .from(schema.communityNotes)
           .innerJoin(schema.individuals, eq(schema.individuals.id, schema.communityNotes.individualId))
@@ -120,8 +126,8 @@ async function notesBetween(filters: ReviewFilters, settings: Settings, now: num
           .limit(600),
   ]);
   const all = [
-    ...daily.map(row => ({ ...row, kind: "daily" as const, attention: row.behaviour || row.seizure || row.mood === "low" || row.mood === "distressed" })),
-    ...community.map(row => ({ ...row, kind: "community" as const, attention: false })),
+    ...daily.map(row => ({ ...row, kind: "daily" as const, attention: row.behaviour || row.seizure || row.mood === "low" || row.mood === "distressed", text: joinText(row), endsAt: row.shiftEnd })),
+    ...community.map(row => ({ ...row, kind: "community" as const, attention: false, text: joinText(row), endsAt: shiftMinutes(row.startTime, row.endTime) === null ? null : zonedTime(row.day, row.endTime) })),
   ];
   return withFlags(all, settings, now);
 }
@@ -146,6 +152,8 @@ type FactRow = {
   status: ReviewStatus;
   returnReason: string;
   attention: boolean;
+  text: string;
+  endsAt: Date | null;
 };
 
 /* Adds each note's flags, loading the writers' punches and resubmissions in two queries. */
@@ -166,6 +174,8 @@ async function withFlags(rows: FactRow[], settings: Settings, now: number): Prom
       .where(and(inArray(schema.noteEvents.noteId, rows.map(row => row.id)), eq(schema.noteEvents.action, "resubmitted"))),
   ]);
   const resent = new Set(resubmitted.map(row => row.noteId));
+  const copies = settings.note_review_checks.includes("copied") ? await copyMatches(rows, writers, days[0], days[days.length - 1], settings.note_copy_percent) : new Map<string, CopyMatch>();
+  const earlyMs = settings.note_early_minutes * 60_000;
   return rows.map(row => {
     const times = window(row.day, row.startTime, row.endTime);
     const flags = reviewFlags(
@@ -176,6 +186,8 @@ async function withFlags(rows: FactRow[], settings: Settings, now: number): Prom
         punches: row.writerStaffId ? punches.filter(punch => punch.staffId === row.writerStaffId).map(punch => ({ in: punch.clockInAt.getTime(), out: punch.clockOutAt?.getTime() ?? null })) : null,
         attention: row.attention,
         resubmitted: resent.has(row.id),
+        copied: copies.has(row.id),
+        early: Boolean(row.endsAt && (row.signedAt ?? row.createdAt).getTime() < row.endsAt.getTime() - (row.kind === "daily" ? earlyMs : 0)),
       },
       settings.note_review_checks,
       settings.note_punch_tolerance_minutes,
@@ -199,8 +211,58 @@ async function withFlags(rows: FactRow[], settings: Settings, now: number): Prom
       status: row.status,
       returnReason: row.returnReason,
       flags,
+      copyOf: copies.get(row.id) ?? null,
     };
   });
+}
+
+
+/* The written parts of each kind of note, joined, for comparing notes. */
+const dailyText = {
+  t1: schema.dailyLogs.notes,
+  t2: schema.dailyLogs.presentation,
+  t3: schema.dailyLogs.meals,
+  t4: schema.dailyLogs.health,
+  t5: schema.dailyLogs.activities,
+  t6: schema.dailyLogs.behaviours,
+  t7: schema.dailyLogs.goalProgress,
+};
+const communityText = { t1: schema.communityNotes.note, t2: schema.communityNotes.activity, t3: schema.communityNotes.learning, t4: schema.communityNotes.selection };
+const joinText = (row: Partial<Record<"t1" | "t2" | "t3" | "t4" | "t5" | "t6" | "t7", string>>) => [row.t1, row.t2, row.t3, row.t4, row.t5, row.t6, row.t7].filter(Boolean).join(" ");
+
+/*
+ * Notes whose words match another note by the same writer: from 14 days before the earliest note
+ * up to the latest, for any person. Same-day notes for different people count too.
+ */
+async function copyMatches(rows: { id: string; writerStaffId: string | null; day: string; text: string }[], writers: string[], firstDay: string, lastDay: string, threshold: number) {
+  const found = new Map<string, CopyMatch>();
+  if (!writers.length) return found;
+  const since = addDays(firstDay, -14);
+  const [daily, community] = await Promise.all([
+    db
+      .select({ id: schema.dailyLogs.id, staffId: schema.dailyLogs.staffId, day: schema.dailyLogs.logDate, first: schema.individuals.firstName, ...dailyText })
+      .from(schema.dailyLogs)
+      .innerJoin(schema.individuals, eq(schema.individuals.id, schema.dailyLogs.individualId))
+      .where(and(inArray(schema.dailyLogs.staffId, writers), gte(schema.dailyLogs.logDate, since), lte(schema.dailyLogs.logDate, lastDay))),
+    db
+      .select({ id: schema.communityNotes.id, staffId: schema.communityNotes.staffId, day: schema.communityNotes.noteDate, first: schema.individuals.firstName, ...communityText })
+      .from(schema.communityNotes)
+      .innerJoin(schema.individuals, eq(schema.individuals.id, schema.communityNotes.individualId))
+      .where(and(inArray(schema.communityNotes.staffId, writers), gte(schema.communityNotes.noteDate, since), lte(schema.communityNotes.noteDate, lastDay))),
+  ]);
+  const pool = [
+    ...daily.map(row => ({ id: row.id, kind: "daily" as const, staffId: row.staffId, day: row.day, person: row.first, runs: shingles(joinText(row)) })),
+    ...community.map(row => ({ id: row.id, kind: "community" as const, staffId: row.staffId, day: row.day, person: row.first, runs: shingles(joinText(row)) })),
+  ].filter(item => item.runs.size);
+  for (const row of rows) {
+    if (!row.writerStaffId) continue;
+    const runs = shingles(row.text);
+    if (!runs.size) continue;
+    const others = pool.filter(item => item.staffId === row.writerStaffId && item.day <= row.day && item.day >= addDays(row.day, -14));
+    const match = closestCopy({ id: row.id, runs }, others, threshold);
+    if (match) found.set(row.id, match);
+  }
+  return found;
 }
 
 const asTarget = (row: ReviewRow) => ({ writerStaffId: row.writerStaffId, signedName: row.signedName, homeManagerStaffId: row.homeManagerStaffId });

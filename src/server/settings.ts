@@ -93,10 +93,22 @@ export const settingDefs = {
     fallback: ["admin", "coordinator"],
   },
   note_review_checks: {
-    label: "What flags a note for a closer look (late, no_punch, outside_punch, attention, resubmitted)",
+    label: "What flags a note for a closer look (late, no_punch, outside_punch, attention, resubmitted, copied, early)",
     kind: "list",
-    schema: z.array(z.enum(["late", "no_punch", "outside_punch", "attention", "resubmitted"])),
-    fallback: ["late", "no_punch", "outside_punch", "attention", "resubmitted"],
+    schema: z.array(z.enum(["late", "no_punch", "outside_punch", "attention", "resubmitted", "copied", "early"])),
+    fallback: ["late", "no_punch", "outside_punch", "attention", "resubmitted", "copied", "early"],
+  },
+  note_copy_percent: {
+    label: "A note this similar (in percent) to another by the same writer is flagged as copied (50 to 100)",
+    kind: "number",
+    schema: z.coerce.number().int().min(50).max(100),
+    fallback: 85,
+  },
+  note_early_minutes: {
+    label: "A note signed more than this many minutes before the shift ends is flagged as early (0 to 720)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(720),
+    fallback: 60,
   },
   note_punch_tolerance_minutes: {
     label: "A note's times may differ from the clock punch by up to this many minutes before it is flagged (0 to 240)",
@@ -193,6 +205,18 @@ export const settingDefs = {
     kind: "number",
     schema: z.coerce.number().int().min(7).max(365),
     fallback: 30,
+  },
+  digest_hour: {
+    label: "Hour of the morning summary for managers, 0 to 23 in Central time (-1 turns it off)",
+    kind: "number",
+    schema: z.coerce.number().int().min(-1).max(23),
+    fallback: 7,
+  },
+  digest_roles: {
+    label: "Login roles that get the morning summary (admin, coordinator, nurse, dsp)",
+    kind: "list",
+    schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
+    fallback: ["admin", "coordinator"],
   },
   notify_roles_incidents: {
     label: "Login roles told about incidents (admin, coordinator, nurse, dsp)",

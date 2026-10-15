@@ -30,6 +30,7 @@ export type Intent =
   | { kind: "break_start"; break: "meal" | "rest" | null }
   | { kind: "break_end" }
   | { kind: "next_shift" }
+  | { kind: "huddle" }
   | { kind: "whos_on" }
   | { kind: "my_hours" }
   | { kind: "whats_due" }
@@ -41,7 +42,7 @@ export type Intent =
   | { kind: "greeting" }
   | { kind: "unknown"; text: string };
 
-export const INTENT_KINDS = ["clock_in", "clock_out", "break_start", "break_end", "next_shift", "whos_on", "my_hours", "whats_due", "leave", "write_note", "incident", "open", "help", "greeting", "unknown"] as const;
+export const INTENT_KINDS = ["clock_in", "clock_out", "break_start", "break_end", "next_shift", "huddle", "whos_on", "my_hours", "whats_due", "leave", "write_note", "incident", "open", "help", "greeting", "unknown"] as const;
 
 /* Lower case, plain words: punctuation and filler removed, so speech and typing read the same. */
 export function normalize(text: string): string {
@@ -68,6 +69,7 @@ export function parseRequest(raw: string): Intent {
   if (text.trim().length === 0) return { kind: "unknown", text: raw };
 
   // Questions about their own day come first: they often start with "how" or "when".
+  if (has(text, "brief me", "huddle", "my huddle", "my briefing", "briefing", "what do i need to know", "who am i supporting", "who do i support", "who am i with today", "catch me up")) return { kind: "huddle" };
   if (has(text, "next shift", "when do i work", "when am i working", "when is my shift", "my shift today", "my shift tomorrow", "do i work today", "do i work tomorrow", "am i working", "my next shift", "when do i start")) return { kind: "next_shift" };
   if (has(text, "whos on", "who is on", "whos working", "who is working", "who is on shift", "whos on shift", "on shift now", "who is here")) return { kind: "whos_on" };
   if (has(text, "how many hours", "my hours", "hours this week", "hours worked", "worked this week", "overtime")) return { kind: "my_hours" };

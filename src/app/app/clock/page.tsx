@@ -10,6 +10,9 @@ import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { clockInContext, openEntry, rowMinutes, staffTime } from "@/server/queries/timeclock";
 import { getSettings } from "@/server/settings";
+import { HuddleCard } from "@/components/clock/HuddleCard";
+import { WrapUpCard } from "@/components/clock/WrapUpCard";
+import { shiftHuddle, shiftWrapUp } from "@/server/huddle";
 
 export const metadata = { title: "My time clock" };
 
@@ -33,7 +36,7 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
     );
   }
   const [settings, now] = await Promise.all([getSettings(), requestTime()]);
-  const [open, history, context] = await Promise.all([openEntry(user.staffId), staffTime(user.staffId, now), clockInContext(user.staffId, now, settings)]);
+  const [open, history, context, huddle, wrapUp] = await Promise.all([openEntry(user.staffId), staffTime(user.staffId, now), clockInContext(user.staffId, now, settings), shiftHuddle(user.staffId, now, settings), shiftWrapUp(user.staffId, now, settings)]);
   const mealTaken = open ? open.breaks.filter(item => item.kind === "meal" && item.endAt).reduce((sum, item) => sum + (item.endAt!.getTime() - item.startAt.getTime()) / 60_000, 0) : 0;
   const { shift, upcoming, later } = context;
   const startBreakMeal = startBreak.bind(null, "meal");
@@ -103,6 +106,10 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
           </p>
         )}
       </section>
+
+      {/* Open after clocking in; a summary line otherwise, so it is never in the way. */}
+      {wrapUp && <WrapUpCard wrapUp={wrapUp} />}
+      {huddle && <HuddleCard huddle={huddle} startOpen={done === "in"} />}
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="card px-4 py-3">

@@ -49,3 +49,22 @@ test("edits list only what changed; bulk refs are checked", () => {
   const id = "4318d6f7-4f44-4e97-8601-3dee94b798ee";
   assert.deepEqual(readNoteRefs([`daily:${id}`, `daily:${id}`, "bad", `community:${id}`]), [{ kind: "daily", id }, { kind: "community", id }]);
 });
+
+test("copied notes are found by shared three-word runs; short notes are not compared", async () => {
+  const { closestCopy, shingles, similarity } = await import("../src/lib/note-review");
+  const base = "Aisha woke at seven, ate all of her oatmeal and drank two cups of water. She took her morning medication and walked to the park with staff for thirty minutes.";
+  const same = shingles(base);
+  const edited = shingles(base.replace("thirty", "forty"));
+  const different = shingles("Sam spent the morning at day program, then went to the library and picked two books. He ate half of his sandwich at lunch and called his sister.");
+  assert.equal(similarity(same, shingles(base)), 100);
+  assert.ok(similarity(same, edited) >= 85);
+  assert.ok(similarity(same, different) < 10);
+  assert.equal(shingles("Calm shift, no concerns.").size, 0);
+  const match = closestCopy({ id: "a", runs: same }, [
+    { id: "a", kind: "daily", person: "Aisha", day: "2026-10-14", runs: same },
+    { id: "b", kind: "daily", person: "Sam", day: "2026-10-13", runs: different },
+    { id: "c", kind: "daily", person: "Aisha", day: "2026-10-12", runs: edited },
+  ], 85);
+  assert.equal(match?.id, "c");
+  assert.equal(closestCopy({ id: "a", runs: same }, [{ id: "b", kind: "daily", person: "Sam", day: "2026-10-13", runs: different }], 85), null);
+});

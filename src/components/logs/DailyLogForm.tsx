@@ -4,6 +4,7 @@ import { startTransition, useActionState, useEffect, useMemo, useRef, useState }
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, Info, PenLine, ShieldAlert } from "lucide-react";
 import { Select } from "@/components/app/Select";
+import { DraftKeeper } from "@/components/app/DraftKeeper";
 import { FollowUpQuestion } from "@/components/logs/FollowUpQuestion";
 import { ScribePanel } from "@/components/logs/ScribePanel";
 import { cn } from "@/lib/cn";
@@ -52,6 +53,8 @@ type Props = {
   defaultConfig: NoteConfig;
   /* Whether staff can speak the note and have it drafted. */
   scribe: boolean;
+  /* Where this device keeps an unsaved copy; includes the writer, so a shared tablet never shows it to someone else. */
+  draftKey: string;
 };
 
 const MOODS = [
@@ -245,6 +248,7 @@ export function DailyLogForm(props: Props) {
       noValidate={false}
     >
       <div className="grid gap-5">
+        <DraftKeeper name={props.draftKey} />
         {props.scribe && <ScribePanel kind="daily" personId={person?.id ?? ""} personName={first === "this person" ? "" : first} onFill={fillFromScribe} />}
         <div className="flex gap-3 rounded-2xl border border-brand/20 bg-sky/60 px-5 py-4 text-sm text-brand-deep">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />

@@ -23,6 +23,8 @@ test("questions about my day", () => {
   assert.equal(kind("How many hours have I worked this week?"), "my_hours");
   assert.equal(kind("What's due?"), "whats_due");
   assert.equal(kind("what's my leave balance"), "leave");
+  assert.equal(kind("Brief me"), "huddle");
+  assert.equal(kind("what do I need to know for this shift"), "huddle");
 });
 
 test("how-to questions are help, not commands", () => {

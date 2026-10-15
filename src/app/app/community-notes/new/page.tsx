@@ -6,6 +6,7 @@ import { Select } from "@/components/app/Select";
 import { Field, PageHeader, Panel } from "@/components/app/ui";
 import { CommunityScribe } from "@/components/community/CommunityScribe";
 import { CommunityTimes } from "@/components/community/CommunityTimes";
+import { DraftKeeper } from "@/components/app/DraftKeeper";
 import { dateKey } from "@/lib/format";
 import { createCommunityNote } from "@/server/actions/community-notes";
 import { db, schema } from "@/server/db";
@@ -53,6 +54,7 @@ export default async function NewCommunityNotePage({ searchParams }: { searchPar
                 <Select id="cp-person" name="individualId" required options={people.map(row => ({ value: row.id, label: `${row.first} ${row.last}`, hint: row.home ?? undefined }))} placeholder="Choose a person" />
               </Field>
             )}
+            <DraftKeeper name={`community-new:${user.id}:${person?.id ?? "any"}`} />
             {settings.scribe_enabled === "on" && <CommunityScribe personId={person?.id ?? ""} personName={person?.first ?? ""} />}
             <CommunityTimes today={dateKey()} />
             <div className="grid gap-4 sm:grid-cols-3">

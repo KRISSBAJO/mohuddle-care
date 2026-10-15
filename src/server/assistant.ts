@@ -9,6 +9,8 @@ import { notesOwed } from "@/server/queries/notes-owed";
 import { leaveBalance, myTimeOff } from "@/server/queries/pay";
 import { taskCounts } from "@/server/queries/tasks";
 import { clockInContext, clockOutContext, liveBoard, openEntry, staffTime } from "@/server/queries/timeclock";
+import { huddleHighlights, clockTime } from "@/lib/huddle";
+import { shiftHuddle } from "@/server/huddle";
 import { chooseRequest, modelLoaded, warmModel } from "@/server/scribe";
 import type { Settings } from "@/server/settings";
 
@@ -46,7 +48,7 @@ async function understand(text: string, settings: Settings): Promise<{ intent: I
           : kind === "open" && raw.page && raw.page in PAGES ? { kind: "open", page: raw.page as PageKey }
           : kind === "break_start" ? { kind: "break_start", break: raw.break === "meal" || raw.break === "rest" ? raw.break : null }
           : kind === "help" ? { kind: "help", query: text }
-          : ["clock_in", "clock_out", "break_end", "next_shift", "whos_on", "my_hours", "whats_due", "leave", "greeting"].includes(kind) ? ({ kind } as Intent)
+          : ["clock_in", "clock_out", "break_end", "next_shift", "huddle", "whos_on", "my_hours", "whats_due", "leave", "greeting"].includes(kind) ? ({ kind } as Intent)
           : null;
         if (intent) return { intent, via: "model" };
       } catch {
@@ -134,6 +136,19 @@ async function respond(intent: Intent, user: SessionUser, settings: Settings, no
       const open = await openEntry(staffId);
       if (!open?.openBreak) return { say: "You are not on a break.", via: "rules" };
       return { say: `End your ${open.openBreak.kind} break? It started at ${fmt.time(open.openBreak.startAt)}.`, confirm: { action: "break_end", title: "End break" }, via: "rules" };
+    }
+
+    case "huddle": {
+      if (!staffId) return NO_STAFF;
+      const huddle = await shiftHuddle(staffId, now, settings);
+      if (!huddle) return { say: "You have no shift now or coming up soon, so there is no huddle yet.", via: "rules" };
+      const doses = huddle.people.flatMap(person => person.doses.filter(dose => !dose.late).map(dose => `${person.name}'s ${dose.name} at ${clockTime(dose.at)}`));
+      return {
+        say: `${huddle.home}: you are supporting ${huddle.people.map(person => person.name).join(", ") || "nobody right now"}.`,
+        detail: [...huddleHighlights(huddle), ...(doses.length ? [`Doses coming up: ${doses.slice(0, 5).join(", ")}.`] : []), ...(huddle.handover?.note ? [`Last handover (${huddle.handover.from}): ${huddle.handover.note}`] : [])],
+        links: [{ label: "Full huddle", href: "/app/clock" }],
+        via: "rules",
+      };
     }
 
     case "next_shift": {

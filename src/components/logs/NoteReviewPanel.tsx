@@ -54,6 +54,13 @@ export function NoteReviewPanel({ kind, id, review, edited }: { kind: NoteKind; 
         </div>
       </div>
 
+      {note.copyOf && (
+        <p className="rounded-2xl border border-accent/60 bg-accent-soft px-5 py-3 text-sm">
+          {note.copyOf.percent}% the same words as {note.copyOf.person}&apos;s note on {fmt.day(note.copyOf.day)} by the same writer.{" "}
+          <Link href={note.copyOf.kind === "daily" ? `/app/daily-logs/${note.copyOf.id}` : `/app/community-notes/${note.copyOf.id}`} className="font-semibold text-brand hover:text-brand-deep">Compare</Link>
+        </p>
+      )}
+
       {events.length > 0 && (
         <details className="card px-5 py-3 text-sm">
           <summary className="flex cursor-pointer items-center gap-2 font-semibold text-mute"><History className="h-4 w-4" /> History ({events.length})</summary>

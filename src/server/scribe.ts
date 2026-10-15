@@ -152,7 +152,7 @@ export function chooseRequest(text: string, model: string, kinds: readonly strin
     };
     const system = [
       "You sort a care worker's request to a care-operations app into one of these kinds:",
-      "clock_in, clock_out, break_start, break_end, next_shift (when they work), whos_on (who is working now), my_hours (hours worked), whats_due (their tasks, notes owed, doses), leave (time-off balance), write_note (daily note for a person), incident (report an incident for a person), open (open a page), help (a question about how to use the app), greeting, unknown.",
+      "clock_in, clock_out, break_start, break_end, next_shift (when they work), huddle (a briefing on the people and what is due this shift), whos_on (who is working now), my_hours (hours worked), whats_due (their tasks, notes owed, doses), leave (time-off balance), write_note (daily note for a person), incident (report an incident for a person), open (open a page), help (a question about how to use the app), greeting, unknown.",
       "Choose unknown when it is none of these. Never invent a person.",
     ].join("\n");
     const response = await fetch(`${OLLAMA}/api/chat`, {
