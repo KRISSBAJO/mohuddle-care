@@ -58,6 +58,21 @@ The browser keeps a separate session for each address, so a sign-in moves betwee
 
 Going live needs DNS for `*.mohuddle.com`, a certificate that covers it, and `APP_URL=https://mohuddle.com`.
 
+## Email
+
+Mohuddle sends through RelyKit (`src/server/email.ts`). Nothing leaves the server unless `EMAIL_PROVIDER=relykit` and `RELYKIT_API_KEY` are set. Otherwise each email is only written to the log.
+
+- **Sender and replies:** emails go out as "Agency via Mohuddle" from `EMAIL_FROM`, which must be on a domain verified in RelyKit. Replies go to the agency's office email.
+- **Never sent:** test addresses (`.test`, `.example`, `example.com` and similar) are never handed to RelyKit.
+- **Record:** every email is recorded in `email_messages`, by kind and status. The body is never stored, because it can carry a one-time link.
+- **What is emailed:**
+  - setup and password links for new logins
+  - links for agency administrators added in the owner console
+  - staff document requests
+
+  Each agency switches these on or off in Settings ("Email links to people"). The link is always shown on screen too.
+- **"Forgot your password?"** emails a link and always gives the same answer, so it never reveals which emails have a login. It sends at most 3 emails to one address an hour.
+
 ## Not done yet
 
 - **Going live** with agency addresses: wildcard DNS and certificate, and moving Milestone's public website to its own domain so `mohuddle.com` is Mohuddle's.

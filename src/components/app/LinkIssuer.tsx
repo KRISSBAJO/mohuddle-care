@@ -55,6 +55,7 @@ export function LinkIssuer({ action, label, children }: Props) {
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
           </button>
         </div>
+        {state.emailed && <p className="mt-3 text-xs font-medium text-ink">{state.emailed}</p>}
         <button type="button" className="mt-3 text-xs font-semibold text-brand" onClick={() => router.refresh()}>
           Done, I have given them the link
         </button>

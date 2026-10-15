@@ -5,19 +5,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { assertMayGrant, mayManageLogin, passwordProblem, type LoginRole } from "@/lib/account-policy";
-import { findValidLink, hashLoginToken, issueLoginLink, loginUsedElsewhere } from "@/server/accounts";
+import { emailLoginLink, findValidLink, hashLoginToken, issueLoginLink, loginUsedElsewhere } from "@/server/accounts";
+import { emailNote } from "@/server/email";
 import { createSession, hashPassword, verifyPassword } from "@/server/auth";
 import { asAgency, db, schema, systemDb } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
 import { getSettings } from "@/server/settings";
 import type { FormState } from "./auth";
-import { zone } from "@/lib/format";
+import { linkExpiry } from "@/lib/format";
 
-export type LinkState = { error?: string; link?: string; expires?: string; note?: string };
+export type LinkState = { error?: string; link?: string; expires?: string; note?: string; emailed?: string };
 
 const uuid = z.uuid();
-const expiresText = (at: Date) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+const expiresText = linkExpiry;
 
 async function loadLogin(userId: string) {
   if (!uuid.safeParse(userId).success) return null;
@@ -65,9 +65,10 @@ export async function createLogin(staffId: string, _previous: LinkState, formDat
     return shared ? null : issueLoginLink(tx, user.id, "invite", actor.id);
   });
   if (!link) return { note: "This person already has a Mohuddle login from another agency. They sign in with the password they have, and can now open this agency too." };
+  const emailed = await emailLoginLink("invite", { email, name: `${member.firstName} ${member.lastName}` }, link, actor.id);
   // No revalidation here: refreshing would swap the page to its "has a login" view and lose the
   // link before it is copied. The link panel refreshes the page when the coordinator is done.
-  return { link: link.url, expires: expiresText(link.expiresAt) };
+  return { link: link.url, expires: expiresText(link.expiresAt), emailed: emailNote(email, emailed) };
 }
 
 /* Issues a fresh password link. The old password keeps working until the new one is chosen. */
@@ -77,16 +78,18 @@ export async function issueResetLink(userId: string): Promise<LinkState> {
   if (!target) return { error: "Unknown login." };
   if (!mayManageLogin(actor, target)) return { error: "You cannot manage this login." };
   if (!target.active) return { error: "Turn this login back on before sending a new link." };
-  if (await loginUsedElsewhere(target.loginId, actor.agencyId)) return { error: "This person also works for another agency on Mohuddle, so only they can change their password, from their Account page." };
+  if (await loginUsedElsewhere(target.loginId, actor.agencyId)) return { error: "This person also works for another agency on Mohuddle, so they reset their own password: \"Forgot your password?\" on the sign-in page." };
   const [login] = await db.select({ hasPassword: schema.logins.hasPassword }).from(schema.logins).where(eq(schema.logins.id, target.loginId)).limit(1);
+  const purpose = login?.hasPassword ? "reset" : "invite";
   const link = await db.transaction(async tx => {
-    const issued = await issueLoginLink(tx, target.id, login?.hasPassword ? "reset" : "invite", actor.id);
+    const issued = await issueLoginLink(tx, target.id, purpose, actor.id);
     await tx.insert(schema.auditLog).values({ userId: actor.id, action: "login:link", entity: "user", entityId: target.id });
     return issued;
   });
+  const emailed = await emailLoginLink(purpose, { email: target.email, name: target.name }, link, actor.id);
   // No revalidation here: refreshing would swap the page to its "has a login" view and lose the
   // link before it is copied. The link panel refreshes the page when the coordinator is done.
-  return { link: link.url, expires: expiresText(link.expiresAt) };
+  return { link: link.url, expires: expiresText(link.expiresAt), emailed: emailNote(target.email, emailed) };
 }
 
 export async function setLoginRole(userId: string, _previous: FormState, formData: FormData): Promise<FormState> {

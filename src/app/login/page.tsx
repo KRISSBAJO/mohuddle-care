@@ -62,7 +62,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </>
           )}
           <p className="mt-6 text-xs text-mute">
-            New, or forgot your password? Your coordinator can give you a one-time link to set it.
+            <Link href="/forgot-password" className="font-semibold text-brand hover:underline">Forgot your password?</Link> New here? Your office sends you a link to set one.
           </p>
         </div>
       </section>

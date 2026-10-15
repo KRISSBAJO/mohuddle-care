@@ -37,7 +37,7 @@ async function main() {
     routes.push("/app/appointments", "/app/appointments?view=document", "/app/appointments?view=followup&q=neuro", "/app/appointments?view=past&home=bad", "/app/appointments?book=1", "/app/notifications", "/app/notifications?show=unread");
     if (people[0]) routes.push(`/app/individuals/${people[0].id}?tab=appointments`);
     routes.push("/app?tab=shifts", "/app?tab=care", "/app?tab=incidents", "/app?tab=team", "/app?tab=nonsense");
-    routes.push("/app/documents", "/app/documents?tab=review", "/app/documents?tab=staff", "/app/documents?tab=people", "/app/documents?tab=business", "/app/documents?tab=requests", "/app/documents?tab=signing", "/app/documents?tab=types", "/app/documents?q=cpr", "/app/my-documents", "/docs/r/not-a-real-token-but-long-enough");
+    routes.push("/app/documents", "/app/documents?tab=review", "/app/documents?tab=staff", "/app/documents?tab=people", "/app/documents?tab=business", "/app/documents?tab=requests", "/app/documents?tab=signing", "/app/documents?tab=types", "/app/documents?q=cpr", "/app/my-documents", "/forgot-password", "/docs/r/not-a-real-token-but-long-enough");
     if (people[0]) routes.push(`/app/individuals/${people[0].id}?tab=documents`);
     const { rows: pdfTemplates } = await pool.query("select id from sign_templates where source_key is not null limit 1");
     if (pdfTemplates[0]) routes.push(`/app/documents/templates/${pdfTemplates[0].id}`);

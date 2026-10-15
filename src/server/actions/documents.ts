@@ -4,7 +4,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fmt } from "@/lib/format";
+import { documentRequestEmail } from "@/lib/email-templates";
 import { currentAgency } from "@/server/agency";
+import { emailNote, sendEmail } from "@/server/email";
 import { db, schema } from "@/server/db";
 import { approveDocument, DocumentError, rejectDocument } from "@/server/docs/service";
 import { createRequest, freshLink, revokeRequest } from "@/server/docs/requests";
@@ -14,7 +16,7 @@ import type { FormState } from "./auth";
 
 const uuid = z.uuid();
 const day = z.union([z.literal(""), z.iso.date()]).transform(value => value || null);
-export type LinkResult = FormState & { link?: string; expires?: string; first?: string; agency?: string };
+export type LinkResult = FormState & { link?: string; expires?: string; first?: string; agency?: string; emailed?: string };
 
 function refresh(doc?: { id: string; staffId: string | null; individualId: string | null; homeId: string | null }) {
   revalidatePath("/app/documents", "layout");
@@ -124,7 +126,14 @@ export async function requestStaffDocuments(staffId: string, _previous: LinkResu
   });
   const settings = await getSettings();
   refresh({ id: "", staffId, individualId: null, homeId: null });
-  return { link, agency: (await currentAgency())?.name, first: member.firstName, expires: fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10)) };
+  const agency = await currentAgency();
+  const expires = fmt.dayLong(new Date(Date.now() + settings.document_link_days * 86_400_000).toISOString().slice(0, 10));
+  // The staff member gets the link by email too, when the agency emails links.
+  const sent =
+    settings.email_links === "on" && agency
+      ? await sendEmail("document:request", member.email, documentRequestEmail({ agency: agency.name, name: `${member.firstName} ${member.lastName}`, title, url: link, expires }), user.id).catch(() => ({ status: "failed" as const, detail: "the email service did not answer" }))
+      : null;
+  return { link, agency: agency?.name, first: member.firstName, expires, emailed: emailNote(member.email, sent) };
 }
 
 /* A new link for a request. The old link stops working straight away. */

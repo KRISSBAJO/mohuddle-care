@@ -211,6 +211,7 @@ const GROUPS: Group[] = [
       { key: "employment_types", title: "Employment types", help: "Full time, part time, PRN and so on, offered on each staff record." },
       { key: "credential_warning_days", title: "Warn before a credential expires", help: "Expiring credentials show on the Today page and the schedule this far ahead.", unit: "days", min: 1, max: 365 },
       { key: "login_link_valid_hours", title: "Setup and reset links last", help: "How long a one-time sign-in link works.", unit: "hours", min: 1, max: 168 },
+      { key: "email_links", title: "Email links to people", help: "Setup and password links for logins, and document request links for staff, are emailed to the person as well as shown to you to copy.", options: [["on", "On"], ["off", "Off"]] },
       { key: "password_min_length", title: "Shortest password", help: "For staff choosing a password (8 to 64).", unit: "characters", min: 8, max: 64 },
       { key: "session_idle_minutes", title: "Sign out when idle after", help: "A \"Still there?\" warning shows two minutes before. Typing, tapping and scrolling all count as using the app.", unit: "minutes", min: 5, max: 480 },
       { key: "session_max_hours", title: "Sign in again after", help: "Even when someone is active, they sign in again after this long.", unit: "hours", min: 1, max: 336 },

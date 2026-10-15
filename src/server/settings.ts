@@ -350,6 +350,12 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(240),
     fallback: 15,
   },
+  email_links: {
+    label: "Email setup, password and document links to people as well as showing them on screen (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
   assistant_enabled: {
     label: "Ask Mohuddle: staff can ask questions and clock in, out and take breaks by voice or typing (on or off)",
     kind: "text",

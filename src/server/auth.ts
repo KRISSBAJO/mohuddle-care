@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
@@ -104,6 +104,16 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   }
   return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared };
 });
+
+/* A login's active places in active agencies, the one used most recently first. */
+export async function placesInOrder(loginId: string) {
+  return systemDb
+    .select({ id: schema.users.id, agencyId: schema.users.agencyId, slug: schema.agencies.slug })
+    .from(schema.users)
+    .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
+    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), eq(schema.agencies.active, true)))
+    .orderBy(sql`(select max(${schema.sessions.createdAt}) from ${schema.sessions} where ${schema.sessions.userId} = ${schema.users.id}) desc nulls last`, schema.users.createdAt);
+}
 
 export type Place = { userId: string; agencyId: string; name: string; slug: string; role: SessionUser["role"] };
 

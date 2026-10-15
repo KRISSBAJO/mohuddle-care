@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, placesFor, switchAgencyFor, verifyPassword } from "@/server/auth";
+import { createSession, destroySession, placesFor, placesInOrder, switchAgencyFor, verifyPassword } from "@/server/auth";
 import { requireUser } from "@/server/guard";
 import { schema, systemDb } from "@/server/db";
 import { addressesOn, hostAgency, issueHandoff, requestHost } from "@/server/host";
@@ -45,16 +45,6 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   if (addressesOn() && host.kind !== "agency") redirect(await issueHandoff({ userId: place.id, agencyId: place.agencyId, slug: place.slug }, shared === "on", target));
   await createSession(place, shared === "on");
   redirect(target);
-}
-
-/* A login's active places in active agencies, the one used most recently first. */
-async function placesInOrder(loginId: string) {
-  return systemDb
-    .select({ id: schema.users.id, agencyId: schema.users.agencyId, slug: schema.agencies.slug })
-    .from(schema.users)
-    .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
-    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), eq(schema.agencies.active, true)))
-    .orderBy(sql`(select max(${schema.sessions.createdAt}) from ${schema.sessions} where ${schema.sessions.userId} = ${schema.users.id}) desc nulls last`, schema.users.createdAt);
 }
 
 /*

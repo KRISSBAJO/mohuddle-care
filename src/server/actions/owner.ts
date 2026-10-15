@@ -7,7 +7,7 @@ import { requireOwner } from "@/server/guard";
 import { addAgencyAdmin, createAgency, markProductEnquiry, newAdminLink, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
-import { zone } from "@/lib/format";
+import { linkExpiry } from "@/lib/format";
 
 const uuid = z.uuid();
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -27,11 +27,10 @@ const admin = z.object({
   adminEmail: z.email("Check the administrator's email address.").max(200),
 });
 
-const expiresText = (at: Date) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+const expiresText = linkExpiry;
 
 const asLinkState = (result: AdminResult): LinkState =>
-  result.error ? { error: result.error } : result.link ? { link: result.link, expires: expiresText(result.expiresAt!) } : { note: result.note };
+  result.error ? { error: result.error } : result.link ? { link: result.link, expires: expiresText(result.expiresAt!), emailed: result.emailed } : { note: result.note };
 
 /* Creates an agency with the defaults and its first administrator, and returns their setup link. */
 export async function createAgencyAction(_previous: LinkState, formData: FormData): Promise<LinkState> {

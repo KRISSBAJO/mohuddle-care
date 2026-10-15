@@ -3,7 +3,8 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { DEFAULT_DOCUMENT_TYPES, DEFAULT_NOTE_SECTIONS, DEFAULT_SHIFT_PATTERNS } from "@/lib/agency-defaults";
 import { DEFAULT_TEMPLATES } from "@/lib/default-sign-templates";
 import { NOTE_LIBRARY } from "@/lib/note-library";
-import { issueLoginLink, loginUsedElsewhere } from "./accounts";
+import { emailLoginLink, issueLoginLink, loginUsedElsewhere } from "./accounts";
+import { emailNote } from "./email";
 import { asAgency, db, schema, systemDb } from "./db";
 
 /*
@@ -79,7 +80,7 @@ async function setUpDefaults() {
   });
 }
 
-export type AdminResult = { error?: string; link?: string; expiresAt?: Date; note?: string };
+export type AdminResult = { error?: string; link?: string; expiresAt?: Date; note?: string; emailed?: string };
 
 /*
  * Gives someone an administrator login in an agency, with a staff record. Someone who already signs
@@ -101,10 +102,10 @@ export async function addAgencyAdmin(agencyId: string, input: { name: string; em
       if (!member) [member] = await tx.insert(schema.staff).values({ firstName: first, lastName: rest.join(" ") || "-", role: "admin", email }).returning({ id: schema.staff.id });
       const [user] = await tx.insert(schema.users).values({ email, name, role: "admin", staffId: member.id, loginId }).returning({ id: schema.users.id });
       await tx.insert(schema.auditLog).values({ action: "owner:admin:add", entity: "user", entityId: user.id });
-      if (shared) return { note: `${name} already signs in to Mohuddle for another agency. They use the password they have, and can now switch to this agency.` };
+      if (shared) return { note: `${name} already signs in to Mohuddle for another agency. They use the password they have, and can now switch to this agency.` } as AdminResult;
       const link = await issueLoginLink(tx, user.id, "invite", null);
-      return { link: link.url, expiresAt: link.expiresAt };
-    });
+      return { link: link.url, expiresAt: link.expiresAt } as AdminResult;
+    }).then(async result => (result.link ? { ...result, emailed: emailNote(email, await emailLoginLink("invite", { email, name }, { url: result.link, expiresAt: result.expiresAt! }, null)) } : result));
   });
 }
 
@@ -114,7 +115,7 @@ export async function addAgencyAdmin(agencyId: string, input: { name: string; em
  */
 export async function newAdminLink(agencyId: string, userId: string): Promise<AdminResult> {
   const [admin] = await systemDb
-    .select({ loginId: schema.users.loginId, active: schema.users.active, hasPassword: schema.logins.hasPassword })
+    .select({ loginId: schema.users.loginId, active: schema.users.active, email: schema.users.email, name: schema.users.name, hasPassword: schema.logins.hasPassword })
     .from(schema.users)
     .innerJoin(schema.logins, eq(schema.logins.id, schema.users.loginId))
     .where(and(eq(schema.users.id, userId), eq(schema.users.agencyId, agencyId), eq(schema.users.role, "admin")))
@@ -122,13 +123,16 @@ export async function newAdminLink(agencyId: string, userId: string): Promise<Ad
   if (!admin) return { error: "Unknown administrator." };
   if (!admin.active) return { error: "This login is turned off." };
   if (await loginUsedElsewhere(admin.loginId, agencyId)) return { error: "This person also works for another agency, so only they can change their password." };
-  return asAgency(agencyId, () =>
-    db.transaction(async tx => {
-      const link = await issueLoginLink(tx, userId, admin.hasPassword ? "reset" : "invite", null);
+  const purpose = admin.hasPassword ? "reset" : "invite";
+  return asAgency(agencyId, async () => {
+    const link = await db.transaction(async tx => {
+      const issued = await issueLoginLink(tx, userId, purpose, null);
       await tx.insert(schema.auditLog).values({ action: "owner:admin:link", entity: "user", entityId: userId });
-      return { link: link.url, expiresAt: link.expiresAt };
-    }),
-  );
+      return issued;
+    });
+    const emailed = await emailLoginLink(purpose, { email: admin.email, name: admin.name }, link, null);
+    return { link: link.url, expiresAt: link.expiresAt, emailed: emailNote(admin.email, emailed) };
+  });
 }
 
 /* A new agency, set up with the defaults and its first administrator. */

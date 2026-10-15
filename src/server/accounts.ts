@@ -4,6 +4,9 @@ import { and, count, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { requireAgency } from "./agency";
 import { db, schema, systemDb } from "./db";
 import { env } from "./env";
+import { linkExpiry, zoneLabel } from "@/lib/format";
+import { inviteEmail, resetEmail } from "@/lib/email-templates";
+import { sendEmail } from "./email";
 import { agencyBase } from "./host";
 import { getSettings } from "./settings";
 
@@ -58,6 +61,23 @@ export async function findValidLink(token: string) {
 }
 
 export { hashToken as hashLoginToken };
+
+/*
+ * Emails a setup or password link to the person it is for, when the agency emails links (Settings).
+ * Returns null when it is off. Never throws: the link is still shown on screen.
+ */
+export async function emailLoginLink(purpose: LinkPurpose, to: { email: string; name: string }, link: { url: string; expiresAt: Date }, createdBy: string | null) {
+  const settings = await getSettings();
+  if (settings.email_links !== "on") return null;
+  const agency = await requireAgency();
+  const content = (purpose === "invite" ? inviteEmail : resetEmail)({ agency: agency.name, name: to.name, url: link.url, expires: `${linkExpiry(link.expiresAt)} ${zoneLabel()}` });
+  try {
+    return await sendEmail(`login:${purpose}`, to.email, content, createdBy);
+  } catch (error) {
+    console.error("Login link email failed", error);
+    return { status: "failed" as const, detail: "the email service did not answer" };
+  }
+}
 
 /* Whether this person has chosen a password, for a query on users. */
 export const hasPassword = sql<boolean>`exists (select 1 from ${schema.logins} where ${schema.logins.id} = ${schema.users.loginId} and ${schema.logins.hasPassword})`;

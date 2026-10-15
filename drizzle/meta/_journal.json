@@ -239,6 +239,13 @@
       "when": 1792050402446,
       "tag": "0033_session_handoffs",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792051774518,
+      "tag": "0034_email_messages",
+      "breakpoints": true
     }
   ]
 }

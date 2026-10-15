@@ -18,6 +18,12 @@ const schema = z.object({
   S3_PREFIX: z.string().default("milestone/"),
   STORAGE_DIR: z.string().default(".storage"),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(20),
+  // Email. Nothing is sent unless EMAIL_PROVIDER is relykit with a key; otherwise it is only logged.
+  EMAIL_PROVIDER: z.enum(["console", "relykit"]).default("console"),
+  RELYKIT_API_KEY: z.string().optional(),
+  RELYKIT_URL: z.url().default("https://api.relykit.com"),
+  // The address mail comes from, on a domain verified in RelyKit. Each agency's name is put in front.
+  EMAIL_FROM: z.string().default("noreply@send.relykit.com"),
 });
 
 const parsed = schema.safeParse(process.env);

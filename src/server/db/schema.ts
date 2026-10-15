@@ -684,6 +684,28 @@ export const enquiries = pgTable("enquiries", {
   createdAt: createdAt(),
 });
 
+/*
+ * Every email Mohuddle sent, or tried to: who to, what kind, and what the provider said. The body is
+ * never kept, as it can carry a one-time link.
+ */
+export const emailMessages = pgTable(
+  "email_messages",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    kind: text("kind").notNull(),
+    toAddress: text("to_address").notNull(),
+    subject: text("subject").notNull(),
+    status: text("status").$type<"sent" | "queued" | "failed" | "skipped">().notNull(),
+    provider: text("provider").notNull(),
+    providerId: text("provider_id"),
+    detail: text("detail").notNull().default(""),
+    createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("email_messages_when").on(table.createdAt), index("email_messages_to").on(table.toAddress, table.createdAt)],
+);
+
 /* Business rules live here, not in code. See src/server/settings.ts for the keys and defaults. */
 export const settings = pgTable(
   "settings",

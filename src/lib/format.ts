@@ -146,6 +146,10 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
 }
 
+/* "Sat, Oct 17, 10:25 PM": when a one-time link stops working. */
+export const linkExpiry = (at: Date) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+
 export const fmt = {
   time: (at: Date | null | undefined) =>
     at ? new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(at) : "",
