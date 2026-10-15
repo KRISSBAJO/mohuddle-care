@@ -13,7 +13,7 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
   assert.notEqual(process.env.NODE_ENV, "production", "Use a development database only.");
   const { asAgency, db, pool, schema, systemDb, systemPool } = await import("../src/server/db");
   const { agencyIdBySlug } = await import("../src/server/agency");
-  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin } = await import("../src/server/owner");
+  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile } = await import("../src/server/owner");
   const tag = randomBytes(4).toString("hex");
   const slug = `owner-test-${tag}`;
   const email = `owner-test-${tag}@example.test`;
@@ -46,6 +46,15 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
     });
     assert.equal((await addAgencyAdmin(agencyId, { name: "Pat Example", email })).error, "This email already has a login in this agency.");
 
+    // A profile change says what changed, and the activity log keeps it against the agency.
+    assert.deepEqual(await updateAgencyProfile(agencyId, { ...profile, phone: "555-0100", timezone: "America/Chicago" }), ["phone", "time zone"]);
+    const [owner] = await systemDb.select({ id: schema.logins.id }).from(schema.logins).where(eq(schema.logins.email, email));
+    await recordOwnerEvent({ loginId: owner.id, name: "Test Owner", email }, "agency:update", agencyId, "Changed phone, time zone");
+    const history = await ownerEvents(agencyId);
+    assert.equal(history.length, 1);
+    assert.equal(history[0].action, "agency:update");
+    assert.equal(history[0].agency, "Example Test Agency");
+
     // Turning it off ends its sign-ins; Milestone is untouched.
     await setAgencyActive(agencyId, false);
     const [off] = await systemDb.select({ active: schema.agencies.active }).from(schema.agencies).where(eq(schema.agencies.id, agencyId));
@@ -62,6 +71,7 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
         await client.query("set local session_replication_role = replica");
         const { rows } = await client.query<{ table_name: string }>("select table_name from information_schema.columns where table_schema = 'public' and column_name = 'agency_id'");
         for (const row of rows) await client.query(`delete from "${row.table_name}" where agency_id = $1`, [agencyId]);
+        await client.query("delete from owner_events where agency_id_for = $1", [agencyId]);
         await client.query("delete from agencies where id = $1", [agencyId]);
         await client.query("delete from logins where email = $1", [email]);
         await client.query("commit");

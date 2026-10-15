@@ -9,7 +9,8 @@ import { AgencyFields } from "@/components/owner/AgencyFields";
 import { fmt } from "@/lib/format";
 import { addAdminAction, newAdminLinkAction, setAgencyActiveAction, updateAgencyAction } from "@/server/actions/owner";
 import { requireOwner } from "@/server/guard";
-import { agencyDetail } from "@/server/owner";
+import { ownerActionWords } from "@/lib/owner-events";
+import { agencyDetail, ownerEvents } from "@/server/owner";
 
 export const metadata = { title: "Agency" };
 
@@ -21,6 +22,7 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
   const detail = await agencyDetail(id);
   if (!detail) notFound();
   const { agency, admins } = detail;
+  const history = (await ownerEvents(agency.id)).slice(0, 8);
   return (
     <div className="space-y-8">
       <Link href="/owner" className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> All agencies</Link>
@@ -65,6 +67,21 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
                 <label className="grid gap-1.5 text-sm font-medium">Email<input name="adminEmail" type="email" required maxLength={200} className="field" autoComplete="off" /></label>
               </LinkIssuer>
             </div>
+          </Panel>
+
+          <Panel title="Recent owner activity" action={<Link href="/owner/activity" className="text-xs font-semibold text-brand">All activity</Link>}>
+            {history.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-mute">Nothing yet.</p>
+            ) : (
+              <ul className="divide-y divide-line/60">
+                {history.map(event => (
+                  <li key={event.id} className="px-5 py-2.5 text-sm">
+                    <span className="font-semibold">{ownerActionWords(event.action)}</span>
+                    <span className="block text-xs text-mute">{fmt.dateTime(event.at)} · {event.ownerName.split(" (")[0]}{event.detail ? ` · ${event.detail}` : ""}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
 
           <Panel title={agency.active ? "Turn this agency off" : "Turn this agency back on"}>

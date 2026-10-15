@@ -153,8 +153,29 @@ export async function createAgency(slug: string, profile: AgencyProfile, admin: 
   return { agencyId: agency.id, admin: first };
 }
 
+const PROFILE_WORDS: Record<keyof AgencyProfile, string> = { name: "name", legalName: "legal name", phone: "phone", email: "office email", address: "address", cityStateZip: "city, state and ZIP", timezone: "time zone" };
+
+/* Saves an agency's profile and says what changed, in words. */
 export async function updateAgencyProfile(id: string, profile: AgencyProfile) {
+  const [before] = await systemDb.select().from(schema.agencies).where(eq(schema.agencies.id, id)).limit(1);
   await systemDb.update(schema.agencies).set(profile).where(eq(schema.agencies.id, id));
+  return before ? (Object.keys(PROFILE_WORDS) as (keyof AgencyProfile)[]).filter(key => before[key] !== profile[key]).map(key => PROFILE_WORDS[key]) : [];
+}
+
+/* One line in the owner activity log. */
+export async function recordOwnerEvent(owner: { loginId: string; name: string; email: string }, action: string, agencyId: string | null, detail = "") {
+  await systemDb.insert(schema.ownerEvents).values({ loginId: owner.loginId, ownerName: `${owner.name} (${owner.email})`, action, agencyId, detail: detail.slice(0, 500) });
+}
+
+/* The owner activity log, newest first, optionally for one agency. */
+export function ownerEvents(agencyId?: string) {
+  return systemDb
+    .select({ id: schema.ownerEvents.id, at: schema.ownerEvents.at, ownerName: schema.ownerEvents.ownerName, action: schema.ownerEvents.action, detail: schema.ownerEvents.detail, agencyId: schema.ownerEvents.agencyId, agency: schema.agencies.name })
+    .from(schema.ownerEvents)
+    .leftJoin(schema.agencies, eq(schema.agencies.id, schema.ownerEvents.agencyId))
+    .where(agencyId ? eq(schema.ownerEvents.agencyId, agencyId) : undefined)
+    .orderBy(desc(schema.ownerEvents.at))
+    .limit(300);
 }
 
 /* Turning an agency off stops every sign-in and signs out everyone there now. Its records stay. */

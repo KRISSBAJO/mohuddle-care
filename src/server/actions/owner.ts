@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { TIME_ZONES } from "@/lib/agency-defaults";
 import { requireOwner } from "@/server/guard";
-import { addAgencyAdmin, createAgency, markProductEnquiry, newAdminLink, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
+import { addAgencyAdmin, createAgency, markProductEnquiry, newAdminLink, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
 import { linkExpiry } from "@/lib/format";
@@ -34,7 +34,7 @@ const asLinkState = (result: AdminResult): LinkState =>
 
 /* Creates an agency with the defaults and its first administrator, and returns their setup link. */
 export async function createAgencyAction(_previous: LinkState, formData: FormData): Promise<LinkState> {
-  await requireOwner();
+  const owner = await requireOwner();
   const values = Object.fromEntries(formData.entries());
   const parsedProfile = profile.safeParse(values);
   if (!parsedProfile.success) return { error: parsedProfile.error.issues[0]?.message };
@@ -43,32 +43,38 @@ export async function createAgencyAction(_previous: LinkState, formData: FormDat
   const slug = String(values.slug ?? "").trim().toLowerCase();
   const result = await createAgency(slug, parsedProfile.data, { name: parsedAdmin.data.adminName, email: parsedAdmin.data.adminEmail });
   if ("error" in result) return { error: result.error };
+  await recordOwnerEvent(owner, "agency:create", result.agencyId, `${parsedProfile.data.name} at ${slug}, first administrator ${parsedAdmin.data.adminEmail}`);
   // No refresh here: it would replace the form, and the link, before it is copied. "Done" refreshes.
   const state = asLinkState(result.admin);
   return state.error ? { note: `The agency is set up, but its administrator was not added: ${state.error} Add one from the agency's page.` } : state;
 }
 
 export async function addAdminAction(agencyId: string, _previous: LinkState, formData: FormData): Promise<LinkState> {
-  await requireOwner();
+  const owner = await requireOwner();
   if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
   const parsed = admin.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  return asLinkState(await addAgencyAdmin(agencyId, { name: parsed.data.adminName, email: parsed.data.adminEmail }));
+  const result = await addAgencyAdmin(agencyId, { name: parsed.data.adminName, email: parsed.data.adminEmail });
+  if (!result.error) await recordOwnerEvent(owner, "admin:add", agencyId, `${parsed.data.adminName} (${parsed.data.adminEmail})`);
+  return asLinkState(result);
 }
 
 /* A fresh setup or password link for one of an agency's administrators. */
 export async function newAdminLinkAction(agencyId: string, userId: string): Promise<LinkState> {
-  await requireOwner();
+  const owner = await requireOwner();
   if (!uuid.safeParse(agencyId).success || !uuid.safeParse(userId).success) return { error: "Unknown administrator." };
-  return asLinkState(await newAdminLink(agencyId, userId));
+  const result = await newAdminLink(agencyId, userId);
+  if (!result.error) await recordOwnerEvent(owner, "admin:link", agencyId, `for administrator ${userId.slice(0, 8)}`);
+  return asLinkState(result);
 }
 
 export async function updateAgencyAction(agencyId: string, _previous: FormState, formData: FormData): Promise<FormState> {
-  await requireOwner();
+  const owner = await requireOwner();
   if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
   const parsed = profile.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  await updateAgencyProfile(agencyId, parsed.data);
+  const changed = await updateAgencyProfile(agencyId, parsed.data);
+  if (changed.length) await recordOwnerEvent(owner, "agency:update", agencyId, `Changed ${changed.join(", ")}`);
   revalidatePath("/owner", "layout");
   return {};
 }
@@ -78,14 +84,16 @@ export async function setAgencyActiveAction(agencyId: string, active: boolean): 
   if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
   if (!active && owner.agencyId === agencyId) return { error: "You are signed in to this agency. Switch to another one before turning it off." };
   await setAgencyActive(agencyId, active);
+  await recordOwnerEvent(owner, active ? "agency:on" : "agency:off", agencyId);
   revalidatePath("/owner", "layout");
   return {};
 }
 
 export async function markEnquiryAction(id: string, handled: boolean): Promise<FormState> {
-  await requireOwner();
+  const owner = await requireOwner();
   if (!uuid.safeParse(id).success) return { error: "Unknown request." };
   await markProductEnquiry(id, handled);
+  await recordOwnerEvent(owner, handled ? "demo:handled" : "demo:waiting", null, `Request ${id.slice(0, 8)}`);
   revalidatePath("/owner/enquiries");
   return {};
 }

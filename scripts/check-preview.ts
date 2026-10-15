@@ -23,7 +23,7 @@ async function main() {
     // The owner console, when this admin is a Mohuddle owner (scripts/make-owner.ts).
     const owner = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     const { rows: ownerRows } = await owner.query("select l.is_owner from users u join logins l on l.id = u.login_id where u.id = $1", [users[0].id]).finally(() => owner.end());
-    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/enquiries", "/owner/health"] : [];
+    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/enquiries", "/owner/health", "/owner/activity"] : [];
     const { rows: people } = await pool.query("select id from individuals limit 1");
     const { rows: incidents } = await pool.query("select id from incidents order by status");
     const routes = [...ownerRoutes, "/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];

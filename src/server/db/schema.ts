@@ -106,6 +106,24 @@ export const sessionHandoffs = pgTable("session_handoffs", {
 });
 
 /*
+ * What owners did in the owner console: created or changed an agency, added an administrator, issued
+ * a link, opened an agency for support. Mohuddle's own record; agencies cannot see it.
+ */
+export const ownerEvents = pgTable(
+  "owner_events",
+  {
+    id: id(),
+    loginId: uuid("login_id").references(() => logins.id, { onDelete: "set null" }),
+    ownerName: text("owner_name").notNull(),
+    action: text("action").notNull(),
+    agencyId: uuid("agency_id_for").references(() => agencies.id, { onDelete: "set null" }),
+    detail: text("detail").notNull().default(""),
+    at: createdAt(),
+  },
+  table => [index("owner_events_at").on(table.at), index("owner_events_agency").on(table.agencyId, table.at)],
+);
+
+/*
  * Requests for a Mohuddle demo, from the product page. They belong to Mohuddle, not to any agency,
  * so the app's role cannot see them; only the owner console reads them.
  */
