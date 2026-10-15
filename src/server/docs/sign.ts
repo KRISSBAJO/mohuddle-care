@@ -124,12 +124,35 @@ function certificate(pdf: PDFDocument, evidence: Evidence, signature: PDFImage, 
   wrap(statement, fonts.regular, 8.5, PAGE.width - PAGE.margin * 2).forEach((line, index) => page.drawText(line, { x: PAGE.margin, y: y - index * 11, size: 8.5, font: fonts.regular, color: MUTE }));
 }
 
-function footers(pdf: PDFDocument, font: PDFFont, reference: string) {
+type Box = { x: number; y: number; width: number; height: number };
+
+/*
+ * A blank strip added below an uploaded page, so the footer and initials never cover the form's own
+ * text. The page grows downward; nothing on it moves. Rotated pages get no strip.
+ */
+function stripBelow(page: PDFPage, height: number): Box | null {
+  if (page.getRotation().angle % 360 !== 0) return null;
+  const media = page.getMediaBox();
+  const crop = page.getCropBox();
+  const bottom = crop.y - height;
+  const top = media.y + media.height;
+  page.setMediaBox(media.x, Math.min(media.y, bottom), media.width, top - Math.min(media.y, bottom));
+  for (const set of [page.setCropBox, page.setBleedBox, page.setTrimBox]) set.call(page, crop.x, bottom, crop.width, crop.height + height);
+  const strip = { x: crop.x, y: bottom, width: crop.width, height };
+  page.drawRectangle({ ...strip, color: rgb(1, 1, 1) });
+  page.drawLine({ start: { x: crop.x, y: crop.y }, end: { x: crop.x + crop.width, y: crop.y }, thickness: 0.6, color: LINE });
+  return strip;
+}
+
+/* Reference, page number and the Mohuddle line on every page: inside an added strip when there is one. */
+function footers(pdf: PDFDocument, font: PDFFont, reference: string, strips = new Map<PDFPage, Box>()) {
   const pages = pdf.getPages();
+  const signedThrough = "Signed electronically through Mohuddle";
   pages.forEach((page, index) => {
-    const { width } = page.getSize();
-    page.drawText(`Reference ${reference} · Page ${index + 1} of ${pages.length}`, { x: PAGE.margin, y: 24, size: 7, font, color: MUTE });
-    page.drawText("Signed electronically through Mohuddle", { x: width - PAGE.margin - font.widthOfTextAtSize("Signed electronically through Mohuddle", 7), y: 24, size: 7, font, color: MUTE });
+    const strip = strips.get(page);
+    const area = strip ? { left: strip.x + 36, right: strip.x + strip.width - 36, y: strip.y + 8 } : { left: PAGE.margin, right: page.getSize().width - PAGE.margin, y: 24 };
+    page.drawText(`Reference ${reference} · Page ${index + 1} of ${pages.length}`, { x: area.left, y: area.y, size: 7, font, color: MUTE });
+    page.drawText(signedThrough, { x: area.right - font.widthOfTextAtSize(signedThrough, 7), y: area.y, size: 7, font, color: MUTE });
   });
 }
 
@@ -186,7 +209,7 @@ async function textPdf(template: Template, filled: string, evidence: Evidence, s
 }
 
 /* Text fitted into a field's box: as large as the box allows, up to 12 points. */
-function fieldText(page: PDFPage, text: string, box: { x: number; y: number; width: number; height: number }, font: PDFFont) {
+function fieldText(page: PDFPage, text: string, box: Box, font: PDFFont) {
   const clean = pdfSafe(text);
   let size = Math.min(12, box.height * 0.62);
   while (size > 5 && font.widthOfTextAtSize(clean, size) > box.width - 4) size -= 0.5;
@@ -200,8 +223,10 @@ function stampFields(pdf: PDFDocument, fields: SignField[], evidence: Evidence, 
   for (const field of fields) {
     const page = pages[field.page - 1];
     if (!page) continue;
-    const { width, height } = page.getSize();
-    const box = pdfBox(field, width, height);
+    // Positions are fractions of the visible page (the crop box), as the editor showed it.
+    const view = page.getCropBox();
+    const inPage = pdfBox(field, view.width, view.height);
+    const box = { ...inPage, x: inPage.x + view.x, y: inPage.y + view.y };
     if (field.kind === "signature") fitImage(page, signature, { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 });
     else if (field.kind === "initials") fitImage(page, initials, { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 });
     else if (field.kind === "date") fieldText(page, signedOn, box, font);
@@ -213,30 +238,36 @@ function stampFields(pdf: PDFDocument, fields: SignField[], evidence: Evidence, 
  * An uploaded PDF. With fields placed: each is stamped where it was put. Without: initials on every
  * page and a signature page. The certificate is always added at the end.
  */
-async function sourcePdf(source: Buffer, template: Template, evidence: Evidence, signaturePng: Buffer, initialsPng: Buffer) {
+export async function sourcePdf(source: Buffer, template: Template, evidence: Evidence, signaturePng: Buffer, initialsPng: Buffer) {
   const pdf = await PDFDocument.load(source);
   pdf.setProducer("Mohuddle");
   const fonts = { regular: await pdf.embedFont(StandardFonts.Helvetica), bold: await pdf.embedFont(StandardFonts.HelveticaBold) };
   const signature = await pdf.embedPng(signaturePng);
   const initials = await pdf.embedPng(initialsPng);
+  const strips = new Map<PDFPage, Box>();
   if (template.fields.length) {
     stampFields(pdf, template.fields, evidence, signature, initials, fonts.regular);
+    for (const page of pdf.getPages()) {
+      const strip = stripBelow(page, 22);
+      if (strip) strips.set(page, strip);
+    }
     certificate(pdf, evidence, signature, initials, fonts);
-    footers(pdf, fonts.regular, evidence.reference);
+    footers(pdf, fonts.regular, evidence.reference, strips);
     return Buffer.from(await pdf.save());
   }
-  if (template.initialEach) {
-    for (const page of pdf.getPages()) {
-      const { width } = page.getSize();
-      initialBox(page, initials, width - 36 - 64, 44, fonts.regular);
-    }
+  for (const page of pdf.getPages()) {
+    const strip = stripBelow(page, template.initialEach ? 66 : 22);
+    if (strip) strips.set(page, strip);
+    if (!template.initialEach) continue;
+    if (strip) initialBox(page, initials, strip.x + strip.width - 36 - 64, strip.y + 30, fonts.regular);
+    else initialBox(page, initials, page.getSize().width - 36 - 64, 44, fonts.regular);
   }
   const page = pdf.addPage([PAGE.width, PAGE.height]);
   page.drawText(pdfSafe(evidence.title), { x: PAGE.margin, y: PAGE.height - PAGE.margin, size: 16, font: fonts.bold, color: INK });
   page.drawText("I have read every page of this document and agree to it.", { x: PAGE.margin, y: PAGE.height - PAGE.margin - 26, size: 10.5, font: fonts.regular, color: INK });
   signatureBlock(page, signature, PAGE.height - PAGE.margin - 190, evidence, fonts);
   certificate(pdf, evidence, signature, initials, fonts);
-  footers(pdf, fonts.regular, evidence.reference);
+  footers(pdf, fonts.regular, evidence.reference, strips);
   return Buffer.from(await pdf.save());
 }
 
