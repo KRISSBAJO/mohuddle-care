@@ -326,6 +326,12 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(240),
     fallback: 15,
   },
+  assistant_enabled: {
+    label: "Ask Mohuddle: staff can ask questions and clock in, out and take breaks by voice or typing (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
   scribe_enabled: {
     label: "Let staff speak their notes and have a local model draft them (on or off)",
     kind: "text",

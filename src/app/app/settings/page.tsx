@@ -30,6 +30,7 @@ const GROUPS: Group[] = [
       { key: "prompt_levels", title: "Levels of support", help: "From least to most help. Used for personal care and plan goals." },
       { key: "activity_types", title: "Activity types", help: "What staff can tick in the activities section." },
       { key: "log_locations", title: "Where support was given", help: "The choices for where each shift happened." },
+      { key: "assistant_enabled", title: "Ask Mohuddle", help: "A button on every page: staff ask about their shifts, hours and what is due, open pages, get help, and clock in or take breaks by voice or typing. Actions always ask first.", options: [["on", "On"], ["off", "Off"]] },
       { key: "scribe_enabled", title: "Speak your note", help: "Staff talk through the shift and a model on this server fills in the note for them to check and sign. Nothing is recorded or sent to another company.", options: [["on", "On"], ["off", "Off"]] },
       { key: "scribe_speech", title: "Speech model", help: "Small is fastest. Medium and turbo hear accents and names better but take longer, and must be installed on the server.", options: [["small", "Small (fastest)"], ["medium", "Medium"], ["turbo", "Turbo (most accurate)"]] },
       { key: "scribe_model", title: "Note model", help: "The Ollama model that drafts the note, such as qwen3.5:4b. It must be installed on the server." },

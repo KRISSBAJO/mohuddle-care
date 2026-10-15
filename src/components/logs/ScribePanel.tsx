@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Mic, Sparkles, Square, Wand2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { toPcm } from "@/lib/audio";
 import type { ScribeDraft, ScribeKind } from "@/lib/scribe";
 
 const MAX_SECONDS = 600;
@@ -20,25 +21,6 @@ const EXPECTED: Record<ScribeKind, [string, string][]> = {
 };
 
 type Stage = "idle" | "recording" | "hearing" | "ready" | "drafting" | "done";
-
-/* Decodes a recording in the browser to 16 kHz mono 16-bit PCM, the only thing sent to the server. */
-async function toPcm(blob: Blob): Promise<ArrayBuffer> {
-  const context = new AudioContext();
-  try {
-    const audio = await context.decodeAudioData(await blob.arrayBuffer());
-    const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
-    const source = offline.createBufferSource();
-    source.buffer = audio;
-    source.connect(offline.destination);
-    source.start();
-    const samples = (await offline.startRendering()).getChannelData(0);
-    const pcm = new Int16Array(samples.length);
-    for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-1, Math.min(1, samples[i])) * 0x7fff;
-    return pcm.buffer;
-  } finally {
-    void context.close();
-  }
-}
 
 /*
  * Speak your note: record, see the words, then fill the note's parts with one tap. Everything runs on

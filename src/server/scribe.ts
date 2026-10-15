@@ -133,3 +133,45 @@ export function draftNote(kind: ScribeKind, text: string, model: string, context
     }
   });
 }
+
+/*
+ * For Ask Mohuddle: when the plain rules cannot place a request, the local model picks one from the
+ * same fixed list. It only ever chooses; it never acts or writes anything itself.
+ */
+export function chooseRequest(text: string, model: string, kinds: readonly string[], pages: string[]): Promise<unknown> {
+  return oneAtATime(async () => {
+    const schema = {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: [...kinds] },
+        person: { type: "string", description: "A person's name if the request is about someone, else empty" },
+        page: { type: "string", enum: ["", ...pages] },
+        break: { type: "string", enum: ["", "meal", "rest"] },
+      },
+      required: ["kind", "person", "page", "break"],
+    };
+    const system = [
+      "You sort a care worker's request to a care-operations app into one of these kinds:",
+      "clock_in, clock_out, break_start, break_end, next_shift (when they work), whos_on (who is working now), my_hours (hours worked), whats_due (their tasks, notes owed, doses), leave (time-off balance), write_note (daily note for a person), incident (report an incident for a person), open (open a page), help (a question about how to use the app), greeting, unknown.",
+      "Choose unknown when it is none of these. Never invent a person.",
+    ].join("\n");
+    const response = await fetch(`${OLLAMA}/api/chat`, {
+      method: "POST",
+      signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({ model, stream: false, think: false, keep_alive: "30m", format: schema, options: { temperature: 0 }, messages: [{ role: "system", content: system }, { role: "user", content: text.slice(0, 500) }] }),
+    });
+    const data = (await response.json()) as { message?: { content?: string } };
+    return JSON.parse(data.message?.content ?? "{}");
+  });
+}
+
+/* Whether the model is already in memory, so a request can use it without waiting minutes for it to load. */
+export async function modelLoaded(model: string) {
+  try {
+    const response = await fetch(`${OLLAMA}/api/ps`, { signal: AbortSignal.timeout(1500) });
+    const data = (await response.json()) as { models?: { name: string }[] };
+    return Boolean(data.models?.some(item => item.name === model));
+  } catch {
+    return false;
+  }
+}

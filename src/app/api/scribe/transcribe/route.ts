@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
+import { assistantVocabulary } from "@/server/assistant";
 import { MAX_PCM_BYTES, ScribeError, transcribe } from "@/server/scribe";
 import { getSettings } from "@/server/settings";
 
@@ -28,12 +29,15 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in again." }, { status: 401 });
   const settings = await getSettings();
-  if (settings.scribe_enabled !== "on") return Response.json({ error: "Speaking notes is switched off in settings." }, { status: 403 });
+  const params = new URL(request.url).searchParams;
+  const forAssistant = params.get("mode") === "assistant";
+  // Speaking to Ask Mohuddle needs only the speech engine; speaking a note needs the scribe switched on.
+  if (forAssistant ? settings.assistant_enabled !== "on" : settings.scribe_enabled !== "on") return Response.json({ error: "Speaking is switched off in settings." }, { status: 403 });
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_PCM_BYTES) return Response.json({ error: "Recordings can be up to ten minutes." }, { status: 413 });
   const pcm = Buffer.from(await request.arrayBuffer());
   try {
-    const result = await transcribe(pcm, settings.scribe_speech, await vocabulary(new URL(request.url).searchParams.get("person")));
+    const result = await transcribe(pcm, settings.scribe_speech, forAssistant ? await assistantVocabulary() : await vocabulary(params.get("person")));
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error instanceof ScribeError ? error.message : "Something went wrong turning speech into words." }, { status: 503 });
