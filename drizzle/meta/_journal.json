@@ -218,6 +218,13 @@
       "when": 1792033205770,
       "tag": "0030_move_passwords_to_logins",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792035735585,
+      "tag": "0031_owner_console",
+      "breakpoints": true
     }
   ]
 }

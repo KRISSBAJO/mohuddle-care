@@ -85,6 +85,23 @@ export const logins = pgTable("logins", {
   // Null until the person opens their setup link and chooses a password.
   passwordHash: text("password_hash"),
   hasPassword: boolean("has_password").generatedAlwaysAs(sql`password_hash is not null`),
+  // Runs Mohuddle itself: may open the owner console. Set only by scripts/make-owner.ts, never in the app.
+  isOwner: boolean("is_owner").notNull().default(false),
+  createdAt: createdAt(),
+});
+
+/*
+ * Requests for a Mohuddle demo, from the product page. They belong to Mohuddle, not to any agency,
+ * so the app's role cannot see them; only the owner console reads them.
+ */
+export const productEnquiries = pgTable("product_enquiries", {
+  id: id(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull().default(""),
+  agencyName: text("agency_name").notNull().default(""),
+  message: text("message").notNull().default(""),
+  handled: boolean("handled").notNull().default(false),
   createdAt: createdAt(),
 });
 

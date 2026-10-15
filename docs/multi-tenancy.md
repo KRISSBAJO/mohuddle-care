@@ -34,10 +34,18 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
 6. **New files go under `agencyKey(...)`** (`agencies/<id>/...`) in storage.
 7. **Scripts use `scripts/agency-db.ts`.** It runs as one agency (`AGENCY=slug`, default `milestone`).
 
+## Switching agency and the owner console
+
+- **Switcher.** Someone who works for more than one agency switches from the menu under their name, top right. A switch ends the session and starts one in the other agency. The mobile app uses `GET` and `POST /api/me/agencies` for the same thing.
+- **Owner console (`/owner`).** Only logins flagged as owners can open it. The flag is set with `pnpm tsx scripts/make-owner.ts email` (add `--remove` to take it away); the app itself can never grant it. An owner still signs in through one of their agencies. The console:
+  - creates agencies with the defaults in `src/lib/agency-defaults.ts`, the signing templates and the daily-note sections;
+  - adds administrators and issues new setup links;
+  - edits an agency's profile;
+  - turns an agency off, which signs everyone there out and stops its reminders;
+  - holds the demo requests from the Mohuddle page (`product_enquiries`, which no agency can see).
+
 ## Not done yet
 
-- **Agency switcher.** Sign-in currently opens the agency whose address you are on, or else the one you used last.
-- **Owner console.** Creating agencies, setting up their defaults, and a separate inbox for Mohuddle demo requests (today these still land in Milestone's enquiries).
 - **Web addresses per agency** (`slug.mohuddle.com`) and hosting.
-- **Per-agency time zones.** Times are still Central everywhere.
+- **Per-agency time zones.** The time zone is stored, but times are still Central everywhere.
 - **Hardening:** foreign keys that also match on `agency_id`, so a row can never point at another agency's row even by a guessed id.

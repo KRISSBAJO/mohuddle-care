@@ -14,7 +14,7 @@ const hashToken = (token: string) => createHash("sha256").update(`login:${token}
  * Issues a one-time link and withdraws any earlier unused link for the same person.
  * Returns the full URL. It is shown once to the coordinator and never stored in plain form.
  */
-export async function issueLoginLink(tx: Tx, userId: string, purpose: LinkPurpose, createdBy: string) {
+export async function issueLoginLink(tx: Tx, userId: string, purpose: LinkPurpose, createdBy: string | null) {
   const settings = await getSettings();
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + settings.login_link_valid_hours * 3_600_000);

@@ -19,11 +19,16 @@ test("every table but agencies and logins belongs to an agency, behind row rules
     from information_schema.tables t
     where t.table_schema = 'public' and t.table_type = 'BASE TABLE'`);
   assert.ok(rows.length > 40);
+  // Mohuddle's own tables: no agency, and the app's role sees nothing of them.
+  const platformOnly = ["product_enquiries"];
   for (const row of rows) {
-    if (row.table_name !== "agencies" && row.table_name !== "logins") assert.ok(row.has_agency, `${row.table_name} has no agency_id`);
+    if (!["agencies", "logins", ...platformOnly].includes(row.table_name)) assert.ok(row.has_agency, `${row.table_name} has no agency_id`);
     assert.ok(row.rls, `${row.table_name} has no row rules`);
-    assert.ok(row.policies > 0, `${row.table_name} has no policy`);
+    if (platformOnly.includes(row.table_name)) assert.equal(row.policies, 0, `${row.table_name} must not be open to agencies`);
+    else assert.ok(row.policies > 0, `${row.table_name} has no policy`);
   }
+  const { rows: grants } = await systemPool.query("select count(*)::int as n from information_schema.role_table_grants where grantee = 'mohuddle_app' and table_name = any($1)", [platformOnly]);
+  assert.equal(grants[0].n, 0, "The app's role has no rights on Mohuddle's own tables");
 });
 
 test("one agency never sees, changes or writes into another's rows", { skip }, async () => {

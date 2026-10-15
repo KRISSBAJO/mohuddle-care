@@ -4,7 +4,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, verifyPassword } from "@/server/auth";
+import { createSession, destroySession, switchAgencyFor, verifyPassword } from "@/server/auth";
+import { requireUser } from "@/server/guard";
 import { schema, systemDb } from "@/server/db";
 
 export type FormState = { error?: string };
@@ -48,6 +49,13 @@ async function agencyToOpen(loginId: string) {
   const host = (await headers()).get("host") ?? "";
   const subdomain = host.split(".").length > 2 || host.includes(".localhost") ? host.split(".")[0] : "";
   return places.find(place => place.slug === subdomain) ?? places[0] ?? null;
+}
+
+/* The agency switcher: opens another agency this person works for. */
+export async function switchAgency(agencyId: string) {
+  const user = await requireUser();
+  if (!(await switchAgencyFor(user, agencyId))) return;
+  redirect("/app");
 }
 
 export async function signOut() {
