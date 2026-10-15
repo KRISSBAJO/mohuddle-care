@@ -29,6 +29,17 @@ test("every table but agencies and logins belongs to an agency, behind row rules
   }
   const { rows: grants } = await systemPool.query("select count(*)::int as n from information_schema.role_table_grants where grantee = 'mohuddle_app' and table_name = any($1)", [platformOnly]);
   assert.equal(grants[0].n, 0, "The app's role has no rights on Mohuddle's own tables");
+
+  // Every link between two agency tables is also checked with agency_id (mohuddle_tenant_guards()).
+  const { rows: unchecked } = await systemPool.query<{ conname: string }>(`
+    select con.conname from pg_constraint con
+    join pg_namespace n on n.oid = con.connamespace and n.nspname = 'public'
+    join pg_attribute sa on sa.attrelid = con.conrelid and sa.attnum = con.conkey[1]
+    where con.contype = 'f' and array_length(con.conkey, 1) = 1 and sa.attname <> 'agency_id'
+      and exists (select 1 from pg_attribute x where x.attrelid = con.conrelid and x.attname = 'agency_id')
+      and exists (select 1 from pg_attribute x where x.attrelid = con.confrelid and x.attname = 'agency_id')
+      and not exists (select 1 from pg_constraint c2 where c2.conrelid = con.conrelid and c2.contype = 'f' and c2.conname = left(con.conname, 55) || '_agency')`);
+  assert.deepEqual(unchecked.map(row => row.conname), [], "Run SELECT mohuddle_tenant_guards(); in the migration that added these");
 });
 
 test("one agency never sees, changes or writes into another's rows", { skip }, async () => {
@@ -55,6 +66,8 @@ test("one agency never sees, changes or writes into another's rows", { skip }, a
       assert.equal((await db.update(schema.homes).set({ name: "Taken over" }).where(eq(schema.homes.id, home.id)).returning()).length, 0);
       assert.equal((await db.delete(schema.homes).where(eq(schema.homes.id, home.id)).returning()).length, 0);
       await assert.rejects(db.insert(schema.homes).values({ agencyId: other.id, name: "Planted", type: "group_home" }), refusedByRowRules);
+      // A record cannot point at another agency's record, even with its id.
+      await assert.rejects(db.insert(schema.tasks).values({ title: "Cross-agency link", homeId: home.id }), (error: unknown) => /_agency/.test(String((error as { cause?: Error }).cause?.message ?? "")));
       assert.equal((await currentAgency())?.id, milestone);
     });
 

@@ -18,15 +18,11 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
 
 ## Rules for new code
 
-1. **A new table gets `agencyId: agencyId()`.** Migration 0029 only set up the tables that existed then, so a new table also needs these lines in its migration:
+1. **A new table gets `agencyId: agencyId()`,** and its migration ends with:
    ```sql
-   ALTER TABLE "x" ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY agency_isolation ON "x" TO mohuddle_app
-     USING (agency_id = nullif(current_setting('app.agency_id', true), '')::uuid)
-     WITH CHECK (agency_id = nullif(current_setting('app.agency_id', true), '')::uuid);
-   CREATE INDEX "x_agency" ON "x" (agency_id);
+   SELECT mohuddle_tenant_guards();
    ```
-   `tests/tenancy.integration.test.ts` fails if a table is missing any of this.
+   That turns on the table's row rule and index. It also makes every link to or from another agency table check that both rows belong to the same agency, so a record can never point at another agency's record, even by a known id. `tests/tenancy.integration.test.ts` fails if a table or link was missed.
 2. **Uniqueness is per agency.** Write `uniqueIndex(...).on(table.agencyId, table.thing)`, and give upserts the same target.
 3. **Code without a session must say which agency it runs as.** This covers jobs, webhooks and public forms: wrap them in `asAgency` or `forEachAgency`. If you forget, nothing breaks loudly: reads come back empty.
 4. **Use `systemDb` sparingly,** and never for ordinary reads. It sees every agency.
@@ -48,4 +44,4 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
 
 - **Web addresses per agency** (`slug.mohuddle.com`) and hosting.
 - **Per-agency time zones.** The time zone is stored, but times are still Central everywhere.
-- **Hardening:** foreign keys that also match on `agency_id`, so a row can never point at another agency's row even by a guessed id.
+- **Links without a foreign key** (a note event's note, a document's request item) are not checked this way. They are only ever set by the app, inside one agency.
