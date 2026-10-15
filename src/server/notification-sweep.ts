@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, count, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
 import { dateKey, fmt } from "@/lib/format";
-import { db, schema } from "@/server/db";
+import { db, schema, systemDb } from "@/server/db";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { liveBoard } from "@/server/queries/timeclock";
 import { unsignedSheets, workweekMinutes } from "@/server/queries/payroll";
@@ -10,6 +10,7 @@ import { sendMorningDigest } from "@/server/digest";
 import { shiftReminders } from "@/server/shift-reminders";
 import { getSettings } from "@/server/settings";
 import { forEachAgency } from "@/server/agency";
+import { healthLog, noteProblem, noteSweep } from "@/server/health-log";
 
 const state = globalThis as unknown as { milestoneSweepAt?: number; milestoneSweepRunning?: boolean };
 // Every minute, so a "starts in 15 minutes" reminder is never more than a minute late.
@@ -28,8 +29,13 @@ export async function sweepNotifications(force = false) {
   state.milestoneSweepAt = now;
   try {
     // Each agency in turn, with its own settings, people and data.
+    const agencies = await systemDb.select({ n: count() }).from(schema.agencies).where(eq(schema.agencies.active, true));
     const sent = await forEachAgency("Notification sweep", () => sweepAgency(now));
+    noteSweep({ startedAt: now, finishedAt: Date.now(), sent, agencies: agencies[0]?.n ?? 0, failures: healthLog().problems.filter(problem => problem.at >= now && problem.where.startsWith("Notification sweep")) });
     return { sent };
+  } catch (error) {
+    noteProblem("Notification sweep", error);
+    throw error;
   } finally {
     state.milestoneSweepRunning = false;
   }

@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { asAgency, currentAgencyId, db, pool, schema, systemDb } from "./db";
+import { noteProblem } from "./health-log";
 
 export type Agency = typeof schema.agencies.$inferSelect;
 
@@ -48,6 +49,7 @@ export async function forEachAgency(label: string, fn: (agencyId: string) => Pro
       });
     } catch (error) {
       console.error(`${label} failed for ${agency.slug}`, error);
+      noteProblem(`${label}: ${agency.slug}`, error);
     }
   }
   return total;

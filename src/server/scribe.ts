@@ -47,6 +47,9 @@ export async function scribeStatus(speech: string, model: string) {
   };
 }
 
+/* Whether the speech engine is running now (it stops itself after a spell of not being used). */
+export const speechRunning = () => Boolean(holder.mohuddleSpeech);
+
 /* Loads the note model into memory ahead of time, so the first draft does not wait for it. */
 export function warmModel(model: string) {
   // Not awaited: the load can take minutes from disk, and Ollama stops loading if the request is dropped.
