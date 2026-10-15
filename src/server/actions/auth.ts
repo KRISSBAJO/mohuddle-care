@@ -1,12 +1,12 @@
 "use server";
 
 import { and, eq, sql } from "drizzle-orm";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, switchAgencyFor, verifyPassword } from "@/server/auth";
+import { createSession, destroySession, placesFor, switchAgencyFor, verifyPassword } from "@/server/auth";
 import { requireUser } from "@/server/guard";
 import { schema, systemDb } from "@/server/db";
+import { addressesOn, hostAgency, issueHandoff, requestHost } from "@/server/host";
 
 export type FormState = { error?: string };
 
@@ -29,32 +29,46 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
     ? await verifyPassword(login.passwordHash, password)
     : (await verifyPassword(DUMMY_HASH, password), false);
   if (!ok || !login) return { error: "That email and password do not match." };
-  const place = await agencyToOpen(login.id);
+  const places = await placesInOrder(login.id);
+  const host = await requestHost();
+  let place: (typeof places)[number] | undefined = places[0];
+  if (host.kind === "agency") {
+    // On an agency's own address, only that agency.
+    const agency = await hostAgency();
+    if (!agency || agency === "missing") return { error: "No agency uses this address. Check the link you were given." };
+    place = places.find(item => item.agencyId === agency.id);
+    if (!place) return { error: `You do not have a login at ${agency.name}. Ask its office, or sign in where you usually do.` };
+  }
   if (!place) return { error: "That email and password do not match." };
+  const target = next.startsWith("/app") ? next : "/app";
+  // With agency addresses, the session belongs at the agency's address: send them there with a one-time pass.
+  if (addressesOn() && host.kind !== "agency") redirect(await issueHandoff({ userId: place.id, agencyId: place.agencyId, slug: place.slug }, shared === "on", target));
   await createSession(place, shared === "on");
-  redirect(next.startsWith("/app") ? next : "/app");
+  redirect(target);
 }
 
-/*
- * Which of a login's agencies to open: the one whose address this is (slug.mohuddle.com), or else
- * the one they used last. Only active places in active agencies count.
- */
-async function agencyToOpen(loginId: string) {
-  const places = await systemDb
+/* A login's active places in active agencies, the one used most recently first. */
+async function placesInOrder(loginId: string) {
+  return systemDb
     .select({ id: schema.users.id, agencyId: schema.users.agencyId, slug: schema.agencies.slug })
     .from(schema.users)
     .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
     .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), eq(schema.agencies.active, true)))
     .orderBy(sql`(select max(${schema.sessions.createdAt}) from ${schema.sessions} where ${schema.sessions.userId} = ${schema.users.id}) desc nulls last`, schema.users.createdAt);
-  const host = (await headers()).get("host") ?? "";
-  const subdomain = host.split(".").length > 2 || host.includes(".localhost") ? host.split(".")[0] : "";
-  return places.find(place => place.slug === subdomain) ?? places[0] ?? null;
 }
 
-/* The agency switcher: opens another agency this person works for. */
-export async function switchAgency(agencyId: string) {
+/*
+ * The agency switcher: opens another agency this person works for. With agency addresses it returns
+ * the other agency's address, with a one-time pass, for the browser to go to.
+ */
+export async function switchAgency(agencyId: string): Promise<{ url?: string }> {
   const user = await requireUser();
-  if (!(await switchAgencyFor(user, agencyId))) return;
+  if (addressesOn()) {
+    const place = (await placesFor(user.loginId)).find(item => item.agencyId === agencyId);
+    if (!place) return {};
+    return { url: await issueHandoff({ userId: place.userId, agencyId: place.agencyId, slug: place.slug }, user.shared) };
+  }
+  if (!(await switchAgencyFor(user, agencyId))) return {};
   redirect("/app");
 }
 

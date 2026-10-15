@@ -12,7 +12,8 @@ type Props = {
   current: string;
   places: { agencyId: string; name: string; role: string }[];
   owner: boolean;
-  switchAgency: (agencyId: string) => Promise<void>;
+  /* Returns the other agency's address when agencies have their own; the browser goes there. */
+  switchAgency: (agencyId: string) => Promise<{ url?: string }>;
 };
 
 /* Who is signed in and where. Opens the agency switcher when they work for more than one, and the owner console for owners. */
@@ -69,7 +70,11 @@ export function AccountMenu({ name, role, agency, current, places, owner, switch
                     disabled={here || moving !== null}
                     onClick={() => {
                       setMoving(place.agencyId);
-                      startTransition(() => switchAgency(place.agencyId));
+                      startTransition(async () => {
+                        const result = await switchAgency(place.agencyId);
+                        if (result?.url) window.location.assign(result.url);
+                        else setMoving(null);
+                      });
                     }}
                     className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm", here ? "bg-sage-soft/60" : "hover:bg-panel")}
                   >

@@ -91,6 +91,21 @@ export const logins = pgTable("logins", {
 });
 
 /*
+ * A one-time pass that carries a sign-in to an agency's own web address, where the browser keeps a
+ * separate session. It works once, within two minutes. Only a hash is stored, and the app's role
+ * cannot see these.
+ */
+export const sessionHandoffs = pgTable("session_handoffs", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: uuid("user_id").notNull(),
+  agencyId: uuid("agency_id_for").notNull(),
+  shared: boolean("shared").notNull().default(false),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/*
  * Requests for a Mohuddle demo, from the product page. They belong to Mohuddle, not to any agency,
  * so the app's role cannot see them; only the owner console reads them.
  */

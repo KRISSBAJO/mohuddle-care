@@ -1,8 +1,10 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { requireAgency } from "./agency";
 import { db, schema, systemDb } from "./db";
 import { env } from "./env";
+import { agencyBase } from "./host";
 import { getSettings } from "./settings";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -20,7 +22,8 @@ export async function issueLoginLink(tx: Tx, userId: string, purpose: LinkPurpos
   const expiresAt = new Date(Date.now() + settings.login_link_valid_hours * 3_600_000);
   await tx.delete(schema.loginTokens).where(and(eq(schema.loginTokens.userId, userId), isNull(schema.loginTokens.usedAt)));
   await tx.insert(schema.loginTokens).values({ tokenHash: hashToken(token), userId, purpose, createdBy, expiresAt });
-  return { url: new URL(`/setup-password/${token}`, env.APP_URL).toString(), expiresAt };
+  const agency = await requireAgency();
+  return { url: `${agencyBase(agency.slug)}/setup-password/${token}`, expiresAt };
 }
 
 /*

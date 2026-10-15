@@ -3,13 +3,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { fmt } from "@/lib/format";
 import { asAgency, db, schema, systemDb } from "@/server/db";
-import { env } from "@/server/env";
+import { requireAgency } from "@/server/agency";
+import { agencyBase } from "@/server/host";
 import { notify, recipients } from "@/server/notify";
 import { getSettings } from "@/server/settings";
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const newToken = () => randomBytes(32).toString("base64url");
-export const requestLink = (token: string) => `${env.APP_URL.replace(/\/$/, "")}/docs/r/${token}`;
+/* A request's private link, on the agency's own address when agencies have them. */
+export const requestLink = async (token: string) => `${agencyBase((await requireAgency()).slug)}/docs/r/${token}`;
 
 /*
  * Asks a staff member for documents. Returns the private link once; only its hash is kept, so
@@ -52,7 +54,7 @@ export async function createRequest(input: {
     tone: "info",
     dedupeKey: `document:requested:${request.id}`,
   });
-  return { request, link: requestLink(token) };
+  return { request, link: await requestLink(token) };
 }
 
 /* A new link for a request. The old one stops working at once. */
@@ -66,7 +68,7 @@ export async function freshLink(requestId: string, userId: string) {
     .returning({ id: schema.documentRequests.id });
   if (!row) return null;
   await db.insert(schema.auditLog).values({ userId, action: "document-request:fresh-link", entity: "document_request", entityId: requestId });
-  return requestLink(token);
+  return await requestLink(token);
 }
 
 export async function revokeRequest(requestId: string, userId: string) {
@@ -161,5 +163,5 @@ export async function createRequestFor(input: {
     await tx.insert(schema.auditLog).values({ userId: input.createdBy, action: "document-request:create", entity: "document_request", entityId: row.id });
     return row;
   });
-  return { request, link: requestLink(token) };
+  return { request, link: await requestLink(token) };
 }

@@ -41,8 +41,25 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
   - turns an agency off, which signs everyone there out and stops its reminders;
   - holds the demo requests from the Mohuddle page (`product_enquiries`, which no agency can see).
 
+## Agency addresses
+
+With `AGENCY_ADDRESSES=on`, each agency is used at its own address, built from `APP_URL`:
+
+- **On this machine:** `milestone.localhost:3400`. Browsers treat any name ending in `.localhost` as this computer, so it needs no setup.
+- **When live:** `milestone.mohuddle.com`.
+
+How it works:
+
+- **An agency's address** opens its app. Its sign-in page names the agency, and only that agency's logins can sign in there.
+- **The shared sign-in page,** `app.<host>`, signs someone in and sends them to the agency they used last.
+- **The agency switcher** sends them to the other agency's address.
+
+The browser keeps a separate session for each address, so a sign-in moves between addresses with a one-time pass. The pass lives in `session_handoffs`, works once and expires after two minutes, at `/auth/handoff`. A session for one agency is ignored on another agency's address. Setup links and private document links use the agency's address. The main address (`localhost:3400`, later `mohuddle.com`) works as before. With the setting off, everything stays at `APP_URL`.
+
+Going live needs DNS for `*.mohuddle.com`, a certificate that covers it, and `APP_URL=https://mohuddle.com`.
+
 ## Not done yet
 
-- **Web addresses per agency** (`slug.mohuddle.com`) and hosting.
+- **Going live** with agency addresses: wildcard DNS and certificate, and moving Milestone's public website to its own domain so `mohuddle.com` is Mohuddle's.
 - **Changing an agency's time zone** takes effect for each person at their next sign-in or switch, since it travels in their session's cookie.
 - **Links without a foreign key** (a note event's note, a document's request item) are not checked this way. They are only ever set by the app, inside one agency.

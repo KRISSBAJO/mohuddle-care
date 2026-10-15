@@ -9,6 +9,7 @@ import { agencyZone, asAgency, db, schema, systemDb } from "./db";
 import { env } from "./env";
 import { sessionTokenHash as tokenHash } from "./session-token";
 import { getSettings } from "./settings";
+import { requestHost } from "./host";
 import { signedZone, ZONE_COOKIE } from "./zone";
 
 // The last-used time is written at most this often, so ordinary page loads do not each write to the database.
@@ -78,6 +79,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
       expiresAt: schema.sessions.expiresAt,
       lastSeenAt: schema.sessions.lastSeenAt,
       shared: schema.sessions.shared,
+      slug: schema.agencies.slug,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -88,6 +90,9 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const row = rows[0];
   const now = Date.now();
   if (!row || !row.active || row.expiresAt.getTime() < now) return null;
+  // On an agency's own address, only a session for that agency counts.
+  const host = await requestHost();
+  if (host.kind === "agency" && host.slug !== row.slug) return null;
   // Signed out after a spell of not using the app. The browser warns first; this catches closed tabs.
   const { session_idle_minutes } = await getSettings();
   if (now - row.lastSeenAt.getTime() > session_idle_minutes * 60_000) {

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/marketing/Logo";
 import { LoginForm } from "@/components/app/LoginForm";
 import { getSessionUser } from "@/server/auth";
+import { hostAgency } from "@/server/host";
 
 export const metadata: Metadata = { title: { absolute: "Sign in to Mohuddle" } };
 
@@ -12,7 +13,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const user = await getSessionUser();
   if (user) redirect("/app");
   const { next, reason } = await searchParams;
-  const notice = reason === "idle" ? "You were signed out after a while without using the app. Sign in again to carry on." : reason === "shared" ? "You clocked out on a shared device, so you were signed out." : "";
+  const notice =
+    reason === "idle"
+      ? "You were signed out after a while without using the app. Sign in again to carry on."
+      : reason === "shared"
+        ? "You clocked out on a shared device, so you were signed out."
+        : reason === "handoff"
+          ? "That sign-in link has expired or was already used. Sign in here instead."
+          : "";
+  // On an agency's own address, the page names the agency.
+  const agency = await hostAgency();
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
       <section className="hidden bg-ink p-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -38,9 +48,19 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <span className="font-display text-xl font-bold">Mohuddle</span>
           </Link>
           {notice && <p className="mb-6 rounded-xl bg-sky px-4 py-3 text-sm text-brand-deep" role="status">{notice}</p>}
-          <h2 className="text-3xl font-bold">Sign in</h2>
-          <p className="mt-2 text-sm text-mute">Use the email and password the office gave you.</p>
-          <LoginForm next={next} />
+          {agency === "missing" ? (
+            <>
+              <h2 className="text-3xl font-bold">No agency here</h2>
+              <p className="mt-2 text-sm text-mute">No agency on Mohuddle uses this address. Check the link you were given, or ask your office for it.</p>
+            </>
+          ) : (
+            <>
+              {agency && <p className="eyebrow">{agency.name}</p>}
+              <h2 className="mt-1 text-3xl font-bold">Sign in</h2>
+              <p className="mt-2 text-sm text-mute">Use the email and password the office gave you.</p>
+              <LoginForm next={next} />
+            </>
+          )}
           <p className="mt-6 text-xs text-mute">
             New, or forgot your password? Your coordinator can give you a one-time link to set it.
           </p>

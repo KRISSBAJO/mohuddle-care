@@ -232,6 +232,13 @@
       "when": 1792037648777,
       "tag": "0032_agency_links",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792050402446,
+      "tag": "0033_session_handoffs",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
   serverExternalPackages: ["pg", "@node-rs/argon2"],
+  // Each agency's own address on this machine (milestone.localhost:3400) may load the dev server's files.
+  allowedDevOrigins: ["*.localhost"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

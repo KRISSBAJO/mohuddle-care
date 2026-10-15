@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getSessionUser, placesFor, switchAgencyFor } from "@/server/auth";
+import { addressesOn, issueHandoff } from "@/server/host";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,12 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Sign in again." }, { status: 401 });
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Choose an agency." }, { status: 400 });
+  if (addressesOn()) {
+    // Each agency has its own address: open the returned one-time link there to sign in.
+    const place = (await placesFor(user.loginId)).find(item => item.agencyId === parsed.data.agencyId);
+    if (!place) return Response.json({ error: "You do not work for that agency." }, { status: 403 });
+    return Response.json({ ok: true, url: await issueHandoff({ userId: place.userId, agencyId: place.agencyId, slug: place.slug }, user.shared) });
+  }
   if (!(await switchAgencyFor(user, parsed.data.agencyId))) return Response.json({ error: "You do not work for that agency." }, { status: 403 });
   return Response.json({ ok: true, current: parsed.data.agencyId });
 }

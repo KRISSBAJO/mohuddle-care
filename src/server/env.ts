@@ -4,6 +4,8 @@ import { z } from "zod";
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.url().default("http://localhost:3400"),
+  // "on": each agency is used at its own address (slug.<APP_URL host>), with app.<host> to sign in.
+  AGENCY_ADDRESSES: z.enum(["on", "off"]).default("off"),
   DATABASE_URL: z.string().startsWith("postgres"),
   SESSION_SECRET: z.string().min(32, "must be at least 32 characters"),
   // Document storage. With S3_BUCKET set, files go to S3 (or any S3-compatible store via S3_ENDPOINT).
