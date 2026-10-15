@@ -212,6 +212,10 @@ export const users = pgTable(
     role: userRole("role").notNull().default("dsp"),
     staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
     active: boolean("active").notNull().default(true),
+    // A Mohuddle owner's support visit: an administrator place that works only until this time, gets
+    // no notifications and is not anyone's staff record. Null for everyone else.
+    supportUntil: timestamp("support_until", { withTimezone: true }),
+    reason: text("support_reason").notNull().default(""),
     createdAt: createdAt(),
   },
   table => [uniqueIndex("users_agency_email").on(table.agencyId, table.email), uniqueIndex("users_agency_login").on(table.agencyId, table.loginId)],

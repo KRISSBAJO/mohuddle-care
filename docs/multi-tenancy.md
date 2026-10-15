@@ -73,6 +73,15 @@ Mohuddle sends through RelyKit (`src/server/email.ts`). Nothing leaves the serve
   Each agency switches these on or off in Settings ("Email links to people"). The link is always shown on screen too.
 - **"Forgot your password?"** emails a link and always gives the same answer, so it never reveals which emails have a login. It sends at most 3 emails to one address an hour.
 
+## Owner console: health, activity and support visits
+
+- **`/owner/health`:** reminders, email, push, the note scribe, the database, the server, and recent errors. The history is kept in memory since the server last started.
+- **`/owner/activity`:** every console action, kept in `owner_events`, which no agency can see.
+- **Support visits.** From an agency's page, with a reason, an owner opens the agency as an administrator for an hour. The agency's administrators are notified with who, why and until when, and the visit goes in both the owner activity log and the agency's audit log.
+  - The support place (`users.support_until`) gets no notifications.
+  - It is not a place to sign in or switch to, and it is not listed as an administrator.
+  - It stops working when the hour ends, or at "End visit".
+
 ## Not done yet
 
 - **Going live** with agency addresses: wildcard DNS and certificate, and moving Milestone's public website to its own domain so `mohuddle.com` is Mohuddle's.

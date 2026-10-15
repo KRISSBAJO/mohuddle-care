@@ -13,6 +13,7 @@ import { signOut, switchAgency } from "@/server/actions/auth";
 import { requireAgency } from "@/server/agency";
 import { canManage, placesFor } from "@/server/auth";
 import { isOwner } from "@/server/owner";
+import { endSupportAction } from "@/server/actions/owner";
 import { requireUser } from "@/server/guard";
 import { pushPublicKey } from "@/server/push";
 import { getSettings } from "@/server/settings";
@@ -29,6 +30,12 @@ export default async function HubLayout({ children }: { children: React.ReactNod
       <ZoneSync zone={zone()} />
       <Sidebar user={{ name: user.name, role: user.role }} manager={canManage(user)} signOut={signOut} />
       <div className="min-w-0 flex-1">
+        {user.supportUntil && (
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#fdf3d8] px-5 py-2.5 text-sm text-[#6b4f05] sm:px-8" role="status">
+            <p><span className="font-bold">Support visit to {agency.name}</span> until {fmt.time(user.supportUntil)}. The agency has been told, and everything you do is recorded.</p>
+            <form action={endSupportAction}><button className="btn-ghost btn-sm border-[#b88a16]/40 bg-white/70">End visit</button></form>
+          </div>
+        )}
         <header className="hub-topbar">
           <div><p className="text-xs font-semibold">Mohuddle <span className="mx-2 text-dim">/</span> {agency.name}</p><p className="hub-topbar-title mt-1">{fmt.dayLong(dateKey())} · {zoneLabel()}</p></div>
           <div className="hub-topbar-account">{settings.assistant_enabled === "on" && <AskMohuddle voice />}<NotificationBell unread={bell.unread} now={now} items={bell.latest.map(item => ({ id: item.id, title: item.title, body: item.body, tone: item.tone, createdAt: item.createdAt.toISOString(), read: Boolean(item.readAt) }))} pushKey={pushPublicKey} /><AccountMenu name={user.name} role={user.role} agency={agency.name} current={user.agencyId} places={places} owner={owner} switchAgency={switchAgency} /></div>

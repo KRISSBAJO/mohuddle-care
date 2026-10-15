@@ -7,7 +7,8 @@ import { LinkIssuer } from "@/components/app/LinkIssuer";
 import { Badge, PageHeader, Panel } from "@/components/app/ui";
 import { AgencyFields } from "@/components/owner/AgencyFields";
 import { fmt } from "@/lib/format";
-import { addAdminAction, newAdminLinkAction, setAgencyActiveAction, updateAgencyAction } from "@/server/actions/owner";
+import { addAdminAction, newAdminLinkAction, openSupportAction, setAgencyActiveAction, updateAgencyAction } from "@/server/actions/owner";
+import { SupportForm } from "@/components/owner/SupportForm";
 import { requireOwner } from "@/server/guard";
 import { ownerActionWords } from "@/lib/owner-events";
 import { agencyDetail, ownerEvents } from "@/server/owner";
@@ -68,6 +69,15 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
               </LinkIssuer>
             </div>
           </Panel>
+
+          {agency.active && (
+            <Panel title="Support visit">
+              <div className="space-y-3 p-5 text-sm">
+                <p className="text-mute">Opens this agency as an administrator for an hour, to see what they see and help. Its administrators are told who, when and why, and the visit is recorded.</p>
+                <SupportForm action={openSupportAction.bind(null, agency.id)} />
+              </div>
+            </Panel>
+          )}
 
           <Panel title="Recent owner activity" action={<Link href="/owner/activity" className="text-xs font-semibold text-brand">All activity</Link>}>
             {history.length === 0 ? (

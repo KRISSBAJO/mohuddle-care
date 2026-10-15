@@ -1,10 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { DEFAULT_DOCUMENT_TYPES, DEFAULT_NOTE_SECTIONS, DEFAULT_SHIFT_PATTERNS } from "@/lib/agency-defaults";
 import { DEFAULT_TEMPLATES } from "@/lib/default-sign-templates";
 import { NOTE_LIBRARY } from "@/lib/note-library";
 import { emailLoginLink, issueLoginLink, loginUsedElsewhere } from "./accounts";
 import { emailNote } from "./email";
+import { notify, recipients } from "./notify";
+import { fmt } from "@/lib/format";
 import { asAgency, db, schema, systemDb } from "./db";
 
 /*
@@ -58,7 +60,7 @@ export async function agencyDetail(id: string) {
     .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, active: schema.users.active, hasPassword: schema.logins.hasPassword })
     .from(schema.users)
     .innerJoin(schema.logins, eq(schema.logins.id, schema.users.loginId))
-    .where(and(eq(schema.users.agencyId, id), eq(schema.users.role, "admin")))
+    .where(and(eq(schema.users.agencyId, id), eq(schema.users.role, "admin"), isNull(schema.users.supportUntil)))
     .orderBy(asc(schema.users.name));
   return { agency, admins };
 }
@@ -160,6 +162,45 @@ export async function updateAgencyProfile(id: string, profile: AgencyProfile) {
   const [before] = await systemDb.select().from(schema.agencies).where(eq(schema.agencies.id, id)).limit(1);
   await systemDb.update(schema.agencies).set(profile).where(eq(schema.agencies.id, id));
   return before ? (Object.keys(PROFILE_WORDS) as (keyof AgencyProfile)[]).filter(key => before[key] !== profile[key]).map(key => PROFILE_WORDS[key]) : [];
+}
+
+const SUPPORT_MINUTES = 60;
+
+/*
+ * Opens an agency for a support visit: the owner gets an administrator place there for an hour,
+ * marked as Mohuddle support. The agency's administrators are told who, why and until when.
+ * Returns the place to sign in to, or why not.
+ */
+export async function openSupport(owner: { loginId: string; name: string; email: string }, agencyId: string, reason: string) {
+  const [agency] = await systemDb.select({ id: schema.agencies.id, name: schema.agencies.name, slug: schema.agencies.slug, active: schema.agencies.active }).from(schema.agencies).where(eq(schema.agencies.id, agencyId)).limit(1);
+  if (!agency) return { error: "Unknown agency." } as const;
+  if (!agency.active) return { error: "This agency is turned off. Turn it back on first." } as const;
+  const until = new Date(Date.now() + SUPPORT_MINUTES * 60_000);
+  return asAgency(agencyId, async () => {
+    const [mine] = await db.select({ id: schema.users.id, supportUntil: schema.users.supportUntil }).from(schema.users).where(eq(schema.users.loginId, owner.loginId)).limit(1);
+    if (mine && !mine.supportUntil) return { error: "You already work for this agency: open it from the agency switcher." } as const;
+    const [place] = mine
+      ? await db.update(schema.users).set({ supportUntil: until, reason, active: true }).where(eq(schema.users.id, mine.id)).returning({ id: schema.users.id })
+      : await db.insert(schema.users).values({ loginId: owner.loginId, email: owner.email, name: `Mohuddle support (${owner.name})`, role: "admin", supportUntil: until, reason }).returning({ id: schema.users.id });
+    await db.insert(schema.auditLog).values({ userId: place.id, action: "support:open", entity: "agency", entityId: agencyId });
+    await notify(await recipients({ roles: ["admin"] }), {
+      kind: "support:open",
+      title: `Mohuddle support opened your agency`,
+      body: `${owner.name} (${owner.email}), until ${fmt.time(until)}. Reason: ${reason}`,
+      href: "/app",
+      tone: "info",
+      dedupeKey: `support:open:${place.id}:${until.getTime()}`,
+    });
+    return { place: { userId: place.id, agencyId, slug: agency.slug }, until } as const;
+  });
+}
+
+/* Ends a support visit now. */
+export async function endSupport(user: { id: string; agencyId: string }) {
+  await asAgency(user.agencyId, async () => {
+    await db.update(schema.users).set({ supportUntil: new Date() }).where(and(eq(schema.users.id, user.id), isNotNull(schema.users.supportUntil)));
+    await db.insert(schema.auditLog).values({ userId: user.id, action: "support:close", entity: "agency", entityId: user.agencyId });
+  });
 }
 
 /* One line in the owner activity log. */

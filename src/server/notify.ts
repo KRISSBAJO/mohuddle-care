@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { pushTo } from "@/server/push";
 
@@ -20,6 +20,8 @@ export async function recipients({ roles = [], staffIds = [], except }: { roles?
     .where(
       and(
         eq(schema.users.active, true),
+        // Mohuddle support visits are never told about the agency's work.
+        isNull(schema.users.supportUntil),
         or(roles.length ? inArray(schema.users.role, roles) : undefined, staff.length ? inArray(schema.users.staffId, staff) : undefined),
         except ? ne(schema.users.id, except) : undefined,
       ),

@@ -42,7 +42,7 @@ export async function issueHandoff(place: { userId: string; agencyId: string; sl
   await systemDb.insert(schema.sessionHandoffs).values({ tokenHash: hashOf(token), userId: place.userId, agencyId: place.agencyId, shared, expiresAt: new Date(Date.now() + 120_000) });
   const url = new URL("/auth/handoff", agencyOrigin(place.slug, env.APP_URL));
   url.searchParams.set("token", token);
-  if (next.startsWith("/app")) url.searchParams.set("next", next);
+  if (next.startsWith("/app") || next.startsWith("/owner")) url.searchParams.set("next", next);
   return url.toString();
 }
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
@@ -59,6 +59,8 @@ export type SessionUser = {
   staffId: string | null;
   /* This device was marked shared at sign-in, such as a home's tablet. */
   shared?: boolean;
+  /* When this is a Mohuddle owner's support visit: when it ends. */
+  supportUntil?: Date | null;
 };
 
 /* Reads the signed-in user once per request. Returns null when there is no valid session. */
@@ -80,6 +82,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
       lastSeenAt: schema.sessions.lastSeenAt,
       shared: schema.sessions.shared,
       slug: schema.agencies.slug,
+      supportUntil: schema.users.supportUntil,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -90,6 +93,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const row = rows[0];
   const now = Date.now();
   if (!row || !row.active || row.expiresAt.getTime() < now) return null;
+  // A support visit ends on time, whatever the session says.
+  if (row.supportUntil && row.supportUntil.getTime() < now) return null;
   // On an agency's own address, only a session for that agency counts.
   const host = await requestHost();
   if (host.kind === "agency" && host.slug !== row.slug) return null;
@@ -102,7 +107,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (now - row.lastSeenAt.getTime() > TOUCH_EVERY_MS) {
     await db.update(schema.sessions).set({ lastSeenAt: new Date(now) }).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), lt(schema.sessions.lastSeenAt, new Date(now - TOUCH_EVERY_MS))));
   }
-  return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared };
+  return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared, supportUntil: row.supportUntil };
 });
 
 /* A login's active places in active agencies, the one used most recently first. */
@@ -111,7 +116,7 @@ export async function placesInOrder(loginId: string) {
     .select({ id: schema.users.id, agencyId: schema.users.agencyId, slug: schema.agencies.slug })
     .from(schema.users)
     .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
-    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), eq(schema.agencies.active, true)))
+    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), isNull(schema.users.supportUntil), eq(schema.agencies.active, true)))
     .orderBy(sql`(select max(${schema.sessions.createdAt}) from ${schema.sessions} where ${schema.sessions.userId} = ${schema.users.id}) desc nulls last`, schema.users.createdAt);
 }
 
@@ -123,7 +128,7 @@ export async function placesFor(loginId: string): Promise<Place[]> {
     .select({ userId: schema.users.id, agencyId: schema.users.agencyId, name: schema.agencies.name, slug: schema.agencies.slug, role: schema.users.role })
     .from(schema.users)
     .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
-    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), eq(schema.agencies.active, true)))
+    .where(and(eq(schema.users.loginId, loginId), eq(schema.users.active, true), isNull(schema.users.supportUntil), eq(schema.agencies.active, true)))
     .orderBy(schema.agencies.name);
 }
 

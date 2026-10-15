@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { TIME_ZONES } from "@/lib/agency-defaults";
-import { requireOwner } from "@/server/guard";
-import { addAgencyAdmin, createAgency, markProductEnquiry, newAdminLink, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
+import { requireOwner, requireUser } from "@/server/guard";
+import { redirect } from "next/navigation";
+import { createSession, destroySession, placesInOrder } from "@/server/auth";
+import { addressesOn, issueHandoff } from "@/server/host";
+import { addAgencyAdmin, createAgency, endSupport, markProductEnquiry, newAdminLink, openSupport, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
 import { linkExpiry } from "@/lib/format";
@@ -96,4 +99,37 @@ export async function markEnquiryAction(id: string, handled: boolean): Promise<F
   await recordOwnerEvent(owner, handled ? "demo:handled" : "demo:waiting", null, `Request ${id.slice(0, 8)}`);
   revalidatePath("/owner/enquiries");
   return {};
+}
+
+export type SupportState = { error?: string; url?: string };
+
+/*
+ * Opens an agency for a support visit, with a reason the agency is told. With agency addresses the
+ * visit opens at the agency's address and the owner stays signed in at their own; without, this
+ * session becomes the visit.
+ */
+export async function openSupportAction(agencyId: string, _previous: SupportState, formData: FormData): Promise<SupportState> {
+  const owner = await requireOwner();
+  if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
+  if (reason.length < 5) return { error: "Say why you are opening this agency. Its administrators are told." };
+  const opened = await openSupport(owner, agencyId, reason);
+  if ("error" in opened) return { error: opened.error };
+  await recordOwnerEvent(owner, "support:open", agencyId, reason);
+  if (addressesOn()) return { url: await issueHandoff(opened.place) };
+  await destroySession();
+  await createSession({ id: opened.place.userId, agencyId: opened.place.agencyId });
+  redirect("/app");
+}
+
+/* Ends a support visit and goes back to the owner console. */
+export async function endSupportAction() {
+  const user = await requireUser();
+  if (!user.supportUntil) redirect("/app");
+  await endSupport(user);
+  await recordOwnerEvent({ loginId: user.loginId, name: user.name.replace(/^Mohuddle support \((.*)\)$/, "$1"), email: user.email }, "support:close", user.agencyId);
+  await destroySession();
+  const home = (await placesInOrder(user.loginId))[0];
+  if (home && addressesOn()) redirect(await issueHandoff({ userId: home.id, agencyId: home.agencyId, slug: home.slug }, false, "/owner"));
+  redirect("/login");
 }

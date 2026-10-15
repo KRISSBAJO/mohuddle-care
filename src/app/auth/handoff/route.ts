@@ -20,5 +20,5 @@ export async function GET(request: Request) {
   }
   await createSession({ id: pass.userId, agencyId: pass.agencyId }, pass.shared);
   const next = url.searchParams.get("next") ?? "/app";
-  return NextResponse.redirect(new URL(next.startsWith("/app") ? next : "/app", here), { status: 303 });
+  return NextResponse.redirect(new URL(next.startsWith("/app") || next.startsWith("/owner") ? next : "/app", here), { status: 303 });
 }

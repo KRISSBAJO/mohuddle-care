@@ -2,7 +2,7 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { test } from "node:test";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { DEFAULT_DOCUMENT_TYPES, DEFAULT_SHIFT_PATTERNS } from "../src/lib/agency-defaults";
 import { DEFAULT_TEMPLATES } from "../src/lib/default-sign-templates";
 import { zone } from "../src/lib/format";
@@ -13,7 +13,9 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
   assert.notEqual(process.env.NODE_ENV, "production", "Use a development database only.");
   const { asAgency, db, pool, schema, systemDb, systemPool } = await import("../src/server/db");
   const { agencyIdBySlug } = await import("../src/server/agency");
-  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile } = await import("../src/server/owner");
+  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile, openSupport, endSupport, agencyDetail } = await import("../src/server/owner");
+  const { placesInOrder } = await import("../src/server/auth");
+  const { recipients } = await import("../src/server/notify");
   const tag = randomBytes(4).toString("hex");
   const slug = `owner-test-${tag}`;
   const email = `owner-test-${tag}@example.test`;
@@ -54,6 +56,26 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
     assert.equal(history.length, 1);
     assert.equal(history[0].action, "agency:update");
     assert.equal(history[0].agency, "Example Test Agency");
+
+    // A support visit: an administrator place for an hour, which the agency's administrators are told about.
+    const [ownerLogin] = await systemDb.select({ id: schema.logins.id, email: schema.logins.email }).from(schema.logins).where(eq(schema.logins.email, process.env.SEED_ADMIN_EMAIL ?? "admin@milestonecare.net"));
+    assert.ok(ownerLogin, "The demo admin login is the visiting owner");
+    const visit = await openSupport({ loginId: ownerLogin.id, name: "Test Owner", email: ownerLogin.email }, agencyId, "Checking the schedule with them");
+    assert.ok(!("error" in visit));
+    assert.ok(visit.until.getTime() > Date.now() + 55 * 60_000);
+    await asAgency(agencyId, async () => {
+      const [told] = await db.select({ n: count() }).from(schema.notifications).where(eq(schema.notifications.kind, "support:open"));
+      assert.equal(told.n, 1, "The agency's administrator is told");
+      const support = await db.select().from(schema.users).where(eq(schema.users.loginId, ownerLogin.id));
+      assert.equal(support[0].role, "admin");
+      assert.equal(support[0].staffId, null);
+      assert.ok(!(await recipients({ roles: ["admin"] })).includes(support[0].id), "A visit gets no notifications");
+    });
+    assert.ok(!(await placesInOrder(ownerLogin.id)).some(place => place.agencyId === agencyId), "A visit is not a place to sign in or switch to");
+    assert.ok(!(await agencyDetail(agencyId))!.admins.some(item => item.email === ownerLogin.email), "Nor one of the agency's administrators");
+    await endSupport({ id: "error" in visit ? "" : visit.place.userId, agencyId });
+    const [ended] = await systemDb.select({ until: schema.users.supportUntil }).from(schema.users).where(and(eq(schema.users.agencyId, agencyId), eq(schema.users.loginId, ownerLogin.id)));
+    assert.ok(ended.until && ended.until.getTime() <= Date.now());
 
     // Turning it off ends its sign-ins; Milestone is untouched.
     await setAgencyActive(agencyId, false);
