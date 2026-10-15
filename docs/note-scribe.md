@@ -7,7 +7,9 @@ never signs and never overwrites what staff typed.
 ## How it works
 
 1. The browser records the microphone and decodes the recording to 16 kHz mono PCM.
-2. `POST /api/scribe/transcribe` runs Whisper (`scripts/scribe/whisper.py`, faster-whisper, CPU).
+2. `POST /api/scribe/transcribe` sends it to the speech worker (`scripts/scribe/whisper_worker.py`,
+   faster-whisper on the CPU). The worker keeps the model loaded, starts when the note page or Ask
+   Mohuddle opens, restarts after a crash and stops after 30 minutes unused to free the memory.
    Names of the person, staff, medications and home are passed as hints so they are spelled right.
 3. `POST /api/scribe/draft` asks Ollama for the note's fields, held to a JSON schema
    (`src/lib/scribe.ts`), and checks every field before it reaches the form.

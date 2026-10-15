@@ -1,5 +1,5 @@
 import "server-only";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { cleanDraft, scribePrompt, scribeSchema, type ScribeDraft, type ScribeKind } from "@/lib/scribe";
@@ -13,7 +13,7 @@ import { cleanDraft, scribePrompt, scribeSchema, type ScribeDraft, type ScribeKi
 const PYTHON = process.env.SCRIBE_PYTHON ?? "";
 const WHISPER_ROOT = process.env.SCRIBE_WHISPER_ROOT ?? "";
 const OLLAMA = (process.env.OLLAMA_URL ?? "http://127.0.0.1:11434").replace(/\/$/, "");
-const WORKER = join(process.cwd(), "scripts", "scribe", "whisper.py");
+const WORKER = join(process.cwd(), "scripts", "scribe", "whisper_worker.py");
 
 export const MAX_PCM_BYTES = 16000 * 2 * 60 * 10;
 
@@ -53,49 +53,147 @@ export function warmModel(model: string) {
   void fetch(`${OLLAMA}/api/generate`, { method: "POST", signal: AbortSignal.timeout(5 * 60_000), body: JSON.stringify({ model, keep_alive: "30m" }) }).catch(() => undefined);
 }
 
+/*
+ * The speech worker: one Python process that keeps the Whisper model loaded, so a request takes about
+ * as long as the recording instead of loading the model each time. It starts on first use (or when a
+ * page asks to warm it), restarts after a crash or a change of speech model, and stops after a spell
+ * of not being used, to give the memory back.
+ */
+const IDLE_MS = 30 * 60_000;
+const START_MS = 4 * 60_000;
+const REQUEST_MS = 5 * 60_000;
+
+type Pending = { resolve: (value: { text: string; seconds: number; decodeMs: number }) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
+type Worker = { child: ChildProcessWithoutNullStreams; dir: string; ready: Promise<void>; pending: Map<number, Pending>; nextId: number; idle?: ReturnType<typeof setTimeout> };
+
+// Kept on globalThis so a code reload in development does not start a second worker.
+const holder = globalThis as unknown as { mohuddleSpeech?: Worker | null };
+
+function stopWorker(reason: string) {
+  const worker = holder.mohuddleSpeech;
+  if (!worker) return;
+  holder.mohuddleSpeech = null;
+  if (worker.idle) clearTimeout(worker.idle);
+  for (const job of worker.pending.values()) {
+    clearTimeout(job.timer);
+    job.reject(new ScribeError(reason));
+  }
+  worker.pending.clear();
+  worker.child.kill();
+}
+
+function restartIdleTimer(worker: Worker) {
+  if (worker.idle) clearTimeout(worker.idle);
+  worker.idle = setTimeout(() => stopWorker("The speech engine was stopped after a while unused."), IDLE_MS);
+}
+
+function startWorker(dir: string): Worker {
+  const child = spawn(PYTHON, [WORKER, dir], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
+  let markReady: () => void = () => undefined;
+  let failStart: (error: Error) => void = () => undefined;
+  const ready = new Promise<void>((resolve, reject) => {
+    markReady = resolve;
+    failStart = reject;
+  });
+  const worker: Worker = { child, dir, ready, pending: new Map(), nextId: 1 };
+  const startTimer = setTimeout(() => {
+    failStart(new ScribeError("The speech engine took too long to start."));
+    if (holder.mohuddleSpeech === worker) stopWorker("The speech engine took too long to start.");
+  }, START_MS);
+  // Unhandled if nobody is waiting yet; the next request sees the failure instead.
+  ready.catch(() => undefined);
+
+  let buffer = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    buffer += chunk;
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf("\n");
+      if (!line) continue;
+      try {
+        const message = JSON.parse(line) as { id?: number; type: string; text?: string; seconds?: number; decodeMs?: number; message?: string };
+        if (message.type === "ready") {
+          clearTimeout(startTimer);
+          markReady();
+          continue;
+        }
+        const job = message.id !== undefined ? worker.pending.get(message.id) : undefined;
+        if (!job || message.id === undefined) continue;
+        worker.pending.delete(message.id);
+        clearTimeout(job.timer);
+        if (message.type === "done") job.resolve({ text: message.text ?? "", seconds: message.seconds ?? 0, decodeMs: message.decodeMs ?? 0 });
+        else job.reject(new ScribeError(message.message ?? "The speech engine could not process this recording."));
+      } catch {
+        // Not a protocol line; ignore it.
+      }
+    }
+  });
+  let problem = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    problem = (problem + chunk).slice(-2000);
+    // The worker's own error detail is for the server log only.
+    const detail = chunk.split("\n").find(text => text.startsWith("scribe whisper failed"));
+    if (detail) console.error(detail.trim());
+  });
+  child.on("error", () => {
+    clearTimeout(startTimer);
+    failStart(new ScribeError("The speech engine could not start."));
+    if (holder.mohuddleSpeech === worker) stopWorker("The speech engine could not start.");
+  });
+  child.on("exit", () => {
+    clearTimeout(startTimer);
+    failStart(new ScribeError("The speech engine stopped while starting."));
+    if (holder.mohuddleSpeech === worker) {
+      if (worker.pending.size && problem) console.error(`scribe whisper stopped: ${problem.trim().slice(-600)}`);
+      stopWorker("The speech engine stopped. Try again.");
+    }
+  });
+  child.stdin.on("error", () => undefined);
+  holder.mohuddleSpeech = worker;
+  restartIdleTimer(worker);
+  return worker;
+}
+
+/* The running worker for this speech model, starting or switching it when needed. */
+function speechWorker(speech: string): Worker {
+  const dir = whisperDir(speech);
+  const current = holder.mohuddleSpeech;
+  if (current && current.dir === dir && current.child.exitCode === null && !current.child.killed) return current;
+  if (current) stopWorker("The speech model was changed.");
+  return startWorker(dir);
+}
+
+/* Starts the speech worker ahead of use, so the first request does not wait for the model to load. */
+export function warmSpeech(speech: string) {
+  if (!PYTHON || !existsSync(PYTHON) || !existsSync(whisperDir(speech))) return;
+  speechWorker(speech);
+}
+
 /* Words from a recording: 16 kHz mono 16-bit PCM. Names to listen for help Whisper spell them. */
 export function transcribe(pcm: Buffer, speech: string, vocabulary: string[]): Promise<{ text: string; seconds: number; decodeMs: number }> {
   if (!pcm.length || pcm.length > MAX_PCM_BYTES || pcm.length % 2) return Promise.reject(new ScribeError("The recording is empty or longer than ten minutes."));
   if (!PYTHON || !existsSync(PYTHON) || !existsSync(whisperDir(speech))) return Promise.reject(new ScribeError("The speech engine is not set up on this server."));
-  return oneAtATime(
-    () =>
-      new Promise((resolve, reject) => {
-        const child = spawn(PYTHON, [WORKER, whisperDir(speech)], {
-          stdio: ["pipe", "pipe", "pipe"],
-          windowsHide: true,
-          env: { ...process.env, SCRIBE_VOCABULARY: JSON.stringify(vocabulary.slice(0, 120)), PYTHONIOENCODING: "utf-8" },
-        });
-        let out = "";
-        let problem = "";
-        child.stderr.on("data", chunk => (problem = (problem + chunk).slice(-2000)));
-        const timer = setTimeout(() => {
-          child.kill();
-          reject(new ScribeError("Turning speech into words took too long. Try a shorter recording."));
-        }, 5 * 60_000);
-        child.stdout.on("data", chunk => (out += chunk));
-        child.on("error", () => {
-          clearTimeout(timer);
-          reject(new ScribeError("The speech engine could not start."));
-        });
-        child.on("close", () => {
-          clearTimeout(timer);
-          // The worker's own error detail is for the server log only.
-          const detail = problem.split("\n").find(text => text.startsWith("scribe whisper failed"));
-          if (detail) console.error(detail);
-          const line = out.trim().split("\n").pop() ?? "";
-          try {
-            const result = JSON.parse(line) as { type: string; text?: string; seconds?: number; decodeMs?: number; message?: string };
-            if (result.type === "done") resolve({ text: result.text ?? "", seconds: result.seconds ?? 0, decodeMs: result.decodeMs ?? 0 });
-            else reject(new ScribeError(result.message ?? "The speech engine could not process this recording."));
-          } catch {
-            if (!detail && problem) console.error(`scribe whisper did not run: ${problem.trim().slice(-600)}`);
-            reject(new ScribeError("The speech engine could not process this recording."));
-          }
-        });
-        child.stdin.on("error", () => undefined);
-        child.stdin.end(pcm);
-      }),
-  );
+  return oneAtATime(async () => {
+    const worker = speechWorker(speech);
+    await worker.ready;
+    restartIdleTimer(worker);
+    const id = worker.nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        worker.pending.delete(id);
+        reject(new ScribeError("Turning speech into words took too long. Try a shorter recording."));
+        // A stuck worker is replaced on the next request.
+        if (holder.mohuddleSpeech === worker) stopWorker("The speech engine was restarted.");
+      }, REQUEST_MS);
+      worker.pending.set(id, { resolve, reject, timer });
+      worker.child.stdin.write(`${JSON.stringify({ id, bytes: pcm.length, vocabulary: vocabulary.slice(0, 120) })}\n`);
+      worker.child.stdin.write(pcm);
+    });
+  });
 }
 
 /* A draft of the note's parts from what was said. The model is held to a schema and its answer is checked. */

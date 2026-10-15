@@ -171,8 +171,8 @@ export function AskMohuddle({ voice }: { voice: boolean }) {
   useEffect(() => {
     if (open) {
       setTimeout(() => input.current?.focus(), 50);
-      // Load the local model in the background, for requests the plain rules do not cover.
-      void fetch("/api/scribe/warm", { method: "POST" }).catch(() => undefined);
+      // Start the speech engine in the background, so the first spoken request is quick.
+      void fetch("/api/scribe/warm?for=assistant", { method: "POST" }).catch(() => undefined);
     } else stopper.current();
   }, [open]);
 
