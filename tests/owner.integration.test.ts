@@ -13,7 +13,7 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
   assert.notEqual(process.env.NODE_ENV, "production", "Use a development database only.");
   const { asAgency, db, pool, schema, systemDb, systemPool } = await import("../src/server/db");
   const { agencyIdBySlug } = await import("../src/server/agency");
-  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile, openSupport, endSupport, agencyDetail } = await import("../src/server/owner");
+  const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile, openSupport, endSupport, agencyDetail, searchEverywhere } = await import("../src/server/owner");
   const { placesInOrder } = await import("../src/server/auth");
   const { recipients } = await import("../src/server/notify");
   const tag = randomBytes(4).toString("hex");
@@ -76,6 +76,15 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
     await endSupport({ id: "error" in visit ? "" : visit.place.userId, agencyId });
     const [ended] = await systemDb.select({ until: schema.users.supportUntil }).from(schema.users).where(and(eq(schema.users.agencyId, agencyId), eq(schema.users.loginId, ownerLogin.id)));
     assert.ok(ended.until && ended.until.getTime() <= Date.now());
+
+    // Search finds the agency, its administrator's login with the agency it works in, and their staff record.
+    const found = await searchEverywhere(tag);
+    assert.ok(found?.agencies.some(item => item.id === agencyId));
+    const login = found?.logins.find(item => item.email === email);
+    assert.deepEqual(login?.places.map(place => place.agencyId), [agencyId]);
+    assert.ok(found?.staff.some(item => item.email === email));
+    assert.equal(await searchEverywhere("a"), null, "One letter is too short to search");
+    assert.deepEqual((await searchEverywhere("%_%"))?.agencies, [], "Typed wildcards match only themselves");
 
     // Turning it off ends its sign-ins; Milestone is untouched.
     await setAgencyActive(agencyId, false);

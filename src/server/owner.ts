@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { DEFAULT_DOCUMENT_TYPES, DEFAULT_NOTE_SECTIONS, DEFAULT_SHIFT_PATTERNS } from "@/lib/agency-defaults";
 import { DEFAULT_TEMPLATES } from "@/lib/default-sign-templates";
 import { NOTE_LIBRARY } from "@/lib/note-library";
@@ -229,4 +229,46 @@ export const productEnquiries = () => systemDb.select().from(schema.productEnqui
 
 export async function markProductEnquiry(id: string, handled: boolean) {
   await systemDb.update(schema.productEnquiries).set({ handled }).where(eq(schema.productEnquiries.id, id));
+}
+
+/*
+ * Finds agencies, logins and staff records across every agency, by name or email. People the
+ * agencies support are not searched: their records are health information, seen only in a support visit.
+ */
+export async function searchEverywhere(query: string) {
+  const term = query.trim().slice(0, 80);
+  if (term.length < 2) return null;
+  // Typed % and _ are matched as themselves.
+  const like = `%${term.replace(/[\\%_]/g, match => `\\${match}`)}%`;
+  const [agencies, logins, staff] = await Promise.all([
+    systemDb
+      .select({ id: schema.agencies.id, name: schema.agencies.name, slug: schema.agencies.slug, active: schema.agencies.active })
+      .from(schema.agencies)
+      .where(or(ilike(schema.agencies.name, like), ilike(schema.agencies.slug, like), ilike(schema.agencies.legalName, like)))
+      .orderBy(asc(schema.agencies.name))
+      .limit(20),
+    systemDb
+      .select({ loginId: schema.logins.id, email: schema.logins.email, hasPassword: schema.logins.hasPassword, name: schema.users.name, role: schema.users.role, active: schema.users.active, agencyId: schema.agencies.id, agency: schema.agencies.name })
+      .from(schema.users)
+      .innerJoin(schema.logins, eq(schema.logins.id, schema.users.loginId))
+      .innerJoin(schema.agencies, eq(schema.agencies.id, schema.users.agencyId))
+      .where(and(isNull(schema.users.supportUntil), or(ilike(schema.users.name, like), ilike(schema.logins.email, like))))
+      .orderBy(asc(schema.logins.email))
+      .limit(60),
+    systemDb
+      .select({ id: schema.staff.id, first: schema.staff.firstName, last: schema.staff.lastName, email: schema.staff.email, role: schema.staff.role, active: schema.staff.active, agencyId: schema.agencies.id, agency: schema.agencies.name })
+      .from(schema.staff)
+      .innerJoin(schema.agencies, eq(schema.agencies.id, schema.staff.agencyId))
+      .where(or(ilike(sql`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`, like), ilike(schema.staff.email, like)))
+      .orderBy(asc(schema.staff.lastName), asc(schema.staff.firstName))
+      .limit(40),
+  ]);
+  // One entry per login, with each agency it works in.
+  const byLogin = new Map<string, { email: string; hasPassword: boolean | null; name: string; places: { agencyId: string; agency: string; role: string; active: boolean }[] }>();
+  for (const row of logins) {
+    const entry = byLogin.get(row.loginId) ?? { email: row.email, hasPassword: row.hasPassword, name: row.name, places: [] };
+    entry.places.push({ agencyId: row.agencyId, agency: row.agency, role: row.role, active: row.active });
+    byLogin.set(row.loginId, entry);
+  }
+  return { agencies, logins: [...byLogin.values()], staff };
 }

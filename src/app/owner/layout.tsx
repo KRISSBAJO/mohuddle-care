@@ -21,6 +21,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
             <Link href="/owner/enquiries" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Demo requests</Link>
             <Link href="/owner/health" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Health</Link>
             <Link href="/owner/activity" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Activity</Link>
+            <Link href="/owner/search" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Search</Link>
           </nav>
           <Link href="/app" className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> Back to the app</Link>
         </div>
