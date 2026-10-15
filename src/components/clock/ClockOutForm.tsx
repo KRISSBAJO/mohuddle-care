@@ -8,10 +8,11 @@ import { cn } from "@/lib/cn";
 import { locationVerdict } from "@/lib/timeclock";
 import type { FormState } from "@/server/actions/auth";
 import { DraftKeeper } from "@/components/app/DraftKeeper";
+import { zone } from "@/lib/format";
 
 type Person = { id: string; first: string; last: string; noteWritten: boolean; dosesDue: { id: string; medication: string; scheduledFor: string }[] };
 
-const time = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+const time = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 
 function Section({ title, hint, tone, children }: { title: string; hint?: string; tone?: "must" | "warn"; children: React.ReactNode }) {
   return (

@@ -1,6 +1,6 @@
 import "server-only";
 import { and, count, eq, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { addDays, dateKey, zonedTime } from "@/lib/format";
+import { addDays, dateKey, zone, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { notify, recipients, type Role } from "@/server/notify";
 import { notesOwed } from "@/server/queries/notes-owed";
@@ -53,7 +53,7 @@ export async function morningDigest(now: number): Promise<DigestLine[]> {
 /* Sends the morning summary once a day, at or after the set hour, to the chosen roles. */
 export async function sendMorningDigest(now: number, settings: Settings) {
   if (settings.digest_hour < 0) return 0;
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", hourCycle: "h23" }).format(new Date(now)));
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "2-digit", hourCycle: "h23" }).format(new Date(now)));
   if (hour < settings.digest_hour) return 0;
   const today = dateKey(new Date(now));
   const ids = await recipients({ roles: settings.digest_roles as Role[] });

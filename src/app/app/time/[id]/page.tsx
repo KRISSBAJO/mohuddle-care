@@ -5,7 +5,7 @@ import { ActionForm } from "@/components/app/ActionForm";
 import { Badge, Field, PageHeader, Panel } from "@/components/app/ui";
 import { HandoverCard } from "@/components/clock/HandoverCard";
 import { cn } from "@/lib/cn";
-import { dateKey, fmt } from "@/lib/format";
+import { dateKey, fmt, zone } from "@/lib/format";
 import { flagLabel, formatMinutes, workedMinutes } from "@/lib/timeclock";
 import { fixEntryTimes, reviewEntry } from "@/server/actions/timeclock";
 import { requestTime } from "@/server/clock";
@@ -15,7 +15,7 @@ import { entryDetail, isUuid } from "@/server/queries/timeclock";
 
 export const metadata = { title: "Punch" };
 
-const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
 const locationWords = { ok: "At the home", outside: "Away from the home", unavailable: "No location", home_not_set: "Home has no map location", not_checked: "Not checked" } as const;
 
 function Where({ state, distance, latitude, longitude, accuracy }: { state: keyof typeof locationWords; distance: number | null; latitude: number | null; longitude: number | null; accuracy: number | null }) {

@@ -4,6 +4,7 @@
  */
 
 import { label } from "./format";
+import { zone } from "@/lib/format";
 
 export type HuddlePerson = {
   id: string;
@@ -29,9 +30,9 @@ export type Huddle = {
   handover: { from: string; at: string; note: string; incident: "none" | "reported" | "not_reported" } | null;
 };
 
-/* "8:30 AM" in Central time, from an ISO string. */
+/* "8:30 AM" in the agency's time zone, from an ISO string. */
 export function clockTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 }
 
 const list = (items: string[]) => (items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);

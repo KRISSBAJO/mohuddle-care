@@ -25,7 +25,7 @@ import { ClockCard } from "@/components/clock/ClockCard";
 import { followUpState } from "@/lib/appointments";
 import { cn } from "@/lib/cn";
 import { compactRange } from "@/lib/schedule";
-import { daysBetween, fmt, initials, label } from "@/lib/format";
+import { daysBetween, fmt, initials, label, zone } from "@/lib/format";
 import { canManage } from "@/server/auth";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
@@ -71,7 +71,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const tab: Tab = TABS.some(([value]) => value === tabParam) ? (tabParam as Tab) : "attention";
   const myTotals = owedTotals(myOwed);
   const teamTotals = owedTotals(allOwed);
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", hourCycle: "h23" }).format(now));
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", hourCycle: "h23" }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const soon = upcoming.filter(visit => visit.scheduledAt.getTime() - now < 3 * 86_400_000);
   const todayVisits = upcoming.filter(visit => fmt.day(visit.scheduledAt) === fmt.day(new Date(now)) && visit.scheduledAt.getTime() - now < 86_400_000);

@@ -3,7 +3,7 @@
 import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { addDays, weekStart, zonedTime } from "@/lib/format";
+import { addDays, weekStart, zone, zonedTime } from "@/lib/format";
 import { kindFor, patternHours, requiredPatterns, shiftDay, windowFor, type SchedHome } from "@/lib/schedule";
 import { assertShiftUpdate } from "@/lib/shift-policy";
 import { db, schema } from "@/server/db";
@@ -130,11 +130,11 @@ export async function moveShift(input: { shiftId: string; day?: string; homeId?:
       if (parsed.data.day) {
         const from = shiftDay({ startsAt: shift.startsAt.toISOString() });
         const shiftBy = (date: Date) => {
-          const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+          const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
           return `${parts.find(p => p.type === "hour")?.value}:${parts.find(p => p.type === "minute")?.value}`;
         };
         const offset = Math.round((Date.parse(`${parsed.data.day}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
-        // Re-anchor in Central time so a move across a daylight-saving change keeps the clock times.
+        // Re-anchor in the agency's time zone so a move across a daylight-saving change keeps the clock times.
         const endDay = shiftDay({ startsAt: shift.endsAt.toISOString() });
         startsAt = zonedTime(parsed.data.day, shiftBy(shift.startsAt));
         endsAt = zonedTime(addDays(endDay, offset), shiftBy(shift.endsAt));
@@ -262,7 +262,7 @@ export async function copyWeek(fromWeek: string, toWeek: string): Promise<Schedu
   const staffRows = await db.select({ id: schema.staff.id, active: schema.staff.active }).from(schema.staff);
   const stillHere = new Set(staffRows.filter(row => row.active).map(row => row.id));
   const clockOf = (date: Date) => {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
     return `${parts.find(p => p.type === "hour")?.value}:${parts.find(p => p.type === "minute")?.value}`;
   };
   let created = 0;

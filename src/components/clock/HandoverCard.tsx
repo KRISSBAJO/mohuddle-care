@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, CircleX, UserRound } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { zone } from "@/lib/format";
 
 export type HandoverView = {
   note: string;
@@ -12,7 +13,7 @@ export type HandoverView = {
 };
 
 const when = (at: Date | string) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(at));
+  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(at));
 
 /* A handover as the incoming staff read it: the note, a line per person, the ticks and any incident. */
 export function HandoverCard({ handover, compact = false }: { handover: HandoverView; compact?: boolean }) {

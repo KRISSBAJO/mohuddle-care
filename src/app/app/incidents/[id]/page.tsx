@@ -8,7 +8,7 @@ import { Select } from "@/components/app/Select";
 import { PrintButton } from "@/components/app/PrintButton";
 import { Avatar, Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { age, fmt, initials, label, labels } from "@/lib/format";
+import { age, fmt, initials, label, labels, zone } from "@/lib/format";
 import {
   addIncidentNote,
   closeIncident,
@@ -42,7 +42,7 @@ const timelineStyle: Record<string, { icon: typeof Flag; tone: string; title: st
 };
 
 function nowLocal(at: number) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at));
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at));
   const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }

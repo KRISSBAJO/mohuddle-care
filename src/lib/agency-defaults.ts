@@ -63,13 +63,5 @@ export const DEFAULT_SHIFT_PATTERNS = [
 /* Daily-note sections switched on for everyone. The service question library starts switched off. */
 export const DEFAULT_NOTE_SECTIONS = ["care", "meals", "sleep", "activities", "behaviour", "contacts"] as const;
 
-/* Time zones an agency can choose. Stored now; times are shown in Central until per-agency time zones are built. */
-export const TIME_ZONES = [
-  { value: "America/New_York", label: "Eastern" },
-  { value: "America/Chicago", label: "Central" },
-  { value: "America/Denver", label: "Mountain" },
-  { value: "America/Phoenix", label: "Mountain, no daylight saving (Arizona)" },
-  { value: "America/Los_Angeles", label: "Pacific" },
-  { value: "America/Anchorage", label: "Alaska" },
-  { value: "Pacific/Honolulu", label: "Hawaii" },
-];
+/* Time zones an agency can choose: kept with the date helpers. */
+export { TIME_ZONES } from "./format";

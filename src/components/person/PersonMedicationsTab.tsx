@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { addDays, dateKey, fmt, label } from "@/lib/format";
+import { addDays, dateKey, fmt, label, zone } from "@/lib/format";
 import { addMedication } from "@/server/actions/hub";
 import { requestTime } from "@/server/clock";
 import type { schema } from "@/server/db";
@@ -226,9 +226,9 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
   );
 }
 
-/* True when a 24-hour time today in Central time has already passed. */
+/* True when a 24-hour time today in the agency's time zone has already passed. */
 function isPastTime(hhmm: string, at: number, today: string) {
   if (dateKey(new Date(at)) < today) return false;
-  const current = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+  const current = new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
   return hhmm <= current;
 }

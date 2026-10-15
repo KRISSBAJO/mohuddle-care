@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ZoneSync } from "@/components/app/ZoneSync";
+import { zone } from "@/lib/format";
 import { requireOwner } from "@/server/guard";
 
 export const metadata: Metadata = { title: { absolute: "Owner console | Mohuddle", template: "%s | Mohuddle owner console" }, robots: { index: false, follow: false } };
@@ -10,6 +12,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
   await requireOwner();
   return (
     <div className="min-h-screen bg-[#f7f6f1]">
+      <ZoneSync zone={zone()} />
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3.5">
           <p className="flex items-center gap-2 text-sm font-bold"><ShieldCheck className="h-4 w-4 text-brand" /> Mohuddle owner console</p>

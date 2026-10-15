@@ -5,10 +5,11 @@ import { and, eq, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
-import { asAgency, db, schema, systemDb } from "./db";
+import { agencyZone, asAgency, db, schema, systemDb } from "./db";
 import { env } from "./env";
 import { sessionTokenHash as tokenHash } from "./session-token";
 import { getSettings } from "./settings";
+import { signedZone, ZONE_COOKIE } from "./zone";
 
 // The last-used time is written at most this often, so ordinary page loads do not each write to the database.
 const TOUCH_EVERY_MS = 60_000;
@@ -32,13 +33,10 @@ export async function createSession(user: { id: string; agencyId: string }, shar
     return ends;
   });
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
+  const options = { httpOnly: true, sameSite: "lax" as const, secure: env.NODE_ENV === "production", path: "/", expires: expiresAt };
+  jar.set(SESSION_COOKIE, token, options);
+  // The agency's time zone, for the date helpers (see zone.ts). Signed, so it cannot be changed by hand.
+  jar.set(ZONE_COOKIE, signedZone(await agencyZone(user.agencyId)), options);
 }
 
 export async function destroySession() {
@@ -46,6 +44,7 @@ export async function destroySession() {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) await db.delete(schema.sessions).where(eq(schema.sessions.tokenHash, tokenHash(token)));
   jar.delete(SESSION_COOKIE);
+  jar.delete(ZONE_COOKIE);
 }
 
 export type SessionUser = {

@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
-import { dateKey, fmt } from "@/lib/format";
+import { dateKey, fmt, zone, zoneLabel } from "@/lib/format";
 import { needsAction, pdfBox, type SignField } from "@/lib/sign-fields";
 import { fill, pdfSafe, sections } from "@/lib/signing";
 import { currentAgency } from "@/server/agency";
@@ -85,7 +85,7 @@ function signatureBlock(page: PDFPage, signature: PDFImage, y: number, evidence:
   fitImage(page, signature, { x, y: y + 22, width: 240, height: 66 });
   page.drawLine({ start: { x, y: y + 18 }, end: { x: x + 260, y: y + 18 }, thickness: 0.8, color: INK });
   page.drawText(pdfSafe(evidence.signerName) + (evidence.signerRelation ? `, ${pdfSafe(evidence.signerRelation)}` : ""), { x, y: y + 5, size: 10, font: fonts.bold, color: INK });
-  page.drawText(`Signed electronically on ${fmt.dayLong(dateKey(evidence.signedAt))} at ${fmt.time(evidence.signedAt)} Central time`, { x, y: y - 8, size: 8, font: fonts.regular, color: MUTE });
+  page.drawText(`Signed electronically on ${fmt.dayLong(dateKey(evidence.signedAt))} at ${fmt.time(evidence.signedAt)} ${zoneLabel()}`, { x, y: y - 8, size: 8, font: fonts.regular, color: MUTE });
 }
 
 function certificate(pdf: PDFDocument, evidence: Evidence, signature: PDFImage, initials: PDFImage, fonts: { regular: PDFFont; bold: PDFFont }) {
@@ -101,8 +101,8 @@ function certificate(pdf: PDFDocument, evidence: Evidence, signature: PDFImage, 
     ["Signer", evidence.signerName + (evidence.signerRelation ? `, ${evidence.signerRelation}` : "")],
     ["Signature method", evidence.method === "drawn" ? "Drawn by hand on screen" : "Typed name in a handwriting style, adopted as signature"],
     ["Initials applied", String(evidence.initialsCount)],
-    ["Consent to sign electronically", `${fmt.dayLong(dateKey(evidence.consentedAt))} ${fmt.time(evidence.consentedAt)} Central`],
-    ["Signed", `${fmt.dayLong(dateKey(evidence.signedAt))} ${fmt.time(evidence.signedAt)} Central (${evidence.signedAt.toISOString()})`],
+    ["Consent to sign electronically", `${fmt.dayLong(dateKey(evidence.consentedAt))} ${fmt.time(evidence.consentedAt)} ${zoneLabel()}`],
+    ["Signed", `${fmt.dayLong(dateKey(evidence.signedAt))} ${fmt.time(evidence.signedAt)} ${zoneLabel()} (${evidence.signedAt.toISOString()})`],
     ["IP address", evidence.ip || "Not available"],
     ["Device", evidence.userAgent.slice(0, 160) || "Not available"],
     ["Content fingerprint (SHA-256)", evidence.contentHash],
@@ -221,7 +221,7 @@ function fieldText(page: PDFPage, text: string, box: Box, font: PDFFont) {
 /* Each placed field stamped where it was put: signature, initials, the signing date and the printed name. */
 function stampFields(pdf: PDFDocument, fields: SignField[], evidence: Evidence, signature: PDFImage, initials: PDFImage, font: PDFFont) {
   const pages = pdf.getPages();
-  const signedOn = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "long", day: "numeric", year: "numeric" }).format(evidence.signedAt);
+  const signedOn = new Intl.DateTimeFormat("en-US", { timeZone: zone(), month: "long", day: "numeric", year: "numeric" }).format(evidence.signedAt);
   for (const field of fields) {
     const page = pages[field.page - 1];
     if (!page) continue;

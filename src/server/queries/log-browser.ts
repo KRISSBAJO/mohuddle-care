@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, lte, max, or, sql, type SQL } from "drizzle-orm";
-import { addDays, dateKey, zonedTime } from "@/lib/format";
+import { addDays, dateKey, zone, zonedTime } from "@/lib/format";
 import { coverage, dayList, isConcern, paginate, percent, type Coverage } from "@/lib/log-browser";
 import { db, schema } from "@/server/db";
 import { goalsForLogs } from "@/server/queries/logs";
@@ -8,7 +8,9 @@ import { notesOwed, type OwedShift } from "@/server/queries/notes-owed";
 import { personDoses } from "@/server/queries/person";
 
 const staffName = sql<string | null>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`;
-const centralDay = (column: SQL | typeof schema.incidents.occurredAt | typeof schema.appointments.scheduledAt) => sql<string>`to_char(${column} at time zone 'America/Chicago', 'YYYY-MM-DD')`;
+const agencyDay = (column: SQL | typeof schema.incidents.occurredAt | typeof schema.appointments.scheduledAt) => sql<string>`to_char(${column} at time zone ${zone()}, 'YYYY-MM-DD')`;
+// The zone is a query parameter, so GROUP BY cannot repeat the expression; it names the first column instead.
+const byFirstColumn = sql`1`;
 const concernSql = sql<number>`count(*) filter (where ${schema.dailyLogs.mood} in ('low', 'distressed') or ${schema.dailyLogs.seizure} is true or ${schema.dailyLogs.behaviourOccurred} is true)`;
 export const isUuid = (value: string | undefined): value is string => Boolean(value && /^[0-9a-f-]{36}$/.test(value));
 
@@ -222,15 +224,15 @@ export async function personDays(person: { id: string; homeId: string | null; ad
       .orderBy(asc(schema.dailyLogs.createdAt)),
     person.homeId ? notesOwed({ from: rangeStart, to: rangeEnd, homeId: person.homeId }) : Promise.resolve([] as OwedShift[]),
     db
-      .select({ day: centralDay(schema.incidents.occurredAt), n: count() })
+      .select({ day: agencyDay(schema.incidents.occurredAt), n: count() })
       .from(schema.incidents)
       .where(and(eq(schema.incidents.individualId, person.id), gte(schema.incidents.occurredAt, rangeStart), lt(schema.incidents.occurredAt, rangeEnd)))
-      .groupBy(centralDay(schema.incidents.occurredAt)),
+      .groupBy(byFirstColumn),
     db
-      .select({ day: centralDay(schema.appointments.scheduledAt), n: count() })
+      .select({ day: agencyDay(schema.appointments.scheduledAt), n: count() })
       .from(schema.appointments)
       .where(and(eq(schema.appointments.individualId, person.id), gte(schema.appointments.scheduledAt, rangeStart), lt(schema.appointments.scheduledAt, rangeEnd)))
-      .groupBy(centralDay(schema.appointments.scheduledAt)),
+      .groupBy(byFirstColumn),
   ]);
   const cover = coverageMap(owed);
 

@@ -1,5 +1,5 @@
 /*
- * Pay periods, rounding and overtime, as pure functions over Central date keys (YYYY-MM-DD) and
+ * Pay periods, rounding and overtime, as pure functions over the agency's date keys (YYYY-MM-DD) and
  * minutes. Hours only: pay rates are worked out by the payroll provider from the export.
  */
 

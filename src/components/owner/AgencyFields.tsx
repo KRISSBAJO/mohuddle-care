@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Select } from "@/components/app/Select";
-import { TIME_ZONES } from "@/lib/agency-defaults";
+import { DEFAULT_ZONE, TIME_ZONES } from "@/lib/format";
 
 type Profile = { name: string; legalName: string; phone: string; email: string; address: string; cityStateZip: string; timezone: string };
 
-const blank: Profile = { name: "", legalName: "", phone: "", email: "", address: "", cityStateZip: "", timezone: "America/Chicago" };
+const blank: Profile = { name: "", legalName: "", phone: "", email: "", address: "", cityStateZip: "", timezone: DEFAULT_ZONE };
 
 const toSlug = (name: string) =>
   name
@@ -74,7 +74,7 @@ export function AgencyFields({ initial = blank, creating = false }: { initial?: 
       <div className={label}>
         <span>Time zone</span>
         <Select name="timezone" defaultValue={initial.timezone} options={TIME_ZONES} aria-label="Time zone" />
-        <span className="text-xs font-normal text-mute">Saved now. The app shows Central time until each agency&apos;s own time zone is switched on.</span>
+        <span className="text-xs font-normal text-mute">Every date and time in this agency uses it. People see it after they next sign in.</span>
       </div>
       {creating && (
         <>

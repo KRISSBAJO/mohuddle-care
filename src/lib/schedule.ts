@@ -1,8 +1,9 @@
 /*
  * Scheduling rules shared by the server and the browser. No database code, so it is unit tested.
- * Times are instants (ISO strings); days are Central-time calendar days (YYYY-MM-DD).
+ * Times are instants (ISO strings); days are calendar days in the agency's time zone (YYYY-MM-DD).
  */
 import { addDays, dateKey, zonedTime } from "./format";
+import { zone } from "@/lib/format";
 
 export type ShiftKind = "day" | "evening" | "overnight";
 export type ShiftStatus = "open" | "scheduled" | "confirmed" | "completed" | "missed";
@@ -78,7 +79,7 @@ export const shiftHours = (shift: Pick<SchedShift, "startsAt" | "endsAt">) => (t
 export const overlaps = (a: Pick<SchedShift, "startsAt" | "endsAt">, b: Pick<SchedShift, "startsAt" | "endsAt">) =>
   time(a.startsAt) < time(b.endsAt) && time(b.startsAt) < time(a.endsAt);
 
-/* The day a shift belongs to is the Central-time day it starts on. */
+/* The day a shift belongs to is the agency's day it starts on. */
 export const shiftDay = (shift: Pick<SchedShift, "startsAt">) => dateKey(new Date(shift.startsAt));
 
 /* "07:00-15:00" on a day, as instants. An end at or before the start means the next morning. */
@@ -347,7 +348,7 @@ export function formatHours(hours: number) {
 }
 
 const timeLabel = (iso: string) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(new Date(iso)).replace(":00", "");
+  new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(new Date(iso)).replace(":00", "");
 
 export const weekdayLabel = (day: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }).format(new Date(`${day}T12:00:00Z`));
@@ -367,9 +368,9 @@ export function compactRange(shift: Pick<SchedShift, "startsAt" | "endsAt">) {
   return `${short(shift.startsAt)}–${short(shift.endsAt)}`;
 }
 
-/* Wall-clock HH:MM of an instant in Central time, for filling time inputs. */
+/* Wall-clock HH:MM of an instant in the agency's time zone, for filling time inputs. */
 export function clockOf(iso: string) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
   const get = (type: string) => parts.find(part => part.type === type)?.value ?? "00";
   return `${get("hour")}:${get("minute")}`;
 }

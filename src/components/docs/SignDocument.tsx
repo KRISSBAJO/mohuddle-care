@@ -15,6 +15,8 @@ type Props = {
   signerName: string;
   signerRelation: string;
   agency: string;
+  /* The agency's time zone, for the signing date. */
+  zone: string;
   initialEach: boolean;
   content: { kind: "text"; sections: Section[] } | { kind: "pdf"; pages: number; sourceUrl: string; fields?: SignField[] };
   doneHref?: string;
@@ -180,7 +182,7 @@ export function SignDocument(props: Props) {
                         if (!needsAction(field)) {
                           return (
                             <span key={field.id} className="absolute flex items-center overflow-hidden whitespace-nowrap rounded bg-sky/40 px-1 text-[clamp(8px,1.4vw,13px)] font-semibold text-[#0b2239]" style={box}>
-                              {field.kind === "date" ? new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "long", day: "numeric", year: "numeric" }).format(new Date()) : props.signerName}
+                              {field.kind === "date" ? new Intl.DateTimeFormat("en-US", { timeZone: props.zone, month: "long", day: "numeric", year: "numeric" }).format(new Date()) : props.signerName}
                             </span>
                           );
                         }
@@ -246,7 +248,7 @@ export function SignDocument(props: Props) {
                 )}
               </button>
               <p className="mt-2 text-sm font-semibold">{props.signerName}{props.signerRelation ? `, ${props.signerRelation}` : ""}</p>
-              <p className="text-xs text-mute">{new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(new Date())}</p>
+              <p className="text-xs text-mute">{new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: props.zone }).format(new Date())}</p>
             </div>
             )}
             {error && <p className="mt-4 rounded-lg bg-flag-soft px-3 py-2 text-sm font-medium text-flag" role="alert">{error}</p>}

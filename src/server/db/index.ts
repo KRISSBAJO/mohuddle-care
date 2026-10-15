@@ -2,9 +2,11 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
+import { DEFAULT_ZONE, setZoneSource } from "@/lib/format";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 import { env } from "../env";
 import { sessionTokenHash } from "../session-token";
+import { requestZone } from "../zone";
 import * as schema from "./schema";
 
 /*
@@ -20,18 +22,42 @@ const APP_ROLE = "mohuddle_app";
 // Next can load this module more than once (pages, route handlers). Every copy must share one
 // agency store and one pool, or an agency set through one copy would not reach the other's pool.
 const shared = globalThis as unknown as {
-  mohuddleAgencyContext?: AsyncLocalStorage<{ agencyId: string | null }>;
+  mohuddleAgencyContext?: AsyncLocalStorage<{ agencyId: string | null; zone: string | null }>;
+  mohuddleZones?: Map<string, { zone: string; at: number }>;
   mohuddleSessionAgencies?: Map<string, { agencyId: string; at: number }>;
   mohuddlePool?: Pool;
   mohuddleSystemPool?: Pool;
 };
 const context = (shared.mohuddleAgencyContext ??= new AsyncLocalStorage());
 
-/* Runs fn as one agency, whatever the session says: for timed jobs, private links and sign-in. Null means no agency. */
-export function asAgency<T>(agencyId: string | null, fn: () => PromiseLike<T>): Promise<T> {
+/*
+ * Runs fn as one agency, whatever the session says: for timed jobs, private links and sign-in. Null
+ * means no agency. Dates inside use that agency's time zone.
+ */
+export async function asAgency<T>(agencyId: string | null, fn: () => PromiseLike<T>): Promise<T> {
+  const zone = agencyId ? await agencyZone(agencyId) : null;
   // Awaited inside, so a query builder (which only runs when awaited) runs as this agency too.
-  return context.run({ agencyId }, async () => await fn());
+  return context.run({ agencyId, zone }, async () => await fn());
 }
+
+// An agency's time zone, kept for a minute so jobs and links do not look it up every time.
+const zones = (shared.mohuddleZones ??= new Map());
+
+export async function agencyZone(agencyId: string): Promise<string> {
+  const kept = zones.get(agencyId);
+  if (kept && Date.now() - kept.at < 60_000) return kept.zone;
+  const { rows } = await systemPool.query<{ timezone: string }>("select timezone from agencies where id = $1", [agencyId]);
+  const zone = rows[0]?.timezone ?? DEFAULT_ZONE;
+  zones.set(agencyId, { zone, at: Date.now() });
+  return zone;
+}
+
+// The date helpers ask here: the agency code chose with asAgency, or else the signed-in request's.
+setZoneSource(() => {
+  const chosen = context.getStore();
+  if (chosen) return chosen.zone ?? DEFAULT_ZONE;
+  return requestZone();
+});
 
 // A session's agency never changes (switching agency starts a new session), so it is kept for a while.
 const sessionAgencies = (shared.mohuddleSessionAgencies ??= new Map());

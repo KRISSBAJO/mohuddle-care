@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/ui";
 import { ReportableEventForm } from "@/components/incidents/ReportableEventForm";
-import { dateKey } from "@/lib/format";
+import { dateKey, zone } from "@/lib/format";
 import { submitReportableEvent } from "@/server/actions/incidents";
 import { requireUser } from "@/server/guard";
 import { incidentFormData } from "@/server/queries/incident-form";
@@ -10,7 +10,7 @@ import { incidentFormData } from "@/server/queries/incident-form";
 export const metadata = { title: "Report an incident" };
 
 const isUuid = (value?: string) => Boolean(value && /^[0-9a-f-]{36}$/.test(value));
-const clock = () => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
+const clock = () => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 
 /*
  * The Reportable Event Form. Opened from a person, they are already chosen and their details filled

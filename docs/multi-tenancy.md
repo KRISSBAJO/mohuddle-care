@@ -28,7 +28,8 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
 4. **Use `systemDb` sparingly,** and never for ordinary reads. It sees every agency.
 5. **Don't hard-code agency facts in app screens.** Read them with `currentAgency()`. `src/lib/site.ts` is only for Milestone's public website.
 6. **New files go under `agencyKey(...)`** (`agencies/<id>/...`) in storage.
-7. **Scripts use `scripts/agency-db.ts`.** It runs as one agency (`AGENCY=slug`, default `milestone`).
+7. **Dates use the agency's time zone.** Use the helpers in `src/lib/format.ts` (`dateKey`, `zonedTime`, `fmt`), or `zone()` for anything else. Never write a zone name in code. On the server, `zone()` follows `asAgency`, or else the signed `ms_zone` cookie set at sign-in (`src/server/zone.ts`). In the browser it follows `ZoneSync` in the layout. A browser component on a page reached without signing in (a private link) takes the zone as a prop instead.
+8. **Scripts use `scripts/agency-db.ts`.** It runs as one agency (`AGENCY=slug`, default `milestone`).
 
 ## Switching agency and the owner console
 
@@ -43,5 +44,5 @@ Mohuddle serves many agencies from one database. Milestone is agency #1.
 ## Not done yet
 
 - **Web addresses per agency** (`slug.mohuddle.com`) and hosting.
-- **Per-agency time zones.** The time zone is stored, but times are still Central everywhere.
+- **Changing an agency's time zone** takes effect for each person at their next sign-in or switch, since it travels in their session's cookie.
 - **Links without a foreign key** (a note event's note, a document's request item) are not checked this way. They are only ever set by the app, inside one agency.

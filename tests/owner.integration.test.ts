@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { count, eq } from "drizzle-orm";
 import { DEFAULT_DOCUMENT_TYPES, DEFAULT_SHIFT_PATTERNS } from "../src/lib/agency-defaults";
 import { DEFAULT_TEMPLATES } from "../src/lib/default-sign-templates";
+import { zone } from "../src/lib/format";
 
 const skip = process.env.RUN_DB_TESTS !== "1";
 
@@ -30,6 +31,7 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
     assert.equal((await createAgency(slug, profile, { name: "Pat Example", email })).error, "Another agency already uses that web address.");
 
     await asAgency(agencyId, async () => {
+      assert.equal(zone(), "America/Denver", "Code running as the agency uses its time zone");
       const [types] = await db.select({ n: count() }).from(schema.documentTypes);
       const [templates] = await db.select({ n: count() }).from(schema.signTemplates);
       const [patterns] = await db.select({ n: count() }).from(schema.shiftPatterns);

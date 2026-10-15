@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Lock } from "lucide-react";
 import { Logo } from "@/components/marketing/Logo";
+import { ZoneSync } from "@/components/app/ZoneSync";
+import { zone } from "@/lib/format";
 import { currentAgency } from "@/server/agency";
 import { asLinkAgency } from "@/server/docs/requests";
 
@@ -9,10 +11,12 @@ export const metadata: Metadata = { title: "Secure documents", robots: { index: 
 /* Pages reached by a private link: just the agency's name, the task, and a note that it is secure. */
 export default async function SecureDocsLayout({ children, params }: { children: React.ReactNode; params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const agency = await asLinkAgency(token, currentAgency);
+  // The link's agency, and its time zone for the dates on these pages.
+  const [agency, linkZone] = await asLinkAgency(token, async () => [await currentAgency(), zone()] as const);
   const name = agency?.legalName ?? "Mohuddle";
   return (
     <div className="min-h-screen bg-[var(--color-canvas,#fbfaf6)]">
+      <ZoneSync zone={linkZone} />
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <span className="flex items-center gap-2.5">

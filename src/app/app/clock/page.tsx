@@ -3,7 +3,7 @@ import { AlertTriangle, CalendarClock, CheckCircle2, Clock, FileSpreadsheet, His
 import { BreakButtons, LiveWorked } from "@/components/clock/ClockControls";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
-import { dateKey, fmt } from "@/lib/format";
+import { dateKey, fmt, zoneLabel } from "@/lib/format";
 import { flagLabel, formatMinutes } from "@/lib/timeclock";
 import { endBreak, startBreak } from "@/server/actions/timeclock";
 import { requestTime } from "@/server/clock";
@@ -182,7 +182,7 @@ export default async function ClockPage({ searchParams }: { searchParams: Promis
           </div>
         )}
       </Panel>
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-dim"><Clock className="h-3.5 w-3.5" /> <CalendarClock className="h-3.5 w-3.5" /> Times are Central. Your location is only read when you clock in and out.</p>
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-dim"><Clock className="h-3.5 w-3.5" /> <CalendarClock className="h-3.5 w-3.5" /> Times are {zoneLabel()}. Your location is only read when you clock in and out.</p>
     </div>
   );
 }

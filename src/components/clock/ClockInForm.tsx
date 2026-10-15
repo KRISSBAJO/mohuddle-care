@@ -8,12 +8,13 @@ import { usePosition } from "@/components/clock/usePosition";
 import { cn } from "@/lib/cn";
 import { locationVerdict } from "@/lib/timeclock";
 import type { FormState } from "@/server/actions/auth";
+import { zone } from "@/lib/format";
 
 type Shift = { id: string; homeId: string; home: string; pattern: string | null; startsAt: string; endsAt: string };
 type Home = { id: string; name: string; latitude: number | null; longitude: number | null };
 
-const time = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
-const day = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "long", month: "short", day: "numeric" }).format(new Date(iso));
+const time = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+const day = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "long", month: "short", day: "numeric" }).format(new Date(iso));
 
 function Step({ n, title, done, children }: { n: number; title: string; done: boolean; children: React.ReactNode }) {
   return (

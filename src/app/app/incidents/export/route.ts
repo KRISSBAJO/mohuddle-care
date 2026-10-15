@@ -1,11 +1,10 @@
 import { toCsv } from "@/lib/csv";
-import { dateKey, label } from "@/lib/format";
+import { dateKey, label, zone, zoneLabel } from "@/lib/format";
 import { requireUser } from "@/server/guard";
 import { exportIncidents, parseIncidentQuery } from "@/server/queries/incidents";
 
-const TZ = "America/Chicago";
 const stamp = (at: Date | null) =>
-  at ? new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at).replace(",", "") : "";
+  at ? new Intl.DateTimeFormat("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at).replace(",", "") : "";
 
 /* The incidents list as a spreadsheet, with the same filters and order as the screen. */
 export async function GET(request: Request) {
@@ -13,7 +12,7 @@ export async function GET(request: Request) {
   const params = Object.fromEntries(new URL(request.url).searchParams.entries());
   const rows = await exportIncidents(parseIncidentQuery(params));
   const csv = toCsv([
-    ["Occurred (Central)", "Reported", "Person", "Home", "Category", "Severity", "Status", "Reportable", "Filing deadline", "Filed with state", "State reference", "Closed", "Reported by", "What happened", "What was done"],
+    [`Occurred (${zoneLabel()})`, "Reported", "Person", "Home", "Category", "Severity", "Status", "Reportable", "Filing deadline", "Filed with state", "State reference", "Closed", "Reported by", "What happened", "What was done"],
     ...rows.map(row => [
       stamp(row.occurredAt),
       stamp(row.createdAt),

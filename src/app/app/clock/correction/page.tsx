@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { Select } from "@/components/app/Select";
 import { Field, PageHeader } from "@/components/app/ui";
-import { dateKey, fmt } from "@/lib/format";
+import { dateKey, fmt, zone } from "@/lib/format";
 import { requestCorrection } from "@/server/actions/timeclock";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
@@ -13,7 +13,7 @@ import { staffTime } from "@/server/queries/timeclock";
 
 export const metadata = { title: "Fix a punch" };
 
-const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
 
 /* Asking a manager to fix a punch: a wrong time on an existing one, or a whole shift that was never clocked. */
 export default async function CorrectionPage({ searchParams }: { searchParams: Promise<{ entry?: string }> }) {

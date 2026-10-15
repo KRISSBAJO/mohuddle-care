@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { AppointmentForm } from "@/components/appointments/AppointmentForm";
 import { PageHeader } from "@/components/app/ui";
-import { dateKey } from "@/lib/format";
+import { dateKey, zone } from "@/lib/format";
 import { updateAppointment } from "@/server/actions/appointments";
 import { canManage } from "@/server/auth";
 import { requireUser } from "@/server/guard";
@@ -12,7 +12,7 @@ import { appointmentFormData } from "@/server/queries/appointment-form";
 
 export const metadata = { title: "Change an appointment" };
 
-const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
 
 export default async function EditAppointmentPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();

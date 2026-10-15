@@ -1,5 +1,5 @@
 import { and, eq, gte, ilike, inArray, isNotNull, lt } from "drizzle-orm";
-import { addDays, label, zonedTime } from "@/lib/format";
+import { addDays, label, zone, zonedTime } from "@/lib/format";
 import { csvCell } from "@/lib/payroll";
 import { currentAgency } from "@/server/agency";
 import { canManage, getSessionUser } from "@/server/auth";
@@ -7,14 +7,14 @@ import { db, schema } from "@/server/db";
 
 const isDay = (value: string | null): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 const local = (at: Date) => {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at).map(part => [part.type, part.value]));
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at).map(part => [part.type, part.value]));
   return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 };
 const verification = { ok: "Mobile GPS at the home", outside: "Mobile GPS, away from the home", unavailable: "No location (exception)", home_not_set: "Mobile GPS, home location not set", not_checked: "Not checked" } as const;
 
 /*
  * Electronic Visit Verification data for a date range: one row per punch for each person living at
- * that home, carrying the six federal EVV items. Times are Central. For uploading to an EVV vendor.
+ * that home, carrying the six federal EVV items. Times are in the agency's time zone. For uploading to an EVV vendor.
  */
 export async function GET(request: Request) {
   const user = await getSessionUser();

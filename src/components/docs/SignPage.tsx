@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, LinkIcon } from "lucide-react";
+import { zone } from "@/lib/format";
 import { sections } from "@/lib/signing";
 import { currentAgency } from "@/server/agency";
 import { asLinkAgency } from "@/server/docs/requests";
@@ -42,6 +43,7 @@ export async function SignPage({ itemId, token, backHref }: { itemId: string; to
           signerName={access.signerName}
           signerRelation={access.signerRelation}
           agency={agency?.legalName ?? ""}
+          zone={zone()}
           initialEach={access.template.initialEach}
           content={content.kind === "text" ? { kind: "text", sections: sections(content.filled) } : { kind: "pdf", pages: content.pages, fields: content.fields, sourceUrl: `/api/sign/source/${access.item.id}${token ? `?token=${token}` : ""}` }}
           doneHref={backHref}

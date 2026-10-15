@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne, sql } from "drizzle-orm";
-import { addDays, dateKey, zonedTime } from "@/lib/format";
+import { addDays, dateKey, zone, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { ensureMedicationRecords } from "@/server/queries/hub";
 import { goalsForLogs } from "@/server/queries/logs";
@@ -228,7 +228,7 @@ export async function personMedications(id: string, endDay: string, days: number
       .orderBy(asc(schema.medications.name), asc(schema.medAdministrations.scheduledFor)),
   ]);
   const columns = Array.from({ length: days }, (_, index) => addDays(startDay, index));
-  const timeOf = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+  const timeOf = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
   const rows = new Map<string, { key: string; medicationId: string; name: string; dose: string; time: string; cells: Record<string, MarCell> }>();
   for (const dose of doses) {
     const time = timeOf(dose.scheduledFor);

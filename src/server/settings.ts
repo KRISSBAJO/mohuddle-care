@@ -15,7 +15,7 @@ export const settingDefs = {
     fallback: 30,
   },
   daily_log_due_hour: {
-    label: "Daily logs are due by this hour (0 to 23, Central time)",
+    label: "Daily logs are due by this hour (0 to 23, agency time)",
     kind: "number",
     schema: z.coerce.number().int().min(0).max(23),
     fallback: 22,
@@ -207,7 +207,7 @@ export const settingDefs = {
     fallback: 30,
   },
   digest_hour: {
-    label: "Hour of the morning summary for managers, 0 to 23 in Central time (-1 turns it off)",
+    label: "Hour of the morning summary for managers, 0 to 23 in agency time (-1 turns it off)",
     kind: "number",
     schema: z.coerce.number().int().min(-1).max(23),
     fallback: 7,

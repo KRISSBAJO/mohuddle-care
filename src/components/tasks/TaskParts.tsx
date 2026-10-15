@@ -1,5 +1,5 @@
 import { Field } from "@/components/app/ui";
-import { dateKey, labels } from "@/lib/format";
+import { dateKey, labels, zone } from "@/lib/format";
 import type { schema } from "@/server/db";
 import { SearchSelect } from "@/components/app/SearchSelect";
 import { Select } from "@/components/app/Select";
@@ -7,7 +7,7 @@ import { Select } from "@/components/app/Select";
 type Task = typeof schema.tasks.$inferSelect;
 type Option = { id: string; name: string };
 
-const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+const clock = (at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
 
 /* The task form, for adding and editing. */
 export function TaskFields({

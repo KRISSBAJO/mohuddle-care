@@ -1,5 +1,43 @@
-/* Nashville runs on Central time. Every date shown or compared in the Hub uses it. */
-export const TZ = "America/Chicago";
+/*
+ * Every date shown or compared in Mohuddle is in the agency's own time zone. zone() gives it for the
+ * code running now: on the server from the agency being worked for (src/server/zone.ts), in the
+ * browser from the page (ZoneSync). Without either, Central time.
+ */
+export const DEFAULT_ZONE = "America/Chicago";
+
+/* Time zones an agency can choose, with the words used for them. */
+export const TIME_ZONES = [
+  { value: "America/New_York", label: "Eastern" },
+  { value: "America/Chicago", label: "Central" },
+  { value: "America/Denver", label: "Mountain" },
+  { value: "America/Phoenix", label: "Mountain, no daylight saving (Arizona)" },
+  { value: "America/Los_Angeles", label: "Pacific" },
+  { value: "America/Anchorage", label: "Alaska" },
+  { value: "Pacific/Honolulu", label: "Hawaii" },
+];
+
+type ZoneSource = () => string | null | undefined;
+const zoneHolder = globalThis as unknown as { mohuddleZoneSource?: ZoneSource; mohuddleBrowserZone?: string };
+
+/* Where zone() looks. The server sets this once; tests may set it. */
+export function setZoneSource(source: ZoneSource | undefined) {
+  zoneHolder.mohuddleZoneSource = source;
+}
+
+/* The browser's copy of the page's zone, set by ZoneSync before anything on the page shows a time. */
+export function setBrowserZone(value: string) {
+  zoneHolder.mohuddleBrowserZone = value;
+}
+
+export function zone(): string {
+  return zoneHolder.mohuddleZoneSource?.() ?? zoneHolder.mohuddleBrowserZone ?? DEFAULT_ZONE;
+}
+
+/* "Central time", "Eastern time": how the zone is named on screen. */
+export function zoneLabel(value = zone()) {
+  const known = TIME_ZONES.find(item => item.value === value);
+  return known ? `${known.label.split(",")[0]} time` : value.replace(/_/g, " ");
+}
 
 export const labels = {
   serviceType: {
@@ -56,14 +94,14 @@ export function label<G extends LabelGroup>(group: G, value: string | null | und
   return map[value] ?? value;
 }
 
-/* YYYY-MM-DD for a moment, in Central time. */
+/* YYYY-MM-DD for a moment, in the agency's time zone. */
 export function dateKey(at: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
   const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-/* The instant a Central-time wall clock reads the given date and HH:MM. */
+/* The instant the agency's wall clock reads the given date and HH:MM. */
 export function zonedTime(day: string, hhmm: string): Date {
   const [y, m, d] = day.split("-").map(Number);
   const [hh, mm] = hhmm.split(":").map(Number);
@@ -74,10 +112,10 @@ export function zonedTime(day: string, hhmm: string): Date {
   return new Date(guess - actualOffset * 60_000);
 }
 
-/* Minutes that Central time is ahead of UTC at the given instant (negative in practice). */
+/* Minutes the agency's time zone is ahead of UTC at the given instant (negative in the US). */
 export function tzOffsetMinutes(at: Date): number {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: TZ,
+    timeZone: zone(),
     hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
@@ -110,11 +148,11 @@ export function daysBetween(from: string, to: string): number {
 
 export const fmt = {
   time: (at: Date | null | undefined) =>
-    at ? new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(at) : "",
+    at ? new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(at) : "",
   day: (day: string | Date | null | undefined) => {
     if (!day) return "";
     const at = typeof day === "string" ? new Date(`${day}T12:00:00Z`) : day;
-    return new Intl.DateTimeFormat("en-US", { timeZone: typeof day === "string" ? "UTC" : TZ, month: "short", day: "numeric" }).format(at);
+    return new Intl.DateTimeFormat("en-US", { timeZone: typeof day === "string" ? "UTC" : zone(), month: "short", day: "numeric" }).format(at);
   },
   dayLong: (day: string | null | undefined) =>
     day
@@ -123,7 +161,7 @@ export const fmt = {
         )
       : "",
   dateTime: (at: Date | null | undefined) =>
-    at ? new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at) : "",
+    at ? new Intl.DateTimeFormat("en-US", { timeZone: zone(), month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at) : "",
   weekday: (day: string) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(new Date(`${day}T12:00:00Z`)),
 };
 

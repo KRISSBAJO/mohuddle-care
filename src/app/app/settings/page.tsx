@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
 import { requireManager } from "@/server/guard";
 import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
+import { zoneLabel } from "@/lib/format";
 
 export const metadata = { title: "Settings" };
 
@@ -23,7 +24,7 @@ const GROUPS: Group[] = [
     link: ["/app/settings/notes", "Sections and extra questions"],
     items: [
       { key: "shift_note_grace_hours", title: "Notes due after a shift ends", help: "Staff must finish their notes within this time. After it, they show as overdue.", unit: "hours", min: 0, max: 48 },
-      { key: "daily_log_due_hour", title: "End-of-day deadline", help: "The Today page lists people still without a note for the day until this hour (0 to 23).", unit: ":00 Central", min: 0, max: 23 },
+      { key: "daily_log_due_hour", title: "End-of-day deadline", help: "The Today page lists people still without a note for the day until this hour (0 to 23).", unit: `:00 ${zoneLabel().replace(" time", "")}`, min: 0, max: 23 },
       { key: "daily_log_summary_min_chars", title: "Shortest shift summary", help: "Stops one-word summaries such as \"fine\". 0 turns the check off.", unit: "characters", min: 0, max: 500 },
       { key: "required_daily_checks", title: "Checks every note must confirm", help: "Staff tick each one before they can save." },
       { key: "adl_items", title: "Personal care tasks", help: "The rows in the personal care section." },
@@ -176,7 +177,7 @@ const GROUPS: Group[] = [
       { key: "notify_roles_appointments", title: "Appointments", help: "New, moved, cancelled and undocumented visits, follow-ups to book, and medication changes from a visit.", roles: true },
       { key: "notify_roles_notes", title: "Overdue daily notes", help: "When a staff member's notes pass their deadline.", roles: true },
       { key: "notify_roles_incidents", title: "Incidents", help: "Every new incident, and reportable incidents near or past their filing deadline.", roles: true },
-      { key: "digest_hour", title: "Morning summary at", help: "A short summary to managers: notes not written, doses missed, no-shows, Tier 1 incidents, open shifts, appointments and reviews waiting. -1 turns it off.", unit: ":00 Central", min: -1, max: 23 },
+      { key: "digest_hour", title: "Morning summary at", help: "A short summary to managers: notes not written, doses missed, no-shows, Tier 1 incidents, open shifts, appointments and reviews waiting. -1 turns it off.", unit: `:00 ${zoneLabel().replace(" time", "")}`, min: -1, max: 23 },
       { key: "digest_roles", title: "Who gets the morning summary", help: "It goes to the bell and, when switched on, their phone.", roles: true },
       { key: "notify_roles_weight", title: "Weight", help: "A weight outside the person's suggested range, or a fast change (set under Medication and health).", roles: true },
     ],

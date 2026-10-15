@@ -379,7 +379,7 @@ export function clockLabel(clock: string): string {
   return `${value % 12 || 12}:${clock.slice(3, 5)} ${value < 12 ? "AM" : "PM"}`;
 }
 
-/* A dose due on a day at a Central-time clock, already worded: "Metformin 500 mg · Given". */
+/* A dose due on a day at the agency's clock time, already worded: "Metformin 500 mg · Given". */
 export type ShiftDose = { day: string; clock: string; label: string };
 
 /* The doses due in each hour of the shift, worded with their time: "8:00 AM Metformin 500 mg · Given". */

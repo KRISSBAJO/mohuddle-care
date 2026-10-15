@@ -1,5 +1,5 @@
 /*
- * Pure helpers for browsing daily notes by home, person and day. A "day" is a Central date key (YYYY-MM-DD).
+ * Pure helpers for browsing daily notes by home, person and day. A "day" is a date key in the agency's time zone (YYYY-MM-DD).
  */
 
 import { addDays } from "./format";

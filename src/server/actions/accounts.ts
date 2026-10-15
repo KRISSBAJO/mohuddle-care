@@ -11,12 +11,13 @@ import { asAgency, db, schema, systemDb } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
 import { getSettings } from "@/server/settings";
 import type { FormState } from "./auth";
+import { zone } from "@/lib/format";
 
 export type LinkState = { error?: string; link?: string; expires?: string; note?: string };
 
 const uuid = z.uuid();
 const expiresText = (at: Date) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
 
 async function loadLogin(userId: string) {
   if (!uuid.safeParse(userId).success) return null;

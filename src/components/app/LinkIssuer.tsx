@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound } from "lucide-react";
 import type { LinkState } from "@/server/actions/accounts";
+import { zoneLabel } from "@/lib/format";
 
 type Props = {
   action: (previous: LinkState, formData: FormData) => Promise<LinkState>;
@@ -34,7 +35,7 @@ export function LinkIssuer({ action, label, children }: Props) {
       <div className="rounded-xl border border-sage/40 bg-sage-soft/60 p-4" role="status">
         <p className="text-sm font-semibold text-sage">Link ready. Give it to this person privately.</p>
         <p className="mt-1 text-xs text-mute">
-          It works once, until {state.expires} Central time. It is not shown again, so copy it now. Send it by text or
+          It works once, until {state.expires} {zoneLabel()}. It is not shown again, so copy it now. Send it by text or
           hand it over in person, not in a group chat.
         </p>
         <div className="mt-3 flex gap-2">
