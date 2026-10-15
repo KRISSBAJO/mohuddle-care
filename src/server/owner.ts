@@ -32,6 +32,12 @@ export function slugProblem(slug: string) {
   return null;
 }
 
+/* Whether an agency already uses a web address name. */
+export async function slugTaken(slug: string) {
+  const [clash] = await systemDb.select({ id: schema.agencies.id }).from(schema.agencies).where(eq(schema.agencies.slug, slug)).limit(1);
+  return Boolean(clash);
+}
+
 /* Every agency, with how big it is and when someone last used it. */
 export async function listAgencies() {
   // The counts name "agencies"."id" in full: inside a subquery a bare "id" would mean the subquery's own table.

@@ -8,12 +8,12 @@ import { requireOwner } from "@/server/owner-auth";
 import { redirect } from "next/navigation";
 import { createSession, destroySession } from "@/server/auth";
 import { addressesOn, issueHandoff, ownerConsoleUrl } from "@/server/host";
-import { addAgencyAdmin, createAgency, endSupport, markProductEnquiry, newAdminLink, openSupport, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
+import { addAgencyAdmin, createAgency, endSupport, slugProblem, slugTaken, markProductEnquiry, newAdminLink, openSupport, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
 import { BILLING_STATUSES, PLAN_FEATURES, PLAN_UNITS, type BillingStatus, type PlanFeature, type PlanUnit } from "@/lib/billing";
 import { linkExpiry, money as formatMoney, parseMoney } from "@/lib/format";
-import { recordPayment, saveBillingRules, saveDefaultPlan, savePlan, setAgencyBilling } from "@/server/billing";
+import { agencyBilling, recordPayment, saveBillingRules, saveDefaultPlan, savePlan, setAgencyBilling } from "@/server/billing";
 
 const uuid = z.uuid();
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -39,7 +39,19 @@ const asLinkState = (result: AdminResult): LinkState =>
   result.error ? { error: result.error } : result.link ? { link: result.link, expires: expiresText(result.expiresAt!), emailed: result.emailed } : { note: result.note };
 
 /* Creates an agency with the defaults and its first administrator, and returns their setup link. */
-export async function createAgencyAction(_previous: LinkState, formData: FormData): Promise<LinkState> {
+export type CreateAgencyState = LinkState & { agencyId?: string; trialEndsOn?: string | null };
+
+/* Whether a web address name can be used: well formed, not kept for Mohuddle, and not taken. */
+export async function checkSlugAction(slug: string): Promise<{ ok: boolean; message: string }> {
+  await requireOwner();
+  const name = slug.trim().toLowerCase();
+  const problem = slugProblem(name);
+  if (problem) return { ok: false, message: problem };
+  if (await slugTaken(name)) return { ok: false, message: "Another agency already uses that address." };
+  return { ok: true, message: "Available" };
+}
+
+export async function createAgencyAction(_previous: CreateAgencyState, formData: FormData): Promise<CreateAgencyState> {
   const owner = await requireOwner();
   const values = Object.fromEntries(formData.entries());
   const parsedProfile = profile.safeParse(values);
@@ -52,7 +64,9 @@ export async function createAgencyAction(_previous: LinkState, formData: FormDat
   await recordOwnerEvent(owner, "agency:create", result.agencyId, `${parsedProfile.data.name} at ${slug}, first administrator ${parsedAdmin.data.adminEmail}`);
   // No refresh here: it would replace the form, and the link, before it is copied. "Done" refreshes.
   const state = asLinkState(result.admin);
-  return state.error ? { note: `The agency is set up, but its administrator was not added: ${state.error} Add one from the agency's page.` } : state;
+  const billing = await agencyBilling(result.agencyId);
+  const made = { agencyId: result.agencyId, trialEndsOn: billing.billing.trialEndsOn };
+  return state.error ? { ...made, note: `The agency is set up, but its administrator was not added: ${state.error} Add one from the agency's page.` } : { ...state, ...made };
 }
 
 export async function addAdminAction(agencyId: string, _previous: LinkState, formData: FormData): Promise<LinkState> {

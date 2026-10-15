@@ -525,3 +525,8 @@ body:has(.hub-shell) {
 
 /* An agency whose subscription lapsed can look but not change anything: buttons that save are switched off. */
 [data-readonly] main form button[type="submit"] { pointer-events: none; opacity: .45; }
+
+/* A wizard step coming into view. */
+.wizard-step { animation: wizard-in .28s cubic-bezier(.2, .7, .2, 1); }
+@keyframes wizard-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wizard-step { animation: none; } }
