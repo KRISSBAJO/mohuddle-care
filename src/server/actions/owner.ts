@@ -10,7 +10,9 @@ import { addressesOn, issueHandoff } from "@/server/host";
 import { addAgencyAdmin, createAgency, endSupport, markProductEnquiry, newAdminLink, openSupport, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
-import { linkExpiry } from "@/lib/format";
+import { BILLING_STATUSES, PLAN_FEATURES, PLAN_UNITS, type BillingStatus, type PlanFeature, type PlanUnit } from "@/lib/billing";
+import { linkExpiry, money as formatMoney, parseMoney } from "@/lib/format";
+import { recordPayment, saveBillingRules, saveDefaultPlan, savePlan, setAgencyBilling } from "@/server/billing";
 
 const uuid = z.uuid();
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -132,4 +134,77 @@ export async function endSupportAction() {
   const home = (await placesInOrder(user.loginId))[0];
   if (home && addressesOn()) redirect(await issueHandoff({ userId: home.id, agencyId: home.agencyId, slug: home.slug }, false, "/owner"));
   redirect("/login");
+}
+
+/* ---------- Plans and billing ---------- */
+
+const money = (value: FormDataEntryValue | null) => parseMoney(String(value ?? "").trim() || "0");
+const dayOrNull = (value: FormDataEntryValue | null) => {
+  const text = String(value ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+};
+
+/* Creates or changes a plan. */
+export async function savePlanAction(planId: string | null, _previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  if (planId && !uuid.safeParse(planId).success) return { error: "Unknown plan." };
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
+  if (name.length < 2) return { error: "Give the plan a name." };
+  const baseCents = money(formData.get("base"));
+  const unitCents = money(formData.get("perUnit"));
+  if (baseCents === null || unitCents === null) return { error: "Enter prices in dollars, such as 49 or 8.50." };
+  const unit = String(formData.get("unit") ?? "person") as PlanUnit;
+  if (!(unit in PLAN_UNITS)) return { error: "Choose what the per-unit price counts." };
+  const features = formData.getAll("features").map(String).filter((key): key is PlanFeature => PLAN_FEATURES.some(feature => feature.key === key));
+  const sortOrder = Math.max(0, Math.min(99, Number(formData.get("sortOrder") ?? 0) || 0));
+  await savePlan(planId, { name, description: String(formData.get("description") ?? "").trim().slice(0, 300), baseCents, unitCents, unit, features, active: formData.get("active") === "on", sortOrder });
+  await recordOwnerEvent(owner, "plan:save", null, `${planId ? "Changed" : "Added"} ${name}: ${features.join(", ") || "no extra features"}`);
+  revalidatePath("/owner", "layout");
+  return {};
+}
+
+/* The trial length, grace period, warning days and the plan new agencies start on. */
+export async function saveBillingRulesAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  const days = (key: string) => Math.round(Number(formData.get(key)));
+  const rules = { trialDays: days("trialDays"), graceDays: days("graceDays"), warnDays: days("warnDays") };
+  if (Object.values(rules).some(value => !Number.isFinite(value) || value < 0 || value > 365)) return { error: "Use whole days from 0 to 365." };
+  await saveBillingRules(rules);
+  const defaultPlan = String(formData.get("defaultPlan") ?? "");
+  if (uuid.safeParse(defaultPlan).success) await saveDefaultPlan(defaultPlan);
+  await recordOwnerEvent(owner, "billing:rules", null, `Trial ${rules.trialDays} days, grace ${rules.graceDays} days, warning ${rules.warnDays} days`);
+  revalidatePath("/owner", "layout");
+  return {};
+}
+
+/* An agency's plan, status and dates, set by hand. */
+export async function setAgencyBillingAction(agencyId: string, _previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
+  const status = String(formData.get("status") ?? "") as BillingStatus;
+  if (!(status in BILLING_STATUSES)) return { error: "Choose a status." };
+  const planId = String(formData.get("planId") ?? "");
+  const input = { planId: uuid.safeParse(planId).success ? planId : null, status, trialEndsOn: dayOrNull(formData.get("trialEndsOn")), paidUntil: dayOrNull(formData.get("paidUntil")), notes: String(formData.get("notes") ?? "").trim().slice(0, 1000) };
+  if (status === "trial" && !input.trialEndsOn) return { error: "A trial needs the day it ends." };
+  await setAgencyBilling(agencyId, input);
+  await recordOwnerEvent(owner, "billing:update", agencyId, `${BILLING_STATUSES[status]}${input.trialEndsOn && status === "trial" ? `, trial to ${input.trialEndsOn}` : ""}${input.paidUntil ? `, paid until ${input.paidUntil}` : ""}`);
+  revalidatePath("/owner", "layout");
+  return {};
+}
+
+/* A payment received, and the day it pays up to. */
+export async function recordPaymentAction(agencyId: string, _previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
+  const amountCents = money(formData.get("amount"));
+  if (!amountCents) return { error: "Enter the amount received." };
+  const paidOn = dayOrNull(formData.get("paidOn"));
+  const coversUntil = dayOrNull(formData.get("coversUntil"));
+  if (!paidOn || !coversUntil) return { error: "Enter the day it was paid and the day it pays up to." };
+  if (coversUntil < paidOn) return { error: "It cannot pay up to a day before it was paid." };
+  const method = String(formData.get("method") ?? "invoice").slice(0, 40);
+  await recordPayment(agencyId, { amountCents, paidOn, coversUntil, method, note: String(formData.get("note") ?? "").trim().slice(0, 300) }, `${owner.name} (${owner.email})`);
+  await recordOwnerEvent(owner, "billing:payment", agencyId, `${formatMoney(amountCents)} by ${method}, pays up to ${coversUntil}`);
+  revalidatePath("/owner", "layout");
+  return {};
 }

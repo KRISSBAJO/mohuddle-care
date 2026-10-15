@@ -522,3 +522,6 @@ body:has(.hub-shell) {
 .mh-outline-word:hover { color: #173e35; -webkit-text-stroke-color: #173e35; }
 .mh-motion .mh-outline-marquee .mh-marquee-track { animation: mh-marquee 40s linear infinite; }
 .mh-outline-marquee.is-paused .mh-marquee-track, .mh-outline-marquee:hover .mh-marquee-track { animation-play-state: paused; }
+
+/* An agency whose subscription lapsed can look but not change anything: buttons that save are switched off. */
+[data-readonly] main form button[type="submit"] { pointer-events: none; opacity: .45; }

@@ -1,6 +1,7 @@
 import "server-only";
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
+import { planAllows } from "./billing";
 import { db, schema } from "./db";
 
 /*
@@ -654,6 +655,22 @@ export async function getSettings(): Promise<Settings> {
     const def = settingDefs[key];
     const parsed = def.schema.safeParse(stored.get(key));
     out[key] = parsed.success ? parsed.data : def.fallback;
+  }
+  const settings = out as Settings;
+  if (!(await planAllows("scribe"))) settings.scribe_enabled = "off";
+  if (!(await planAllows("assistant"))) settings.assistant_enabled = "off";
+  return settings;
+}
+
+/* The agency's own settings, before its plan switches anything off. For the settings page. */
+export async function storedSettings(): Promise<Settings> {
+  const keys = Object.keys(settingDefs) as SettingKey[];
+  const rows = await db.select().from(schema.settings).where(inArray(schema.settings.key, keys));
+  const stored = new Map(rows.map(row => [row.key, row.value]));
+  const out = {} as Record<string, unknown>;
+  for (const key of keys) {
+    const parsed = settingDefs[key].schema.safeParse(stored.get(key));
+    out[key] = parsed.success ? parsed.data : settingDefs[key].fallback;
   }
   return out as Settings;
 }

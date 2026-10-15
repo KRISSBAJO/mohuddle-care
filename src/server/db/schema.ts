@@ -123,6 +123,61 @@ export const ownerEvents = pgTable(
   table => [index("owner_events_at").on(table.at), index("owner_events_agency").on(table.agencyId, table.at)],
 );
 
+/* ---------- Plans and billing (Mohuddle's own; agencies cannot see these tables) ---------- */
+
+/* A plan agencies can be on: its monthly price and the features it includes. Managed in the owner console. */
+export const plans = pgTable("plans", {
+  id: id(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  baseCents: integer("base_cents").notNull().default(0),
+  unitCents: integer("unit_cents").notNull().default(0),
+  unit: text("unit").$type<"person" | "staff" | "home" | "none">().notNull().default("person"),
+  features: jsonb("features").$type<string[]>().notNull().default(emptyList()),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/* Each agency's plan and where it stands: trial, paying, complimentary or cancelled. */
+export const agencyBilling = pgTable("agency_billing", {
+  agencyId: uuid("agency_id_for")
+    .primaryKey()
+    .references(() => agencies.id, { onDelete: "cascade" }),
+  planId: uuid("plan_id").references(() => plans.id, { onDelete: "set null" }),
+  status: text("status").$type<"trial" | "active" | "complimentary" | "cancelled">().notNull().default("trial"),
+  trialEndsOn: date("trial_ends_on"),
+  paidUntil: date("paid_until"),
+  notes: text("notes").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* A payment an owner recorded, and how far it pays for. */
+export const billingPayments = pgTable(
+  "billing_payments",
+  {
+    id: id(),
+    agencyId: uuid("agency_id_for")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull(),
+    paidOn: date("paid_on").notNull(),
+    coversUntil: date("covers_until").notNull(),
+    method: text("method").notNull().default("invoice"),
+    note: text("note").notNull().default(""),
+    recordedBy: text("recorded_by").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [index("billing_payments_agency").on(table.agencyId, table.paidOn)],
+);
+
+/* Mohuddle-wide rules the owner sets, such as the trial length. Not an agency's settings. */
+export const platformSettings = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /*
  * Requests for a Mohuddle demo, from the product page. They belong to Mohuddle, not to any agency,
  * so the app's role cannot see them; only the owner console reads them.

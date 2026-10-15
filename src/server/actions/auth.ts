@@ -3,8 +3,7 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, placesFor, placesInOrder, switchAgencyFor, verifyPassword } from "@/server/auth";
-import { requireUser } from "@/server/guard";
+import { createSession, destroySession, getSessionUser, placesFor, placesInOrder, switchAgencyFor, verifyPassword } from "@/server/auth";
 import { schema, systemDb } from "@/server/db";
 import { addressesOn, hostAgency, issueHandoff, requestHost } from "@/server/host";
 
@@ -52,7 +51,8 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
  * the other agency's address, with a one-time pass, for the browser to go to.
  */
 export async function switchAgency(agencyId: string): Promise<{ url?: string }> {
-  const user = await requireUser();
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
   if (addressesOn()) {
     const place = (await placesFor(user.loginId)).find(item => item.agencyId === agencyId);
     if (!place) return {};

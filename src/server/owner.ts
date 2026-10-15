@@ -4,6 +4,7 @@ import { DEFAULT_DOCUMENT_TYPES, DEFAULT_NOTE_SECTIONS, DEFAULT_SHIFT_PATTERNS }
 import { DEFAULT_TEMPLATES } from "@/lib/default-sign-templates";
 import { NOTE_LIBRARY } from "@/lib/note-library";
 import { emailLoginLink, issueLoginLink, loginUsedElsewhere } from "./accounts";
+import { startTrial } from "./billing";
 import { emailNote } from "./email";
 import { notify, recipients } from "./notify";
 import { fmt } from "@/lib/format";
@@ -146,6 +147,7 @@ export async function createAgency(slug: string, profile: AgencyProfile, admin: 
   const [agency] = await systemDb.insert(schema.agencies).values({ slug, ...profile }).returning({ id: schema.agencies.id });
   try {
     await asAgency(agency.id, setUpDefaults);
+    await startTrial(agency.id);
   } catch (error) {
     // The defaults went in as one transaction, so nothing else refers to the agency yet.
     await systemDb.delete(schema.agencies).where(eq(schema.agencies.id, agency.id));

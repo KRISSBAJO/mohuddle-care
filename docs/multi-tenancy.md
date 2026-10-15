@@ -82,6 +82,25 @@ Mohuddle sends through RelyKit (`src/server/email.ts`). Nothing leaves the serve
   - It is not a place to sign in or switch to, and it is not listed as an administrator.
   - It stops working when the hour ends, or at "End visit".
 
+## Plans and billing
+
+Owners manage everything in the console. Nothing about pricing is fixed in code.
+
+- **`/owner/plans`:** each plan's monthly base price, a price per person supported (or per staff member or per home), and which of the switchable features it includes: Speak your note, Ask Mohuddle, e-signing. A feature the plan leaves out is off for the agency, whatever its own settings say.
+- **`/owner/billing`:**
+  - every agency's plan and standing
+  - what paying agencies bring in a month
+  - the rules: trial length, grace days after a lapse, how many days ahead administrators are warned, and the plan new agencies start on
+- **Each agency's page:** set its plan, status (trial, paying, complimentary, cancelled), trial end and paid-until date. Record payments by hand; a payment moves paid-until forward. No card is charged yet.
+
+How an agency's standing works (`src/lib/billing.ts`):
+
+1. **Warned.** Administrators see a banner and get a notification in the days before the end.
+2. **Past due.** After the end date there are grace days, with a warning and nothing switched off. A trial has no grace.
+3. **Read-only.** After the grace days, or once cancelled. Everyone can still sign in and see everything, but every server action, document upload and signature is refused, and save buttons are greyed out. Support visits can still make changes.
+
+The billing tables (`plans`, `agency_billing`, `billing_payments`, `platform_settings`) are Mohuddle's own; agencies cannot read them.
+
 ## Not done yet
 
 - **Going live** with agency addresses: wildcard DNS and certificate, and moving Milestone's public website to its own domain so `mohuddle.com` is Mohuddle's.

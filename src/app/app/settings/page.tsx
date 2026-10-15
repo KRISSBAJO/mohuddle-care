@@ -6,7 +6,10 @@ import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
 import { requireManager } from "@/server/guard";
-import { getSettings, settingDefs, type SettingKey } from "@/server/settings";
+import { storedSettings, settingDefs, type SettingKey } from "@/server/settings";
+import { currentBilling, planAllows } from "@/server/billing";
+import { BillingBadge } from "@/components/owner/BillingBadge";
+import { PLAN_FEATURES } from "@/lib/billing";
 import { zoneLabel } from "@/lib/format";
 
 export const metadata = { title: "Settings" };
@@ -57,7 +60,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    id: "incidents",
+    id: "incident-reports",
     title: "Incident reports",
     icon: ShieldAlert,
     intro: "The lists on the Reportable Event Form, and how fast tier 1 events must reach the state.",
@@ -234,7 +237,10 @@ const GROUPS: Group[] = [
 /* Business rules, grouped by area, each group saved on its own. */
 export default async function SettingsPage() {
   await requireManager();
-  const settings = await getSettings();
+  const settings = await storedSettings();
+  const billing = await currentBilling();
+  // Features the plan leaves out stay off, whatever is chosen here.
+  const offByPlan: Partial<Record<SettingKey, boolean>> = { scribe_enabled: !(await planAllows("scribe")), assistant_enabled: !(await planAllows("assistant")) };
   const grouped = new Set(GROUPS.flatMap(group => group.items.map(item => item.key)));
   const others = (Object.keys(settingDefs) as SettingKey[]).filter(key => !grouped.has(key));
   const groups: Group[] = others.length
@@ -245,6 +251,15 @@ export default async function SettingsPage() {
     <div className="max-w-6xl">
       <PageHeader eyebrow="Settings" title="Business rules" description="These rules drive the Today page, daily notes, the medication record, incidents and the schedule. Each group saves on its own." />
       <SettingsNav current="/app/settings" />
+      {billing?.plan && (
+        <section className="card mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <p className="text-sm font-bold">Mohuddle plan: {billing.plan.name}</p>
+            <p className="text-xs text-mute">Includes {PLAN_FEATURES.filter(feature => billing.plan!.features.includes(feature.key)).map(feature => feature.label).join(", ") || "the core app"}. To change plan, contact Mohuddle.</p>
+          </div>
+          <BillingBadge status={billing.billing.status} state={billing.state} />
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <nav className="hidden lg:block" aria-label="Rule groups">
@@ -285,6 +300,7 @@ export default async function SettingsPage() {
                       <div className={def.kind === "list" ? "mb-3" : undefined}>
                         <label htmlFor={item.key} className="text-sm font-semibold">{item.title}</label>
                         {item.help && <p className="text-xs text-mute">{item.help}</p>}
+                        {offByPlan[item.key] && <p className="mt-1 text-xs font-semibold text-[#8a5a10]">Not in your Mohuddle plan, so it stays off.</p>}
                       </div>
                       {item.choices ? (
                         <ChoicePicker name={item.key} initial={value as string[]} choices={item.choices} />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/auth";
+import { readOnlyNow } from "@/server/billing";
 import { db, schema } from "@/server/db";
 import { asLinkAgency, requestByToken, touchRequest } from "@/server/docs/requests";
 import { DocumentError, storeDocument, tellReviewers, type Owner } from "@/server/docs/service";
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
 }
 
 async function submit(file: File, itemId: string, token: string) {
+  if (await readOnlyNow()) return NextResponse.json({ error: "This agency's Mohuddle subscription has lapsed, so documents cannot be sent right now. Contact the agency." }, { status: 403 });
 
   const [item] = await db.select().from(schema.documentRequestItems).where(eq(schema.documentRequestItems.id, itemId)).limit(1);
   if (!item || item.kind !== "upload") return NextResponse.json({ error: "This item is no longer requested." }, { status: 400 });

@@ -8,6 +8,7 @@ import { LIBRARY_TEMPLATES } from "@/lib/default-sign-templates";
 import { cleanFields } from "@/lib/sign-fields";
 import { sections } from "@/lib/signing";
 import { currentAgency } from "@/server/agency";
+import { planAllows } from "@/server/billing";
 import { db, schema } from "@/server/db";
 import { createRequestFor } from "@/server/docs/requests";
 import { requireManager } from "@/server/guard";
@@ -111,7 +112,7 @@ export async function requestPersonDocuments(individualId: string, _previous: Li
   const recipientName = String(formData.get("recipientName") ?? "").trim().slice(0, 120);
   const recipientRelation = String(formData.get("recipientRelation") ?? "").trim().slice(0, 80);
   if (recipientName.length < 2) return { error: "Enter the name of the person who will sign or send them." };
-  const templateIds = formData.getAll("templateIds").map(String).filter(value => uuid.safeParse(value).success);
+  const templateIds = (await planAllows("signing")) ? formData.getAll("templateIds").map(String).filter(value => uuid.safeParse(value).success) : [];
   const typeIds = formData.getAll("typeIds").map(String).filter(value => uuid.safeParse(value).success);
   const [templates, types] = await Promise.all([
     templateIds.length ? db.select().from(schema.signTemplates).where(and(inArray(schema.signTemplates.id, templateIds), eq(schema.signTemplates.active, true))) : [],

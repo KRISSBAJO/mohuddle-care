@@ -6,6 +6,7 @@ import { z } from "zod";
 import { fmt } from "@/lib/format";
 import { documentRequestEmail } from "@/lib/email-templates";
 import { currentAgency } from "@/server/agency";
+import { planAllows } from "@/server/billing";
 import { emailNote, sendEmail } from "@/server/email";
 import { db, schema } from "@/server/db";
 import { approveDocument, DocumentError, rejectDocument } from "@/server/docs/service";
@@ -100,7 +101,8 @@ export async function requestStaffDocuments(staffId: string, _previous: LinkResu
   const [member] = await db.select().from(schema.staff).where(eq(schema.staff.id, staffId)).limit(1);
   if (!member?.active) return { error: "This person is no longer on staff." };
   const typeIds = formData.getAll("typeIds").map(String).filter(value => uuid.safeParse(value).success);
-  const templateIds = formData.getAll("templateIds").map(String).filter(value => uuid.safeParse(value).success);
+  // Documents to sign only when the plan includes e-signing.
+  const templateIds = (await planAllows("signing")) ? formData.getAll("templateIds").map(String).filter(value => uuid.safeParse(value).success) : [];
   const extra = String(formData.get("extra") ?? "")
     .split(/\r?\n/)
     .map(line => line.trim())

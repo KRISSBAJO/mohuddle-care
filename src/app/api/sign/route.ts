@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { asLinkAgency } from "@/server/docs/requests";
+import { readOnlyNow } from "@/server/billing";
 import { signAccess } from "@/server/docs/sign-access";
 import { DocumentError } from "@/server/docs/service";
 import { pngFromDataUrl, signItem } from "@/server/docs/sign";
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
 }
 
 async function sign(data: z.infer<typeof input>, request: Request) {
+  if (await readOnlyNow()) return NextResponse.json({ error: "This agency's Mohuddle subscription has lapsed, so documents cannot be signed right now. Contact the agency." }, { status: 403 });
   const access = await signAccess(data.itemId, data.token);
   if ("error" in access) return NextResponse.json({ error: access.error }, { status: 403 });
   if (access.item.status === "approved") return NextResponse.json({ error: "This document has already been signed." }, { status: 409 });

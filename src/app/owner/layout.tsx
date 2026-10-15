@@ -18,6 +18,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           <p className="flex items-center gap-2 text-sm font-bold"><ShieldCheck className="h-4 w-4 text-brand" /> Mohuddle owner console</p>
           <nav className="flex items-center gap-1 text-sm">
             <Link href="/owner" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Agencies</Link>
+            <Link href="/owner/billing" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Billing</Link>
             <Link href="/owner/enquiries" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Demo requests</Link>
             <Link href="/owner/health" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Health</Link>
             <Link href="/owner/activity" className="rounded-lg px-3 py-1.5 font-semibold text-mute hover:bg-panel hover:text-ink">Activity</Link>

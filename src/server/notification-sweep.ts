@@ -10,6 +10,7 @@ import { sendMorningDigest } from "@/server/digest";
 import { shiftReminders } from "@/server/shift-reminders";
 import { getSettings } from "@/server/settings";
 import { forEachAgency } from "@/server/agency";
+import { currentBilling } from "@/server/billing";
 import { healthLog, noteProblem, noteSweep } from "@/server/health-log";
 
 const state = globalThis as unknown as { milestoneSweepAt?: number; milestoneSweepRunning?: boolean };
@@ -385,6 +386,25 @@ async function sweepAgency(now: number) {
       href: `/app/staff/${row.staffId}?tab=time`,
       tone: "warn",
       dedupeKey: `time:overtime:${row.staffId}:${row.start}:${worked >= settings.overtime_after_hours ? "over" : "near"}`,
+    });
+  }
+  // The agency's administrators, when its trial or subscription is ending or has run out. Once per stage.
+  const billing = await currentBilling();
+  if (billing && billing.state.mode !== "ok") {
+    const { mode, endsOn } = billing.state;
+    const what = billing.billing.status === "trial" ? "trial" : "subscription";
+    sent += await notify(await recipients({ roles: ["admin"] }), {
+      kind: `billing:${mode}`,
+      title: mode === "ending" ? `Your Mohuddle ${what} ends ${fmt.day(endsOn)}` : mode === "past_due" ? "Your Mohuddle subscription has run out" : "Mohuddle is now read-only",
+      body:
+        mode === "ending"
+          ? "Contact Mohuddle to keep everything working."
+          : mode === "past_due"
+            ? "Everything keeps working for a short while. Contact Mohuddle to renew before it becomes read-only."
+            : "Everyone can still see everything, but nothing can be changed until the subscription is renewed. Contact Mohuddle.",
+      href: "/app/settings",
+      tone: mode === "ending" ? "warn" : "bad",
+      dedupeKey: `billing:${mode}:${endsOn ?? billing.billing.status}`,
     });
   }
   return sent;

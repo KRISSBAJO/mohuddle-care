@@ -6,8 +6,12 @@ import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { LinkIssuer } from "@/components/app/LinkIssuer";
 import { Badge, PageHeader, Panel } from "@/components/app/ui";
 import { AgencyFields } from "@/components/owner/AgencyFields";
-import { fmt } from "@/lib/format";
-import { addAdminAction, newAdminLinkAction, openSupportAction, setAgencyActiveAction, updateAgencyAction } from "@/server/actions/owner";
+import { Select } from "@/components/app/Select";
+import { BillingBadge } from "@/components/owner/BillingBadge";
+import { BILLING_STATUSES, monthlyCents, unitCount } from "@/lib/billing";
+import { fmt, money } from "@/lib/format";
+import { agencyBilling, listPlans, paymentsFor, unitsFor } from "@/server/billing";
+import { addAdminAction, newAdminLinkAction, openSupportAction, recordPaymentAction, setAgencyActiveAction, setAgencyBillingAction, updateAgencyAction } from "@/server/actions/owner";
 import { SupportForm } from "@/components/owner/SupportForm";
 import { requireOwner } from "@/server/guard";
 import { ownerActionWords } from "@/lib/owner-events";
@@ -24,6 +28,9 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
   if (!detail) notFound();
   const { agency, admins } = detail;
   const history = (await ownerEvents(agency.id)).slice(0, 8);
+  const [billing, plans, payments] = await Promise.all([agencyBilling(agency.id), listPlans(), paymentsFor(agency.id)]);
+  const units = billing.plan ? await unitsFor(agency.id, billing.plan.unit) : 0;
+  const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-8">
       <Link href="/owner" className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> All agencies</Link>
@@ -35,6 +42,7 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
       />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-8">
         <Panel title="Profile">
           <div className="p-5">
             <ActionForm action={updateAgencyAction.bind(null, agency.id)} submitLabel="Save profile">
@@ -42,6 +50,60 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
             </ActionForm>
           </div>
         </Panel>
+
+        <section id="billing" className="scroll-mt-24">
+          <Panel title="Plan and billing" action={<BillingBadge status={billing.billing.status} state={billing.state} />}>
+            <div className="space-y-6 p-5">
+              <p className="text-sm text-mute">
+                {billing.plan
+                  ? `${billing.plan.name}: ${money(billing.plan.baseCents)} a month${billing.plan.unit !== "none" ? ` plus ${money(billing.plan.unitCents)} for each of ${unitCount(billing.plan.unit, units)}` : ""}, so ${money(monthlyCents(billing.plan, units))} a month at today's numbers.`
+                  : "No plan: every feature is on."}
+              </p>
+              <ActionForm action={setAgencyBillingAction.bind(null, agency.id)} submitLabel="Save plan and status">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-1.5 text-sm font-medium">
+                    <span>Plan</span>
+                    <Select name="planId" defaultValue={billing.plan?.id ?? ""} options={plans.map(plan => ({ value: plan.id, label: plan.active ? plan.name : `${plan.name} (retired)` }))} aria-label="Plan" />
+                  </div>
+                  <div className="grid gap-1.5 text-sm font-medium">
+                    <span>Status</span>
+                    <Select name="status" defaultValue={billing.billing.status} options={Object.entries(BILLING_STATUSES).map(([value, words]) => ({ value, label: words }))} aria-label="Status" />
+                  </div>
+                  <label className="grid gap-1.5 text-sm font-medium">Trial ends<input type="date" name="trialEndsOn" defaultValue={billing.billing.trialEndsOn ?? ""} className="field" /></label>
+                  <label className="grid gap-1.5 text-sm font-medium">Paid until<input type="date" name="paidUntil" defaultValue={billing.billing.paidUntil ?? ""} className="field" /></label>
+                  <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">Notes<textarea name="notes" rows={2} maxLength={1000} defaultValue={billing.billing.notes} className="field" placeholder="Agreed price, invoice contact, anything to remember" /></label>
+                </div>
+              </ActionForm>
+
+              <div className="border-t border-line pt-5">
+                <p className="mb-3 text-sm font-bold">Record a payment</p>
+                <ActionForm action={recordPaymentAction.bind(null, agency.id)} submitLabel="Record payment">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="grid gap-1.5 text-sm font-medium">Amount ($)<input name="amount" inputMode="decimal" required className="field" /></label>
+                    <div className="grid gap-1.5 text-sm font-medium">
+                      <span>How</span>
+                      <Select name="method" defaultValue="invoice" options={[{ value: "invoice", label: "Invoice" }, { value: "bank transfer", label: "Bank transfer" }, { value: "check", label: "Check" }, { value: "card", label: "Card" }]} aria-label="How it was paid" />
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium">Paid on<input type="date" name="paidOn" required defaultValue={today} className="field" /></label>
+                    <label className="grid gap-1.5 text-sm font-medium">Pays up to<input type="date" name="coversUntil" required className="field" /></label>
+                    <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">Note<input name="note" maxLength={300} className="field" placeholder="Invoice number, period" /></label>
+                  </div>
+                </ActionForm>
+                {payments.length > 0 && (
+                  <ul className="mt-5 divide-y divide-line/60 rounded-xl border border-line text-sm">
+                    {payments.map(payment => (
+                      <li key={payment.id} className="flex flex-wrap justify-between gap-2 px-4 py-2.5">
+                        <span><span className="font-semibold">{money(payment.amountCents)}</span> <span className="text-mute">by {payment.method}, {fmt.day(payment.paidOn)}{payment.note ? ` · ${payment.note}` : ""}</span></span>
+                        <span className="text-xs text-mute">pays up to {fmt.day(payment.coversUntil)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </Panel>
+        </section>
+        </div>
 
         <div className="space-y-8">
           <Panel title="Administrators">

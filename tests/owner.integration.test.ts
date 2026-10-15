@@ -16,6 +16,8 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
   const { createAgency, slugProblem, setAgencyActive, addAgencyAdmin, recordOwnerEvent, ownerEvents, updateAgencyProfile, openSupport, endSupport, agencyDetail, searchEverywhere } = await import("../src/server/owner");
   const { placesInOrder } = await import("../src/server/auth");
   const { recipients } = await import("../src/server/notify");
+  const billingModule = await import("../src/server/billing");
+  const { getSettings } = await import("../src/server/settings");
   const tag = randomBytes(4).toString("hex");
   const slug = `owner-test-${tag}`;
   const email = `owner-test-${tag}@example.test`;
@@ -86,6 +88,30 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
     assert.equal(await searchEverywhere("a"), null, "One letter is too short to search");
     assert.deepEqual((await searchEverywhere("%_%"))?.agencies, [], "Typed wildcards match only themselves");
 
+    // Billing: a new agency is on a trial of the default plan, with every feature.
+    const start = await billingModule.agencyBilling(agencyId);
+    assert.equal(start.billing.status, "trial");
+    assert.equal(start.billing.trialEndsOn, new Date(Date.now() + start.rules.trialDays * 86_400_000).toISOString().slice(0, 10));
+    const plans = await billingModule.listPlans();
+    const essentials = plans.find(plan => plan.name === "Essentials")!;
+    // On Essentials, the scribe and Ask Mohuddle are off whatever the agency chose; e-signing stays.
+    await billingModule.setAgencyBilling(agencyId, { planId: essentials.id, status: "active", trialEndsOn: null, paidUntil: "2099-01-01", notes: "" });
+    await asAgency(agencyId, async () => {
+      assert.equal(await billingModule.planAllows("scribe"), false);
+      assert.equal(await billingModule.planAllows("signing"), true);
+      assert.equal((await getSettings()).scribe_enabled, "off");
+      assert.equal((await getSettings()).assistant_enabled, "off");
+      assert.equal(await billingModule.readOnlyNow(), false);
+    });
+    // A lapsed subscription past its grace is read-only; a payment brings it back.
+    await billingModule.setAgencyBilling(agencyId, { planId: essentials.id, status: "active", trialEndsOn: null, paidUntil: "2020-01-01", notes: "" });
+    assert.equal(await asAgency(agencyId, () => billingModule.readOnlyNow()), true);
+    await billingModule.recordPayment(agencyId, { amountCents: 9700, paidOn: "2026-10-15", coversUntil: "2099-12-31", method: "invoice", note: "Test" }, "Test Owner");
+    const paid = await billingModule.agencyBilling(agencyId);
+    assert.equal(paid.billing.paidUntil, "2099-12-31");
+    assert.equal(paid.state.mode, "ok");
+    assert.equal((await billingModule.paymentsFor(agencyId)).length, 1);
+
     // Turning it off ends its sign-ins; Milestone is untouched.
     await setAgencyActive(agencyId, false);
     const [off] = await systemDb.select({ active: schema.agencies.active }).from(schema.agencies).where(eq(schema.agencies.id, agencyId));
@@ -103,6 +129,8 @@ test("a new agency starts with the defaults, its own administrator, and nothing 
         const { rows } = await client.query<{ table_name: string }>("select table_name from information_schema.columns where table_schema = 'public' and column_name = 'agency_id'");
         for (const row of rows) await client.query(`delete from "${row.table_name}" where agency_id = $1`, [agencyId]);
         await client.query("delete from owner_events where agency_id_for = $1", [agencyId]);
+        await client.query("delete from billing_payments where agency_id_for = $1", [agencyId]);
+        await client.query("delete from agency_billing where agency_id_for = $1", [agencyId]);
         await client.query("delete from agencies where id = $1", [agencyId]);
         await client.query("delete from logins where email = $1", [email]);
         await client.query("commit");
