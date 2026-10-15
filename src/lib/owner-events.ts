@@ -14,6 +14,10 @@ export const OWNER_ACTIONS: Record<string, string> = {
   "billing:rules": "Changed the billing rules",
   "billing:update": "Changed the plan or status",
   "billing:payment": "Recorded a payment",
+  "owner:sign-in": "Signed in",
+  "owner:two-factor": "Added an authenticator app",
+  "owner:backup-codes": "Made new backup codes",
+  "owner:sign-out-others": "Signed out other browsers",
 };
 
 export const ownerActionWords = (action: string) => OWNER_ACTIONS[action] ?? action;

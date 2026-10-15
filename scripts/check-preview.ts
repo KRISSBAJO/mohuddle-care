@@ -1,9 +1,24 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { Pool } from "pg";
 import { SESSION_COOKIE } from "../src/lib/session-cookie";
 import { agencyDb } from "./agency-db";
+
+/* A GET naming another address in its Host header, which fetch does not allow. */
+function getWithHost(url: URL, host: string, cookie: string): Promise<{ status: number; text: () => Promise<string> }> {
+  return new Promise((done, failed) => {
+    const request = httpRequest({ hostname: url.hostname, port: url.port, path: url.pathname + url.search, headers: { Host: host, Cookie: cookie } }, response => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", chunk => (body += chunk));
+      response.on("end", () => done({ status: response.statusCode ?? 0, text: async () => body }));
+    });
+    request.on("error", failed);
+    request.end();
+  });
+}
 
 async function main() {
   const url = new URL(process.env.APP_URL ?? "http://localhost:3400");
@@ -13,6 +28,10 @@ async function main() {
   const { pool } = agencyDb();
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token + process.env.SESSION_SECRET).digest("hex");
+  // The owner console has its own session; this one is made, used and removed here.
+  const ownerToken = randomBytes(32).toString("base64url");
+  const ownerHash = createHash("sha256").update(`owner:${ownerToken}${process.env.SESSION_SECRET}`).digest("hex");
+  let owner: Pool | null = null;
   try {
     const { rows: users } = await pool.query("select id from users where active and role='admin' limit 1");
     assert.ok(users[0], "Seed the local demo first.");
@@ -21,9 +40,10 @@ async function main() {
     assert.equal(unauthenticated.status, 307);
     assert.ok(unauthenticated.headers.get("location")?.includes("/login"));
     // The owner console, when this admin is a Mohuddle owner (scripts/make-owner.ts).
-    const owner = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-    const { rows: ownerRows } = await owner.query("select l.is_owner from users u join logins l on l.id = u.login_id where u.id = $1", [users[0].id]).finally(() => owner.end());
-    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/enquiries", "/owner/health", "/owner/activity", "/owner/search", "/owner/search?q=angela", "/owner/search?q=%25_", "/owner/billing", "/owner/plans"] : [];
+    owner = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    const { rows: ownerRows } = await owner.query("select l.id, l.is_owner from users u join logins l on l.id = u.login_id where u.id = $1", [users[0].id]);
+    if (ownerRows[0]?.is_owner) await owner.query("insert into owner_sessions(token_hash, login_id, expires_at) values ($1, $2, $3)", [ownerHash, ownerRows[0].id, new Date(Date.now() + 600_000)]);
+    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/agencies", "/owner/agencies/new", "/owner/security", "/owner/enquiries", "/owner/health", "/owner/activity", "/owner/search", "/owner/search?q=angela", "/owner/search?q=%25_", "/owner/billing", "/owner/plans"] : [];
     const { rows: people } = await pool.query("select id from individuals limit 1");
     const { rows: incidents } = await pool.query("select id from incidents order by status");
     const routes = [...ownerRoutes, "/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];
@@ -84,7 +104,11 @@ async function main() {
     assert.ok((await deadLink.text()).includes("This link no longer works"), "An unknown setup link must be refused");
     console.log("PASS unknown setup link is refused");
     for (const route of routes) {
-      const response = await fetch(new URL(route, url), { headers: { Cookie: `${SESSION_COOKIE}=${token}` }, redirect: "manual" });
+      // With agency addresses, the owner console answers only on admin.<host>; Node cannot look that
+      // name up on every system, so the request goes here and names the address in its Host header.
+      const onAdmin = route.startsWith("/owner") && process.env.AGENCY_ADDRESSES === "on";
+      const cookie = `${SESSION_COOKIE}=${token}; ms_owner=${ownerToken}`;
+      const response = onAdmin ? await getWithHost(new URL(route, url), `admin.${url.host}`, cookie) : await fetch(new URL(route, url), { headers: { Cookie: cookie }, redirect: "manual" });
       const html = await response.text();
       assert.equal(response.status, 200, `${route} must return 200`);
       assert.ok(!html.includes('id="__next_error__"'), `${route} must render without a server error`);
@@ -107,6 +131,10 @@ async function main() {
   } finally {
     await pool.query("delete from sessions where token_hash=$1", [tokenHash]);
     await pool.end();
+    if (owner) {
+      await owner.query("delete from owner_sessions where token_hash = $1", [ownerHash]);
+      await owner.end();
+    }
   }
 }
 

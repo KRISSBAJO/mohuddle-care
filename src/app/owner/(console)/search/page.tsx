@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Building2, Search, UserRound } from "lucide-react";
 import { Badge, PageHeader, Panel } from "@/components/app/ui";
 import { label } from "@/lib/format";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { searchEverywhere } from "@/server/owner";
 
 export const metadata = { title: "Search" };
@@ -15,7 +15,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const total = found ? found.agencies.length + found.logins.length + found.staff.length : 0;
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Owner console" title="Search" description="Find an agency, or anyone with a login or staff record, by name or email. People the agencies support are not searched here: open a support visit to see them." />
+      <PageHeader eyebrow="Running Mohuddle" title="Search" description="Find an agency, or anyone with a login or staff record, by name or email. People the agencies support are not searched here: open a support visit to see them." />
       <form className="flex max-w-xl gap-2" role="search">
         <input name="q" defaultValue={q} autoFocus minLength={2} maxLength={80} placeholder="Name, email or agency" className="field" aria-label="Search" />
         <button className="btn-brand shrink-0"><Search className="h-4 w-4" /> Search</button>

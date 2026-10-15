@@ -14,6 +14,7 @@ import { requireAgency } from "@/server/agency";
 import { canManage, placesFor } from "@/server/auth";
 import { isOwner } from "@/server/owner";
 import { currentBilling } from "@/server/billing";
+import { ownerConsoleUrl } from "@/server/host";
 import { endSupportAction } from "@/server/actions/owner";
 import { requireUser } from "@/server/guard";
 import { pushPublicKey } from "@/server/push";
@@ -48,7 +49,7 @@ export default async function HubLayout({ children }: { children: React.ReactNod
         )}
         <header className="hub-topbar">
           <div><p className="text-xs font-semibold">Mohuddle <span className="mx-2 text-dim">/</span> {agency.name}</p><p className="hub-topbar-title mt-1">{fmt.dayLong(dateKey())} · {zoneLabel()}</p></div>
-          <div className="hub-topbar-account">{settings.assistant_enabled === "on" && <AskMohuddle voice />}<NotificationBell unread={bell.unread} now={now} items={bell.latest.map(item => ({ id: item.id, title: item.title, body: item.body, tone: item.tone, createdAt: item.createdAt.toISOString(), read: Boolean(item.readAt) }))} pushKey={pushPublicKey} /><AccountMenu name={user.name} role={user.role} agency={agency.name} current={user.agencyId} places={places} owner={owner} switchAgency={switchAgency} /></div>
+          <div className="hub-topbar-account">{settings.assistant_enabled === "on" && <AskMohuddle voice />}<NotificationBell unread={bell.unread} now={now} items={bell.latest.map(item => ({ id: item.id, title: item.title, body: item.body, tone: item.tone, createdAt: item.createdAt.toISOString(), read: Boolean(item.readAt) }))} pushKey={pushPublicKey} /><AccountMenu name={user.name} role={user.role} agency={agency.name} current={user.agencyId} places={places} owner={owner} ownerUrl={ownerConsoleUrl()} switchAgency={switchAgency} /></div>
         </header>
         <main className="hub-main px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>

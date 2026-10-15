@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Empty, PageHeader, Panel } from "@/components/app/ui";
 import { fmt } from "@/lib/format";
 import { ownerActionWords } from "@/lib/owner-events";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { ownerEvents } from "@/server/owner";
 
 export const metadata = { title: "Activity" };
@@ -13,7 +13,7 @@ export default async function ActivityPage() {
   const events = await ownerEvents();
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Owner console" title="Activity" description="Who did what in the owner console, and when. Agencies cannot see this. The latest 300." />
+      <PageHeader eyebrow="Running Mohuddle" title="Activity log" description="Who did what in the owner console, and when. Agencies cannot see this. The latest 300." />
       <Panel title={`${events.length} ${events.length === 1 ? "entry" : "entries"}`}>
         {events.length === 0 ? (
           <Empty>Nothing yet.</Empty>

@@ -87,6 +87,12 @@ export const logins = pgTable("logins", {
   hasPassword: boolean("has_password").generatedAlwaysAs(sql`password_hash is not null`),
   // Runs Mohuddle itself: may open the owner console. Set only by scripts/make-owner.ts, never in the app.
   isOwner: boolean("is_owner").notNull().default(false),
+  // An owner's name in the console, and their authenticator app: the secret (encrypted), when it was
+  // switched on, and hashes of unused backup codes. Owners must use it to open the console.
+  ownerName: text("owner_name").notNull().default(""),
+  totpSecret: text("totp_secret"),
+  totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+  backupCodes: jsonb("backup_codes").$type<string[]>().notNull().default(emptyList()),
   createdAt: createdAt(),
 });
 
@@ -176,6 +182,22 @@ export const platformSettings = pgTable("platform_settings", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/*
+ * A signed-in owner on the admin address: separate from any agency's session. Only a hash of the
+ * token is kept. Agencies cannot see these.
+ */
+export const ownerSessions = pgTable("owner_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  loginId: uuid("login_id")
+    .notNull()
+    .references(() => logins.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  ip: text("ip").notNull().default(""),
+  userAgent: text("user_agent").notNull().default(""),
+  createdAt: createdAt(),
 });
 
 /*

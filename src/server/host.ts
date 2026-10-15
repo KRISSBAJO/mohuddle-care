@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
-import { agencyOrigin, readHost } from "@/lib/agency-host";
+import { adminOrigin, agencyOrigin, readHost } from "@/lib/agency-host";
 import { schema, systemDb } from "./db";
 import { env } from "./env";
 
@@ -27,6 +27,9 @@ export async function hostAgency() {
     .limit(1);
   return agency && agency.active ? agency : ("missing" as const);
 }
+
+/* The owner console's address: admin.<host> with agency addresses, else /owner here. */
+export const ownerConsoleUrl = () => (addressesOn() ? `${adminOrigin(env.APP_URL)}/owner` : "/owner");
 
 /* Where links for an agency should point: its own address when addresses are on, else APP_URL. */
 export const agencyBase = (slug: string) => (addressesOn() ? agencyOrigin(slug, env.APP_URL) : env.APP_URL.replace(/\/$/, ""));

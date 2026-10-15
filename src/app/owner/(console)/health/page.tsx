@@ -4,7 +4,7 @@ import { AutoRefresh } from "@/components/owner/AutoRefresh";
 import { PageHeader, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { fmt } from "@/lib/format";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { healthReport, type Level } from "@/server/health";
 
 export const metadata = { title: "Health" };
@@ -45,7 +45,7 @@ export default async function HealthPage() {
   return (
     <div className="space-y-8">
       <AutoRefresh seconds={60} />
-      <PageHeader eyebrow="Owner console" title="Health" description={`Checked ${fmt.time(health.checkedAt)}. Refreshes every minute. Background history is kept on this server since it last started.`} />
+      <PageHeader eyebrow="Running Mohuddle" title="Health" description={`Checked ${fmt.time(health.checkedAt)}. Refreshes every minute. Background history is kept on this server since it last started.`} />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <Card title="Reminders" icon={Activity} level={sweep.level}>

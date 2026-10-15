@@ -3,7 +3,7 @@ import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { fmt } from "@/lib/format";
 import { markEnquiryAction } from "@/server/actions/owner";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { productEnquiries } from "@/server/owner";
 
 export const metadata = { title: "Demo requests" };
@@ -15,7 +15,7 @@ export default async function DemoRequestsPage() {
   const open = requests.filter(request => !request.handled).length;
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Owner console" title="Demo requests" description="Agencies asking to see Mohuddle, from the form on the Mohuddle page. Mark each one handled once you have replied." />
+      <PageHeader eyebrow="Growth" title="Demo requests" description="Agencies asking to see Mohuddle, from the form on the Mohuddle page. Mark each one handled once you have replied." />
       <Panel title={`${open} waiting`}>
         {requests.length === 0 ? (
           <Empty>No demo requests yet.</Empty>

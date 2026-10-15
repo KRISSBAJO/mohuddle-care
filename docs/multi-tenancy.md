@@ -73,6 +73,19 @@ Mohuddle sends through RelyKit (`src/server/email.ts`). Nothing leaves the serve
   Each agency switches these on or off in Settings ("Email links to people"). The link is always shown on screen too.
 - **"Forgot your password?"** emails a link and always gives the same answer, so it never reveals which emails have a login. It sends at most 3 emails to one address an hour.
 
+## The owner console's own sign-in
+
+The owner console is Mohuddle's site admin, apart from every agency:
+
+- **Address:** with `AGENCY_ADDRESSES=on`, it is only at `admin.<host>` (`admin.localhost:3400`, later `admin.mohuddle.com`). Other addresses send `/owner` there. Without agency addresses, it is at `/owner`.
+- **Its own sign-in and session** (`owner_sessions`, cookie `ms_owner`), so an owner needs no place in any agency. Sessions last 12 hours and end after 30 minutes idle.
+- **A second step.** After the password, owners give a 6-digit code from an authenticator app. It is required unless `OWNER_TWO_FACTOR=optional`. The first sign-in walks through adding the app, then shows 8 one-time backup codes.
+  - The app's secret is stored encrypted (AES-GCM, with a key from `SESSION_SECRET`).
+  - Five wrong tries lock that email or login for 15 minutes.
+  - A lost phone: `pnpm tsx scripts/make-owner.ts email --reset-two-factor`.
+- **Making someone an owner:** `pnpm tsx scripts/make-owner.ts email --name "Name"`. The email must already have a login. `--remove` takes it away.
+- **Sections:** Overview (key numbers, what needs attention, recent activity), Agencies, Add an agency, Billing, Plans, Demo requests, Health, Activity log, Search, and Security (the authenticator app, backup codes, signed-in browsers).
+
 ## Owner console: health, activity and support visits
 
 - **`/owner/health`:** reminders, email, push, the note scribe, the database, the server, and recent errors. The history is kept in memory since the server last started.

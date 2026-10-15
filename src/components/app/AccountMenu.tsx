@@ -12,12 +12,14 @@ type Props = {
   current: string;
   places: { agencyId: string; name: string; role: string }[];
   owner: boolean;
+  /* Where the owner console is: admin.<host>, or /owner here. */
+  ownerUrl?: string;
   /* Returns the other agency's address when agencies have their own; the browser goes there. */
   switchAgency: (agencyId: string) => Promise<{ url?: string }>;
 };
 
 /* Who is signed in and where. Opens the agency switcher when they work for more than one, and the owner console for owners. */
-export function AccountMenu({ name, role, agency, current, places, owner, switchAgency }: Props) {
+export function AccountMenu({ name, role, agency, current, places, owner, ownerUrl = "/owner", switchAgency }: Props) {
   const [open, setOpen] = useState(false);
   const [moving, setMoving] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -90,7 +92,7 @@ export function AccountMenu({ name, role, agency, current, places, owner, switch
             </div>
           )}
           {owner && (
-            <Link href="/owner" role="menuitem" className="flex items-center gap-2.5 border-t border-line px-4 py-3 text-sm font-semibold hover:bg-panel">
+            <Link href={ownerUrl} role="menuitem" className="flex items-center gap-2.5 border-t border-line px-4 py-3 text-sm font-semibold hover:bg-panel">
               <ShieldCheck className="h-4 w-4 text-brand" /> Owner console
             </Link>
           )}

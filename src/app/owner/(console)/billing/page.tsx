@@ -8,7 +8,7 @@ import { unitCount } from "@/lib/billing";
 import { money } from "@/lib/format";
 import { saveBillingRulesAction } from "@/server/actions/owner";
 import { billingOverview, billingRules, defaultPlanId, listPlans } from "@/server/billing";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 
 export const metadata = { title: "Billing" };
 
@@ -21,7 +21,7 @@ export default async function BillingPage() {
   const count = (test: (row: (typeof rows)[number]) => boolean) => rows.filter(test).length;
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Owner console" title="Billing" description="Each agency's plan and where it stands. Payments are recorded by hand on each agency's page; no card is charged." action={<Link href="/owner/plans" className="btn-ghost btn-sm">Plans and prices</Link>} />
+      <PageHeader eyebrow="Money" title="Billing" description="Each agency's plan and where it stands. Payments are recorded by hand on each agency's page; no card is charged." action={<Link href="/owner/plans" className="btn-ghost btn-sm">Plans and prices</Link>} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat icon={DollarSign} label="A month from paying agencies" value={money(monthly, true)} />

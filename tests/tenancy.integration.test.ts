@@ -20,7 +20,7 @@ test("every table but agencies and logins belongs to an agency, behind row rules
     where t.table_schema = 'public' and t.table_type = 'BASE TABLE'`);
   assert.ok(rows.length > 40);
   // Mohuddle's own tables: no agency, and the app's role sees nothing of them.
-  const platformOnly = ["product_enquiries", "session_handoffs", "owner_events", "plans", "agency_billing", "billing_payments", "platform_settings"];
+  const platformOnly = ["product_enquiries", "session_handoffs", "owner_events", "plans", "agency_billing", "billing_payments", "platform_settings", "owner_sessions"];
   for (const row of rows) {
     if (!["agencies", "logins", ...platformOnly].includes(row.table_name)) assert.ok(row.has_agency, `${row.table_name} has no agency_id`);
     assert.ok(row.rls, `${row.table_name} has no row rules`);

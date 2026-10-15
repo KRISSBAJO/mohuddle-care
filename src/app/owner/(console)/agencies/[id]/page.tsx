@@ -13,7 +13,7 @@ import { fmt, money } from "@/lib/format";
 import { agencyBilling, listPlans, paymentsFor, unitsFor } from "@/server/billing";
 import { addAdminAction, newAdminLinkAction, openSupportAction, recordPaymentAction, setAgencyActiveAction, setAgencyBillingAction, updateAgencyAction } from "@/server/actions/owner";
 import { SupportForm } from "@/components/owner/SupportForm";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { ownerActionWords } from "@/lib/owner-events";
 import { agencyDetail, ownerEvents } from "@/server/owner";
 
@@ -33,7 +33,7 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-8">
-      <Link href="/owner" className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> All agencies</Link>
+      <Link href="/owner/agencies" className="inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> All agencies</Link>
       <PageHeader
         eyebrow={`${agency.slug}.mohuddle.com · since ${fmt.day(agency.createdAt.toISOString().slice(0, 10))}`}
         title={agency.name}

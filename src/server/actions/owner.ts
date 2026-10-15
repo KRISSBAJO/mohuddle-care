@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { TIME_ZONES } from "@/lib/agency-defaults";
-import { requireOwner, requireUser } from "@/server/guard";
+import { requireUser } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 import { redirect } from "next/navigation";
-import { createSession, destroySession, placesInOrder } from "@/server/auth";
-import { addressesOn, issueHandoff } from "@/server/host";
+import { createSession, destroySession } from "@/server/auth";
+import { addressesOn, issueHandoff, ownerConsoleUrl } from "@/server/host";
 import { addAgencyAdmin, createAgency, endSupport, markProductEnquiry, newAdminLink, openSupport, recordOwnerEvent, setAgencyActive, updateAgencyProfile, type AdminResult } from "@/server/owner";
 import type { LinkState } from "./accounts";
 import type { FormState } from "./auth";
@@ -87,7 +88,6 @@ export async function updateAgencyAction(agencyId: string, _previous: FormState,
 export async function setAgencyActiveAction(agencyId: string, active: boolean): Promise<FormState> {
   const owner = await requireOwner();
   if (!uuid.safeParse(agencyId).success) return { error: "Unknown agency." };
-  if (!active && owner.agencyId === agencyId) return { error: "You are signed in to this agency. Switch to another one before turning it off." };
   await setAgencyActive(agencyId, active);
   await recordOwnerEvent(owner, active ? "agency:on" : "agency:off", agencyId);
   revalidatePath("/owner", "layout");
@@ -131,9 +131,8 @@ export async function endSupportAction() {
   await endSupport(user);
   await recordOwnerEvent({ loginId: user.loginId, name: user.name.replace(/^Mohuddle support \((.*)\)$/, "$1"), email: user.email }, "support:close", user.agencyId);
   await destroySession();
-  const home = (await placesInOrder(user.loginId))[0];
-  if (home && addressesOn()) redirect(await issueHandoff({ userId: home.id, agencyId: home.agencyId, slug: home.slug }, false, "/owner"));
-  redirect("/login");
+  // Back to the owner console, where the owner is still signed in.
+  redirect(`${ownerConsoleUrl()}`);
 }
 
 /* ---------- Plans and billing ---------- */

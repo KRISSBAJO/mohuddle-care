@@ -4,7 +4,7 @@
  * works as before. The base comes from APP_URL.
  */
 
-export type HostKind = { kind: "agency"; slug: string } | { kind: "shared" } | { kind: "main" };
+export type HostKind = { kind: "agency"; slug: string } | { kind: "shared" } | { kind: "admin" } | { kind: "main" };
 
 export function readHost(host: string | null | undefined, baseHost: string): HostKind {
   const name = (host ?? "").toLowerCase();
@@ -13,6 +13,7 @@ export function readHost(host: string | null | undefined, baseHost: string): Hos
   const sub = name.slice(0, -(base.length + 1));
   if (!sub || sub.includes(".") || sub === "www") return { kind: "main" };
   if (sub === "app") return { kind: "shared" };
+  if (sub === "admin") return { kind: "admin" };
   return { kind: "agency", slug: sub };
 }
 
@@ -21,6 +22,9 @@ export function agencyOrigin(slug: string, appUrl: string) {
   const url = new URL(appUrl);
   return `${url.protocol}//${slug}.${url.host}`;
 }
+
+/* The origin of the owner console, such as https://admin.mohuddle.com. */
+export const adminOrigin = (appUrl: string) => agencyOrigin("admin", appUrl);
 
 /* The origin of the shared sign-in page, such as https://app.mohuddle.com. */
 export const sharedOrigin = (appUrl: string) => agencyOrigin("app", appUrl);

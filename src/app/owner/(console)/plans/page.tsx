@@ -5,7 +5,7 @@ import { PLAN_FEATURES, PLAN_UNITS } from "@/lib/billing";
 import { money } from "@/lib/format";
 import { savePlanAction } from "@/server/actions/owner";
 import { listPlans } from "@/server/billing";
-import { requireOwner } from "@/server/guard";
+import { requireOwner } from "@/server/owner-auth";
 
 export const metadata = { title: "Plans" };
 
@@ -15,7 +15,7 @@ export default async function PlansPage() {
   const plans = await listPlans();
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Owner console" title="Plans and prices" description="What agencies pay each month, and which features each plan includes. A change applies to every agency on the plan straight away." />
+      <PageHeader eyebrow="Money" title="Plans and prices" description="What agencies pay each month, and which features each plan includes. A change applies to every agency on the plan straight away." />
       {plans.map(plan => (
         <Panel
           key={plan.id}
