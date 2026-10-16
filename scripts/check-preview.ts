@@ -44,6 +44,11 @@ async function main() {
     const { rows: ownerRows } = await owner.query("select l.id, l.is_owner from users u join logins l on l.id = u.login_id where u.id = $1", [users[0].id]);
     if (ownerRows[0]?.is_owner) await owner.query("insert into owner_sessions(token_hash, login_id, expires_at) values ($1, $2, $3)", [ownerHash, ownerRows[0].id, new Date(Date.now() + 600_000)]);
     const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/agencies", "/owner/agencies/new", "/owner/security", "/owner/enquiries", "/owner/health", "/owner/activity", "/owner/search", "/owner/search?q=angela", "/owner/search?q=%25_", "/owner/billing", "/owner/plans"] : [];
+    if (ownerRows[0]?.is_owner) {
+      const { rows: agencies } = await owner.query("select id from agencies order by created_at limit 1");
+      const page = `/owner/agencies/${agencies[0].id}`;
+      ownerRoutes.push(page, ...["profile", "admins", "billing", "activity", "not-a-tab"].map(tab => `${page}?tab=${tab}`));
+    }
     const { rows: people } = await pool.query("select id from individuals limit 1");
     const { rows: incidents } = await pool.query("select id from incidents order by status");
     const routes = [...ownerRoutes, "/", "/careers", "/privacy", "/app", "/app/individuals", "/app/individuals/new", "/app/daily-logs", "/app/daily-logs/new", "/app/medications", "/app/schedule", "/app/incidents", "/app/incidents/new", "/app/tasks", "/app/homes", "/app/staff", "/app/enquiries", "/app/settings"];

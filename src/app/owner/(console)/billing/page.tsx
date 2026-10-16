@@ -45,7 +45,7 @@ export default async function BillingPage() {
             <tbody>
               {rows.map(row => (
                 <tr key={row.agency.id} className="border-b border-line/60 last:border-0">
-                  <td className="px-5 py-3"><Link href={`/owner/agencies/${row.agency.id}#billing`} className="font-semibold hover:text-brand">{row.agency.name}</Link></td>
+                  <td className="px-5 py-3"><Link href={`/owner/agencies/${row.agency.id}?tab=billing`} className="font-semibold hover:text-brand">{row.agency.name}</Link></td>
                   <td className="px-3 py-3">{row.plan?.name ?? <span className="text-mute">No plan</span>}</td>
                   <td className="px-3 py-3"><BillingBadge status={row.billing.status} state={row.state} /></td>
                   <td className="px-3 py-3 text-right tabular-nums text-mute">{row.plan && row.plan.unit !== "none" ? unitCount(row.plan.unit, row.units) : "—"}</td>

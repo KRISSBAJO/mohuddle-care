@@ -40,7 +40,7 @@ export default async function OverviewPage() {
   // What needs doing, most urgent first.
   const attention: Attention[] = [];
   for (const row of billing.filter(item => item.agency.active)) {
-    const href = `/owner/agencies/${row.agency.id}#billing`;
+    const href = `/owner/agencies/${row.agency.id}?tab=billing`;
     if (row.state.mode === "read_only") attention.push({ icon: AlertTriangle, tone: "bad", text: `${row.agency.name} is read-only: its ${row.billing.status === "trial" ? "trial ended" : "subscription lapsed"}`, href });
     else if (row.state.mode === "past_due") attention.push({ icon: AlertTriangle, tone: "bad", text: `${row.agency.name} is past due since ${fmt.day(row.state.endsOn)}`, href });
     else if (row.state.mode === "ending") attention.push({ icon: Hourglass, tone: "warn", text: `${row.agency.name}'s ${row.billing.status === "trial" ? "trial" : "paid period"} ends ${fmt.day(row.state.endsOn)}`, href });
