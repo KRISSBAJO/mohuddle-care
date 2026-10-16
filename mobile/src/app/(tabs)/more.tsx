@@ -62,6 +62,19 @@ export default function MoreScreen() {
       </SafeAreaView>
 
       <View style={{ padding: 20, gap: 12, paddingBottom: 120 }}>
+        {me?.features.assistant ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push("/ask")} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+            <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={styles.linkIcon}>
+                <Icon name="message-circle" size={18} color={colors.sage} />
+              </View>
+              <T weight="semibold" style={{ flex: 1 }}>
+                Ask Mohuddle
+              </T>
+              <Icon name="chevron-right" size={18} color={colors.dim} />
+            </Card>
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="button" onPress={() => router.push("/tasks")} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
           <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={styles.linkIcon}>

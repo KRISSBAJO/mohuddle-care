@@ -217,3 +217,13 @@ export type MyDocuments = {
 export type DocumentToSign =
   | { signed: true; title: string }
   | { signed: false; title: string; signerName: string; initialEach: boolean; kind: "text" | "pdf"; sections: { heading: string; text: string }[] };
+
+/* What POST /assistant answers. Links open a screen in the app, or a page only the website has. */
+export type AskLink = { label: string; screen?: string; web?: string };
+export type AskReply = {
+  say: string;
+  detail?: string[];
+  links: AskLink[];
+  confirm?: { action: "clock_in"; title: string; detail: string } | { action: "break_start"; options: { kind: "meal" | "rest"; label: string }[] } | { action: "break_end"; title: string };
+  via: "rules" | "model" | "help" | "none";
+};

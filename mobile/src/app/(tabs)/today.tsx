@@ -184,11 +184,21 @@ export default function TodayScreen() {
                 {me?.agency?.name ?? "Mohuddle"}
               </T>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Your account" onPress={() => router.push("/more")} style={styles.me}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {me?.features.assistant ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Ask Mohuddle" onPress={() => router.push("/ask")} style={({ pressed }) => [styles.ask, shadow.soft, pressed && { opacity: 0.7 }]}>
+                  <Icon name="message-circle" size={16} color={colors.brand} />
+                  <T weight="semibold" size={13} color={colors.brand}>
+                    Ask
+                  </T>
+                </Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Your account" onPress={() => router.push("/more")} style={styles.me}>
               <T weight="bold" size={14} color={colors.lime}>
-                {initials}
-              </T>
-            </Pressable>
+                  {initials}
+                </T>
+              </Pressable>
+            </View>
           </View>
           <T weight="medium" size={13} color={colors.mute} style={{ marginTop: 22 }}>
             {fmt.dayLong(new Date(now), zone)}
@@ -396,6 +406,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
   agency: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
   agencyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.sage },
+  ask: { flexDirection: "row", alignItems: "center", gap: 6, height: 42, borderRadius: 21, paddingHorizontal: 14, backgroundColor: colors.card },
   me: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
   shift: { marginHorizontal: 20, backgroundColor: colors.card, borderRadius: 28, padding: 20 },
   shiftTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

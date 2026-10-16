@@ -1,12 +1,13 @@
 import { StatusBar } from "expo-status-bar";
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { goBack } from "@/lib/nav";
 import { colors } from "@/lib/theme";
 import { Icon, T } from "./ui";
 
-/* The top bar of a screen opened from a tab: back, and the title. */
-export function ScreenBar({ title }: { title: string }) {
+/* The top bar of a screen opened from a tab: back, the title, and room for one button on the right. */
+export function ScreenBar({ title, right }: { title: string; right?: ReactNode }) {
   return (
     <SafeAreaView edges={["top"]} style={styles.bar}>
       <StatusBar style="dark" />
@@ -16,7 +17,7 @@ export function ScreenBar({ title }: { title: string }) {
       <T weight="bold" size={17} numberOfLines={1} style={{ flex: 1, textAlign: "center" }}>
         {title}
       </T>
-      <View style={{ width: 40 }} />
+      <View style={{ width: 40, alignItems: "center" }}>{right}</View>
     </SafeAreaView>
   );
 }

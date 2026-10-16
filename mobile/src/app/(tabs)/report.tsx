@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -30,6 +30,14 @@ export default function ReportScreen() {
   const [form, setForm] = useState<FormData | null>(null);
   const [person, setPerson] = useState("");
   const [showEveryone, setShowEveryone] = useState(false);
+  // A link from Ask Mohuddle can name the person; the form starts with them chosen.
+  const params = useLocalSearchParams<{ person?: string }>();
+  const [linked, setLinked] = useState<string | undefined>(undefined);
+  if (params.person && params.person !== linked) {
+    setLinked(params.person);
+    setPerson(params.person);
+    setShowEveryone(true);
+  }
   const [now, setNow] = useState(true);
   const [date, setDate] = useState(() => today(zone));
   const [time, setTime] = useState(() => clock(zone));

@@ -17,7 +17,7 @@ export const GET = phoneRoute(async user => {
     agency: agency ? { id: agency.id, name: agency.name, zone: zone() } : null,
     agencies: places.map(place => ({ agencyId: place.agencyId, name: place.name })),
     rules: { lockMinutes: settings.phone_lock_minutes, pinLength: settings.phone_pin_length, biometrics: settings.phone_biometrics === "on", pinAttempts: settings.phone_pin_attempts },
-    features: { ...features, scribe: features.scribe && settings.scribe_enabled === "on" },
+    features: { ...features, scribe: features.scribe && settings.scribe_enabled === "on", assistant: features.assistant && settings.assistant_enabled === "on" },
     readOnly: billing?.state.mode === "read_only",
   });
 });
