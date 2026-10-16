@@ -16,7 +16,20 @@ const nextConfig: NextConfig = {
   // Each agency's own address on this machine (milestone.localhost:3400) may load the dev server's files.
   allowedDevOrigins: ["*.localhost"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The phone API signs in with a bearer token, never a cookie, so any origin may call it. This
+      // lets the app's browser preview (another port) reach it; native phones do not need it.
+      {
+        source: "/api/v1/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Headers", value: "authorization, content-type" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+          { key: "Access-Control-Max-Age", value: "600" },
+        ],
+      },
+    ];
   },
 };
 

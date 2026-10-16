@@ -15,6 +15,15 @@
         "127.0.0.1"
       ],
       "port": 3400
+    },
+    {
+      "name": "mohuddle-mobile",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set NODE_EXTRA_CA_CERTS=C:\\ProgramData\\Norton\\Antivirus\\wscert.pem&& npm --prefix C:/Users/kriss/milestone/mobile run web"
+      ],
+      "port": 8098
     }
   ]
 }

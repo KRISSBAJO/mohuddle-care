@@ -1,13 +1,13 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 import { agencyZone, asAgency, db, schema, systemDb } from "./db";
 import { env } from "./env";
-import { sessionTokenHash as tokenHash } from "./session-token";
+import { requestSessionToken, sessionTokenHash as tokenHash } from "./session-token";
 import { getSettings } from "./settings";
 import { requestHost } from "./host";
 import { signedZone, ZONE_COOKIE } from "./zone";
@@ -40,6 +40,42 @@ export async function createSession(user: { id: string; agencyId: string }, shar
   jar.set(ZONE_COOKIE, signedZone(await agencyZone(user.agencyId)), options);
 }
 
+/*
+ * Starts a session for the phone app. No cookie: the token is returned for the app to keep in the
+ * phone's secure storage and send as "Authorization: Bearer". It lasts the agency's phone sign-in
+ * length, and an admin can end it from the staff member's page.
+ */
+export async function createDeviceSession(user: { id: string; agencyId: string }, device: string) {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = await asAgency(user.agencyId, async () => {
+    const settings = await getSettings();
+    const ends = new Date(Date.now() + settings.phone_session_days * 86_400_000);
+    await db.insert(schema.sessions).values({ tokenHash: tokenHash(token), userId: user.id, expiresAt: ends, device: device.slice(0, 80) || "Phone" });
+    return ends;
+  });
+  return { token, expiresAt };
+}
+
+/* Ends this request's phone session, if it is one. */
+export async function destroyDeviceSession() {
+  const token = await requestSessionToken();
+  if (token) await db.delete(schema.sessions).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), isNotNull(schema.sessions.device)));
+}
+
+/*
+ * Checks an email and password against the logins of every agency. Returns the login, or null.
+ * Verifies against a fixed hash when the login is unknown, so timing does not reveal which emails
+ * exist. A login that has not finished setup has no password yet and cannot sign in.
+ */
+export async function checkCredentials(email: string, password: string) {
+  const [login] = await systemDb.select().from(schema.logins).where(eq(schema.logins.email, email.toLowerCase())).limit(1);
+  const ok = login?.passwordHash ? await verifyPassword(login.passwordHash, password) : (await verifyPassword(DUMMY_HASH, password), false);
+  return ok && login ? login : null;
+}
+
+const DUMMY_HASH =
+  "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$Q8Jf9Hh1b7bJtS2pJqgaS9wYg4cGRQyfxg0n1xqkk3E";
+
 export async function destroySession() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
@@ -61,12 +97,13 @@ export type SessionUser = {
   shared?: boolean;
   /* When this is a Mohuddle owner's support visit: when it ends. */
   supportUntil?: Date | null;
+  /* Set when this is the phone app: the phone's name. */
+  device?: string | null;
 };
 
 /* Reads the signed-in user once per request. Returns null when there is no valid session. */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
+  const token = await requestSessionToken();
   if (!token) return null;
   const rows = await db
     .select({
@@ -81,6 +118,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
       expiresAt: schema.sessions.expiresAt,
       lastSeenAt: schema.sessions.lastSeenAt,
       shared: schema.sessions.shared,
+      device: schema.sessions.device,
       slug: schema.agencies.slug,
       supportUntil: schema.users.supportUntil,
     })
@@ -95,19 +133,20 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!row || !row.active || row.expiresAt.getTime() < now) return null;
   // A support visit ends on time, whatever the session says.
   if (row.supportUntil && row.supportUntil.getTime() < now) return null;
-  // On an agency's own address, only a session for that agency counts.
+  // On an agency's own address, only a session for that agency counts. The phone app has no address.
   const host = await requestHost();
-  if (host.kind === "agency" && host.slug !== row.slug) return null;
+  if (!row.device && host.kind === "agency" && host.slug !== row.slug) return null;
   // Signed out after a spell of not using the app. The browser warns first; this catches closed tabs.
+  // The phone app locks itself instead (phone_lock_minutes), so its session is not ended for idling.
   const { session_idle_minutes } = await getSettings();
-  if (now - row.lastSeenAt.getTime() > session_idle_minutes * 60_000) {
+  if (!row.device && now - row.lastSeenAt.getTime() > session_idle_minutes * 60_000) {
     await db.delete(schema.sessions).where(eq(schema.sessions.tokenHash, tokenHash(token)));
     return null;
   }
   if (now - row.lastSeenAt.getTime() > TOUCH_EVERY_MS) {
     await db.update(schema.sessions).set({ lastSeenAt: new Date(now) }).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), lt(schema.sessions.lastSeenAt, new Date(now - TOUCH_EVERY_MS))));
   }
-  return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared, supportUntil: row.supportUntil };
+  return { id: row.id, agencyId: row.agencyId, loginId: row.loginId, email: row.email, name: row.name, role: row.role, staffId: row.staffId, shared: row.shared, supportUntil: row.supportUntil, device: row.device };
 });
 
 /* A login's active places in active agencies, the one used most recently first. */

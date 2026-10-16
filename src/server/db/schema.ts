@@ -308,6 +308,8 @@ export const sessions = pgTable("sessions", {
   // When the session was last used, for signing out idle devices; and whether the device is shared.
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   shared: boolean("shared").notNull().default(false),
+  // Set for a sign-in from the Mohuddle phone app: the phone's name, shown so a lost phone can be signed out.
+  device: text("device"),
   createdAt: createdAt(),
 });
 

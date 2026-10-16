@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Mohuddle",
+    "slug": "mohuddle",
+    "scheme": "mohuddle",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mohuddle.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Mohuddle uses Face ID to unlock, so people's care records stay private if your phone is left open."
+      }
+    },
+    "android": {
+      "package": "com.mohuddle.app",
+      "adaptiveIcon": { "backgroundColor": "#173e35" }
+    },
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-local-authentication", { "faceIDPermission": "Mohuddle uses Face ID to unlock, so people's care records stay private if your phone is left open." }],
+      ["expo-splash-screen", { "backgroundColor": "#173e35" }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

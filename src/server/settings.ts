@@ -453,6 +453,36 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(1).max(336),
     fallback: 12,
   },
+  phone_session_days: {
+    label: "The phone app asks for the password again after this many days (1 to 90)",
+    kind: "number",
+    schema: z.coerce.number().int().min(1).max(90),
+    fallback: 30,
+  },
+  phone_lock_minutes: {
+    label: "The phone app locks after this many minutes away (1 to 60)",
+    kind: "number",
+    schema: z.coerce.number().int().min(1).max(60),
+    fallback: 5,
+  },
+  phone_pin_length: {
+    label: "Phone app PIN length: 6, 4, or either (staff choose)",
+    kind: "text",
+    schema: z.enum(["6", "4", "either"]),
+    fallback: "6",
+  },
+  phone_biometrics: {
+    label: "Phone app may unlock with fingerprint or face (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
+  phone_pin_attempts: {
+    label: "Wrong PINs before the phone app signs out (3 to 10)",
+    kind: "number",
+    schema: z.coerce.number().int().min(3).max(10),
+    fallback: 5,
+  },
   shared_device_signout: {
     label: "On devices marked shared, sign out after clocking out (on or off)",
     kind: "text",

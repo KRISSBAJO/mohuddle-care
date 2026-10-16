@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -125,6 +125,20 @@ export async function setLoginActive(userId: string, active: boolean): Promise<F
       await tx.delete(schema.loginTokens).where(and(eq(schema.loginTokens.userId, target.id), isNull(schema.loginTokens.usedAt)));
     }
     await tx.insert(schema.auditLog).values({ userId: actor.id, action: active ? "login:enable" : "login:disable", entity: "user", entityId: target.id });
+  });
+  revalidateStaff(target.staffId);
+  return {};
+}
+
+/* Signs out every phone this login uses the Mohuddle app on, for a lost or handed-back phone. */
+export async function signOutPhones(userId: string): Promise<FormState> {
+  const actor = await requireManager();
+  const target = await loadLogin(userId);
+  if (!target) return { error: "Unknown login." };
+  if (!mayManageLogin(actor, target)) return { error: "You cannot manage this login." };
+  await db.transaction(async tx => {
+    await tx.delete(schema.sessions).where(and(eq(schema.sessions.userId, target.id), isNotNull(schema.sessions.device)));
+    await tx.insert(schema.auditLog).values({ userId: actor.id, action: "login:phones_signed_out", entity: "user", entityId: target.id });
   });
   revalidateStaff(target.staffId);
   return {};

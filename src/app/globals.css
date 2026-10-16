@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The phone app has its own styles; its files are not scanned for classes. */
+@source not "../../mobile";
 
 /* Milestone: warm paper ground, deep navy type, Milestone blue for action, amber for warmth. */
 @theme {

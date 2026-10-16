@@ -11,3 +11,8 @@ output/
 
 # Uploaded documents in development
 .storage/
+
+# Phone app build output
+mobile/.expo/
+mobile/dist/
+mobile/web-build/

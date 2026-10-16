@@ -3,9 +3,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { DEFAULT_ZONE, setZoneSource } from "@/lib/format";
-import { SESSION_COOKIE } from "@/lib/session-cookie";
 import { env } from "../env";
-import { sessionTokenHash } from "../session-token";
+import { requestSessionToken, sessionTokenHash } from "../session-token";
 import { requestZone } from "../zone";
 import * as schema from "./schema";
 
@@ -81,8 +80,7 @@ export async function currentAgencyId(): Promise<string> {
   if (chosen) return chosen.agencyId ?? "";
   let token: string | undefined;
   try {
-    const { cookies } = await import("next/headers");
-    token = (await cookies()).get(SESSION_COOKIE)?.value;
+    token = await requestSessionToken();
   } catch (error) {
     // Scripts, tests and timers have no request, so no session.
     if (error instanceof Error && error.message.includes("outside a request scope")) return "";

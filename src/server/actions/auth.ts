@@ -1,10 +1,8 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, getSessionUser, placesFor, placesInOrder, switchAgencyFor, verifyPassword } from "@/server/auth";
-import { schema, systemDb } from "@/server/db";
+import { checkCredentials, createSession, destroySession, getSessionUser, placesFor, placesInOrder, switchAgencyFor } from "@/server/auth";
 import { addressesOn, hostAgency, issueHandoff, requestHost } from "@/server/host";
 
 export type FormState = { error?: string };
@@ -21,13 +19,8 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   if (!parsed.success) return { error: "Enter your email address and password." };
   const { email, password, next, shared } = parsed.data;
   // Before sign-in there is no agency yet, so the login is looked up across all of them.
-  const [login] = await systemDb.select().from(schema.logins).where(eq(schema.logins.email, email.toLowerCase())).limit(1);
-  // Verify against a fixed hash when the login is unknown so timing does not reveal which emails exist.
-  // A login that has not finished setup has no password yet and cannot sign in.
-  const ok = login?.passwordHash
-    ? await verifyPassword(login.passwordHash, password)
-    : (await verifyPassword(DUMMY_HASH, password), false);
-  if (!ok || !login) return { error: "That email and password do not match." };
+  const login = await checkCredentials(email, password);
+  if (!login) return { error: "That email and password do not match." };
   const places = await placesInOrder(login.id);
   const host = await requestHost();
   let place: (typeof places)[number] | undefined = places[0];
@@ -72,6 +65,3 @@ export async function signOutIdle() {
   await destroySession();
   redirect("/login?reason=idle");
 }
-
-const DUMMY_HASH =
-  "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$Q8Jf9Hh1b7bJtS2pJqgaS9wYg4cGRQyfxg0n1xqkk3E";

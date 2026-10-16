@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, Clock, Home, ListChecks, Mail, MapPin, Phone, ShieldAlert, UserRound } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, Clock, Home, ListChecks, Mail, MapPin, Phone, ShieldAlert, Smartphone, UserRound } from "lucide-react";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { LinkIssuer } from "@/components/app/LinkIssuer";
 import { ModalForm } from "@/components/app/ModalForm";
@@ -10,7 +10,7 @@ import { OwedShifts } from "@/components/logs/OwedShifts";
 import { defaultLoginRole, loginRoleLabel, rolesActorMayGrant } from "@/lib/account-policy";
 import { cn } from "@/lib/cn";
 import { addDays, dateKey, daysBetween, fmt, label } from "@/lib/format";
-import { createLogin, issueResetLink, setLoginActive, setLoginRole } from "@/server/actions/accounts";
+import { createLogin, issueResetLink, setLoginActive, setLoginRole, signOutPhones } from "@/server/actions/accounts";
 import { removeCredential, setStaffActive } from "@/server/actions/editing";
 import { addCredential } from "@/server/actions/hub";
 import type { SessionUser } from "@/server/auth";
@@ -373,6 +373,28 @@ export function StaffAccountTab({ detail, user, manager, self, manageable }: { d
                     <ConfirmAction action={setLoginActive.bind(null, login.id, false)} label="Turn login off" tone="danger" confirm="Turn this login off? They are signed out at once and cannot sign in until it is turned back on." />
                   ) : (
                     member.active && <ConfirmAction action={setLoginActive.bind(null, login.id, true)} label="Turn login back on" />
+                  )}
+                </div>
+              )}
+              {detail.phones.length > 0 && (
+                <div className="space-y-2 border-t border-line pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-mute">Signed in on the phone app</p>
+                  <ul className="space-y-1.5">
+                    {detail.phones.map(phone => (
+                      <li key={phone.signedInAt.toISOString()} className="flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 shrink-0 text-mute" />
+                        <span className="flex-1 font-medium">{phone.device}</span>
+                        <span className="text-xs text-mute">Last used {fmt.dateTime(phone.lastSeenAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {manageable && (
+                    <ConfirmAction
+                      action={signOutPhones.bind(null, login.id)}
+                      label={detail.phones.length === 1 ? "Sign out this phone" : "Sign out these phones"}
+                      tone="danger"
+                      confirm="Sign out the phone app? Anyone holding the phone must sign in again with the password. Use this for a lost phone."
+                    />
                   )}
                 </div>
               )}

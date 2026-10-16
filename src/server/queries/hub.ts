@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { hasPassword } from "@/server/accounts";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
@@ -247,6 +247,14 @@ export async function staffDetail(id: string) {
         .limit(1)
     : [];
   const now = new Date();
+  // Phones signed in to the Mohuddle app, so a lost one can be signed out.
+  const phones = login
+    ? await db
+        .select({ device: schema.sessions.device, signedInAt: schema.sessions.createdAt, lastSeenAt: schema.sessions.lastSeenAt })
+        .from(schema.sessions)
+        .where(and(eq(schema.sessions.userId, login.id), isNotNull(schema.sessions.device), gte(schema.sessions.expiresAt, now)))
+        .orderBy(desc(schema.sessions.lastSeenAt))
+    : [];
   const [upcoming] = await db
     .select({ n: count() })
     .from(schema.shifts)
@@ -258,6 +266,7 @@ export async function staffDetail(id: string) {
     credentials,
     login: login ?? null,
     pendingLink: pendingLink ?? null,
+    phones,
     upcomingShifts: upcoming.n,
     openTasks: openTasks.n,
   };
