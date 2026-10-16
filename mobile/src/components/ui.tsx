@@ -67,7 +67,65 @@ export function ErrorText({ children }: { children: React.ReactNode }) {
   );
 }
 
+/* A row that ticks on and off. */
+export function Check({ checked, onToggle, children }: { checked: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={onToggle} style={styles.check}>
+      <View style={[styles.box, checked && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{checked ? <Icon name="check" size={14} color="#ffffff" /> : null}</View>
+      <View style={{ flex: 1 }}>{typeof children === "string" ? <T size={15}>{children}</T> : children}</View>
+    </Pressable>
+  );
+}
+
+/* One of a few choices, as cards. */
+export function Choice<V extends string>({ value, options, onChange }: { value: V; options: [V, string][]; onChange: (next: V) => void }) {
+  return (
+    <View style={{ gap: 8 }}>
+      {options.map(([key, words]) => {
+        const chosen = key === value;
+        return (
+          <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: chosen }} onPress={() => onChange(key)} style={[styles.choice, chosen && { borderColor: colors.brand, backgroundColor: colors.wash }]}>
+            <View style={[styles.radio, chosen && { borderColor: colors.brand }]}>{chosen ? <View style={styles.radioDot} /> : null}</View>
+            <T weight={chosen ? "semibold" : "regular"} style={{ flex: 1 }}>
+              {words}
+            </T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* A titled block inside a long form. "must" marks something that stops the punch until done. */
+export function Section({ title, hint, tone, children }: { title: string; hint?: string; tone?: "must" | "warn" | "good"; children: React.ReactNode }) {
+  const accent = tone === "must" ? colors.flag : tone === "warn" ? "#b7791f" : tone === "good" ? colors.sage : null;
+  return (
+    <View style={[styles.card, { gap: 12 }]}>
+      <View style={{ gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {accent ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accent }} /> : null}
+          <T weight="bold" size={16}>
+            {title}
+          </T>
+        </View>
+        {hint ? (
+          <T size={13} color={colors.mute}>
+            {hint}
+          </T>
+        ) : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
 export const styles = StyleSheet.create({
+  check: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 6 },
+  box: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: colors.line, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  choice: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, padding: 14 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
+  area: { minHeight: 110, paddingTop: 12, textAlignVertical: "top" },
   button: { minHeight: 50, borderRadius: 14, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1 },
   field: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   card: { backgroundColor: colors.card, borderRadius: 22, padding: 16, ...shadow.soft },

@@ -16,15 +16,38 @@
     },
     "android": {
       "package": "com.mohuddle.app",
-      "adaptiveIcon": { "backgroundColor": "#173e35" }
+      "adaptiveIcon": {
+        "backgroundColor": "#173e35"
+      }
     },
-    "web": { "bundler": "metro", "output": "single" },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-local-authentication", { "faceIDPermission": "Mohuddle uses Face ID to unlock, so people's care records stay private if your phone is left open." }],
-      ["expo-splash-screen", { "backgroundColor": "#173e35" }]
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Mohuddle uses Face ID to unlock, so people's care records stay private if your phone is left open."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#173e35"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mohuddle checks you are at the home when you clock in and out. Your location is only read at those moments."
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": false }
+    "experiments": {
+      "typedRoutes": false
+    }
   }
 }

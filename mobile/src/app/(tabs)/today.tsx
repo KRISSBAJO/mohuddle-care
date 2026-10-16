@@ -1,9 +1,9 @@
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ErrorText, Icon, T, type IconName } from "@/components/ui";
+import { Button, ErrorText, Icon, T, type IconName } from "@/components/ui";
 import { ApiError, type Today } from "@/lib/api";
 import { duration, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -46,8 +46,7 @@ export default function TodayScreen() {
   );
 
   useEffect(() => {
-    void load();
-    // The time on shift counts up; the list refreshes every few minutes.
+    // The first load happens when the screen comes into focus, below. The time on shift counts up; the list refreshes every few minutes.
     const clock = setInterval(() => setNow(Date.now()), 30_000);
     const refresh = setInterval(() => void load(), 3 * 60_000);
     return () => {
@@ -55,6 +54,28 @@ export default function TodayScreen() {
       clearInterval(refresh);
     };
   }, [load]);
+
+  // Back from the clock screen: show the new state straight away.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const [breakChoice, setBreakChoice] = useState(false);
+  const [breakBusy, setBreakBusy] = useState(false);
+  async function takeBreak(body: { action: "start"; kind: "meal" | "rest" } | { action: "end" }) {
+    setBreakBusy(true);
+    setBreakChoice(false);
+    try {
+      await call("/clock/break", body);
+      await load();
+    } catch (problem) {
+      setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
+    } finally {
+      setBreakBusy(false);
+    }
+  }
 
   async function pullToRefresh() {
     setRefreshing(true);
@@ -166,10 +187,10 @@ export default function TodayScreen() {
               </T>
             </Pressable>
           </View>
-          <T weight="semibold" size={14} color={colors.mute} style={{ marginTop: 20 }}>
+          <T weight="medium" size={13} color={colors.mute} style={{ marginTop: 22 }}>
             {fmt.dayLong(new Date(now), zone)}
           </T>
-          <T weight="heavy" size={34} style={{ letterSpacing: -1.4, lineHeight: 40 }}>
+          <T weight="bold" size={24} style={{ letterSpacing: -0.6, lineHeight: 30, marginTop: 2 }}>
             Hey {first}
           </T>
         </SafeAreaView>
@@ -187,9 +208,9 @@ export default function TodayScreen() {
                 </T>
               </View>
             </View>
-            <T weight="heavy" size={clock.state === "off" && !clock.shift ? 22 : 30} style={styles.big}>
+            <T weight="semibold" size={20} style={styles.big}>
               {clock.state === "on"
-                ? duration(clock.since, now)
+                ? `On for ${duration(clock.since, now)}`
                 : clock.shift
                   ? `${fmt.time(clock.shift.startsAt, zone)} – ${fmt.time(clock.shift.endsAt, zone)}`
                   : clock.next
@@ -198,9 +219,10 @@ export default function TodayScreen() {
             </T>
             {where ? (
               <View style={styles.place}>
-                <Icon name="map-pin" size={14} color={colors.sage} />
-                <T size={14} color={colors.mute}>
+                <Icon name="map-pin" size={13} color={colors.sage} />
+                <T size={13} color={colors.mute}>
                   {where}
+                  {shiftStart && shiftEnd && clock.state === "off" ? `  ·  ${duration(shiftStart, new Date(shiftEnd).getTime())} shift` : ""}
                 </T>
               </View>
             ) : null}
@@ -217,6 +239,26 @@ export default function TodayScreen() {
                     {fmt.time(shiftEnd, zone)}
                   </T>
                 </View>
+              </View>
+            ) : null}
+            {clock.state === "on" ? (
+              <View style={styles.actions}>
+                <Button label="Clock out" icon="log-out" onPress={() => router.push("/clock")} style={{ flex: 1 }} />
+                {clock.onBreak ? (
+                  <Button label="End break" tone="lime" icon="coffee" busy={breakBusy} onPress={() => takeBreak({ action: "end" })} style={{ flex: 1 }} />
+                ) : (
+                  <Button label="Break" tone="ghost" icon="coffee" busy={breakBusy} onPress={() => setBreakChoice(!breakChoice)} style={{ flex: 1 }} />
+                )}
+              </View>
+            ) : clock.shift ? (
+              <Button label="Clock in" icon="log-in" onPress={() => router.push("/clock")} style={styles.actions} />
+            ) : (
+              <Button label="Clock in without a shift" tone="ghost" icon="log-in" onPress={() => router.push("/clock")} style={styles.actions} />
+            )}
+            {breakChoice ? (
+              <View style={[styles.actions, { marginTop: 8 }]}>
+                <Button label="Meal break" tone="ghost" onPress={() => takeBreak({ action: "start", kind: "meal" })} style={{ flex: 1 }} />
+                <Button label="Rest break" tone="ghost" onPress={() => takeBreak({ action: "start", kind: "rest" })} style={{ flex: 1 }} />
               </View>
             ) : null}
             {today ? <View style={styles.summaryInCard}>{summary}</View> : null}
@@ -356,7 +398,8 @@ const styles = StyleSheet.create({
   shiftTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
-  big: { marginTop: 14, letterSpacing: -1, lineHeight: 36 },
+  big: { marginTop: 12, letterSpacing: -0.3, lineHeight: 26 },
+  actions: { flexDirection: "row", gap: 10, marginTop: 16 },
   place: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   track: { height: 6, borderRadius: 3, backgroundColor: "#eef0ec", overflow: "hidden" },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.sage },

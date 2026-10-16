@@ -28,4 +28,5 @@ Medicines with no signal: regular scheduled doses can be recorded offline and ar
 
 - Sign-in, agency choice, PIN, lock and unlock, sign-out.
 - Today: the shift, doses due, notes owed, tasks, handovers and the people at the home.
+- Clock in and out (`/api/v1/clock`), with breaks. The rules live in `src/server/time-clock.ts` on the website, shared with the website's own clock: location check (no location never blocks; the office is told), tick statements, handovers to read, the clock-out handover and ticks, notes and doses left undone, leaving early or staying late, and signing with the full name. Punches need a signal for now; saving a punch on the phone with no signal comes later.
 - More: account, switching agency, sign-out.

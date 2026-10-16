@@ -56,3 +56,42 @@ export type Today = {
   tasks: { id: string; title: string; dueAt: string | null; priority: string }[];
   handovers: number;
 };
+
+export type Position = { latitude: number; longitude: number; accuracy?: number };
+type Point = { latitude: number | null; longitude: number | null };
+
+/* What GET /clock returns. */
+export type ClockScreen =
+  | { state: "none" }
+  | {
+      state: "off";
+      shift: { id: string; startsAt: string; endsAt: string; homeId: string; home: string; pattern: string | null } | null;
+      next: { startsAt: string; home: string } | null;
+      homes: ({ id: string; name: string } & Point)[];
+      handovers: {
+        id: string;
+        homeId: string;
+        note: string;
+        people: { individualId: string; name: string; note: string }[];
+        checks: { label: string; done: boolean; comment: string }[];
+        incident: "none" | "reported" | "not_reported";
+        createdAt: string;
+        staff: string | null;
+      }[];
+      rules: { requirements: ("location" | "handover" | "statements")[]; statements: string[]; geofence: number; earlyMinutes: number };
+    }
+  | {
+      state: "on";
+      entry: { clockInAt: string; home: string | null; hasHome: boolean; shiftEndsAt: string | null; onBreak: "meal" | "rest" | null };
+      homePoint: Point;
+      people: { id: string; name: string; noteWritten: boolean; dosesDue: { medication: string; scheduledFor: string }[] }[];
+      notesMissing: number;
+      dosesMissing: number;
+      checklist: string[];
+      overstay: number;
+      leftEarly: number;
+      worked: number;
+      fullName: string;
+      rules: { blocking: ("handover" | "checks" | "incident" | "notes" | "doses")[]; minChars: number; location: boolean; geofence: number };
+    };
+
