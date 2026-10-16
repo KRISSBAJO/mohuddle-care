@@ -152,7 +152,24 @@ export type MedRound = {
     controlled: boolean;
     by: string | null;
   }[];
+  /* As-needed medicines at the home, with their limits and the last day's doses. */
+  prn: {
+    id: string;
+    individualId: string;
+    name: string;
+    dose: string;
+    route: string;
+    instructions: string;
+    controlled: boolean;
+    prnUse: string;
+    prnMinHours: number | null;
+    prnMaxPerDay: number | null;
+    givenToday: number;
+    nextAllowedAt: string | null;
+    recent: { id: string; at: string; reason: string; effect: string; effectAt: string | null; staffId: string | null; by: string | null }[];
+  }[];
   lateMinutes: number;
+  effectMinutes: number;
 };
 
 export type DoseResult = { adminId: string; ok: true } | { adminId: string; ok: false; code: string; error: string };

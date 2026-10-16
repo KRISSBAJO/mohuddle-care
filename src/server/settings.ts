@@ -21,6 +21,12 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(23),
     fallback: 22,
   },
+  prn_effect_minutes: {
+    label: "Ask how an as-needed dose worked this many minutes after it is given (0 to 480)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(480),
+    fallback: 60,
+  },
   med_late_minutes: {
     label: "A medication counts as late after this many minutes",
     kind: "number",

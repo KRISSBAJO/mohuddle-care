@@ -661,6 +661,12 @@ export const medications = pgTable("medications", {
   instructions: text("instructions").notNull().default(""),
   // A controlled medicine (on a count sheet). The phone app only records these with a signal.
   controlled: boolean("controlled").notNull().default(false),
+  // Given as needed (PRN) instead of at set times: when to use it, the least time between doses and
+  // the most doses in 24 hours. These have no times and no scheduled doses.
+  asNeeded: boolean("as_needed").notNull().default(false),
+  prnUse: text("prn_use").notNull().default(""),
+  prnMinHours: integer("prn_min_hours"),
+  prnMaxPerDay: integer("prn_max_per_day"),
   active: boolean("active").notNull().default(true),
   // Doses are only generated from startedAt onwards. A change stops this row and starts a new one,
   // so past administration records keep the dose that was actually given.
@@ -685,6 +691,10 @@ export const medAdministrations = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true }),
     status: medStatus("status").notNull().default("due"),
     note: text("note").notNull().default(""),
+    // An as-needed dose: the note holds why it was given, and the effect is recorded afterwards.
+    prn: boolean("prn").notNull().default(false),
+    effect: text("effect").notNull().default(""),
+    effectAt: timestamp("effect_at", { withTimezone: true }),
   },
   table => [uniqueIndex("med_admin_once").on(table.medicationId, table.scheduledFor)],
 );

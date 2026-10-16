@@ -10,7 +10,7 @@ import { parseMoney } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
-import { doseInput, recordDose } from "@/server/medication-round";
+import { doseInput, effectInput, givePrn, prnInput, recordDose, recordEffect } from "@/server/medication-round";
 import type { FormState } from "./auth";
 
 async function audit(userId: string, action: string, entity: string, entityId = "") {
@@ -125,6 +125,29 @@ export async function recordMedication(adminId: string, status: "given" | "refus
   revalidatePath("/app/homes/[id]", "page");
   revalidatePath("/app");
   revalidatePath("/app/individuals/[id]", "page");
+}
+
+/* Gives an as-needed dose now. The limits are checked in src/server/medication-round.ts. */
+export async function givePrnAction(medicationId: string, _previous: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const input = prnInput.safeParse({ medicationId, reason: String(formData.get("reason") ?? "") });
+  if (!input.success) return firstError(input.error);
+  const result = await givePrn(user, input.data);
+  if (!result.ok) return { error: result.error };
+  revalidatePath("/app/medications");
+  revalidatePath("/app/individuals/[id]", "page");
+  return {};
+}
+
+/* How an as-needed dose worked. */
+export async function recordEffectAction(adminId: string, _previous: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const input = effectInput.safeParse({ adminId, effect: String(formData.get("effect") ?? "") });
+  if (!input.success) return firstError(input.error);
+  const result = await recordEffect(user, input.data);
+  if (!result.ok) return { error: result.error };
+  revalidatePath("/app/medications");
+  return {};
 }
 
 /* ---------- Incidents ---------- */

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { Field, PageHeader, Panel } from "@/components/app/ui";
+import { MedicationSchedule } from "@/components/person/MedicationSchedule";
 import { changeMedication, stopMedication } from "@/server/actions/editing";
 import { requireManager } from "@/server/guard";
 import { medicationDetail } from "@/server/queries/hub";
@@ -44,7 +45,7 @@ export default async function MedicationPage({ params }: { params: Promise<{ id:
               <Field label="Dose" htmlFor="med-dose"><input id="med-dose" name="dose" required className="field" defaultValue={med.dose} /></Field>
               <Field label="Route" htmlFor="med-route"><input id="med-route" name="route" className="field" defaultValue={med.route} /></Field>
             </div>
-            <Field label="Times" htmlFor="med-times" hint="24-hour, separated by commas"><input id="med-times" name="times" required className="field" defaultValue={med.times.join(", ")} /></Field>
+            <MedicationSchedule id="med" initial={med} />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Prescriber" htmlFor="med-prescriber"><input id="med-prescriber" name="prescriber" className="field" defaultValue={med.prescriber} /></Field>
               <Field label="Instructions" htmlFor="med-instructions"><input id="med-instructions" name="instructions" className="field" defaultValue={med.instructions} /></Field>

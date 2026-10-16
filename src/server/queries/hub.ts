@@ -123,6 +123,7 @@ export async function medicationRecordForDay(day = dateKey()) {
       recordedAt: schema.medAdministrations.recordedAt,
       status: schema.medAdministrations.status,
       note: schema.medAdministrations.note,
+      prn: schema.medAdministrations.prn,
       medication: schema.medications.name,
       dose: schema.medications.dose,
       route: schema.medications.route,

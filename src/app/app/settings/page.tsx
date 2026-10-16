@@ -57,6 +57,7 @@ const GROUPS: Group[] = [
     intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
     items: [
       { key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 },
+      { key: "prn_effect_minutes", title: "Ask how an as-needed dose worked", help: "After this long, the dose shows that its effect is still to record. 0 means right away.", unit: "minutes after", min: 0, max: 480 },
       { key: "weight_change_percent", title: "Weight change worth telling", help: "A gain or loss of this much, compared with the earliest weight in the period below.", unit: "%", min: 1, max: 50 },
       { key: "weight_change_days", title: "Weight change period", help: "How far back to compare.", unit: "days", min: 7, max: 365 },
     ],

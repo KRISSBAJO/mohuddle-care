@@ -4,10 +4,12 @@ import { ModalForm } from "@/components/app/ModalForm";
 import { Badge, Empty, Field, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { addDays, dateKey, fmt, label, zone } from "@/lib/format";
+import { prnSummary } from "@/lib/medicines";
 import { addMedication } from "@/server/actions/hub";
 import { requestTime } from "@/server/clock";
 import type { schema } from "@/server/db";
 import { personDoses, personMedications, type MarCell } from "@/server/queries/person";
+import { MedicationSchedule } from "./MedicationSchedule";
 import { DoseList, medTone } from "./parts";
 
 type Person = typeof schema.individuals.$inferSelect;
@@ -58,7 +60,7 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
                   <Field label="Dose" htmlFor="add-med-dose"><input id="add-med-dose" name="dose" required maxLength={80} className="field" placeholder="10 mg" /></Field>
                   <Field label="Route" htmlFor="add-med-route"><input id="add-med-route" name="route" maxLength={40} className="field" defaultValue="oral" /></Field>
                 </div>
-                <Field label="Times" htmlFor="add-med-times" hint="24-hour, separated by commas"><input id="add-med-times" name="times" required className="field" placeholder="08:00, 20:00" /></Field>
+                <MedicationSchedule id="add-med" />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Prescriber" htmlFor="add-med-prescriber"><input id="add-med-prescriber" name="prescriber" maxLength={120} className="field" /></Field>
                   <Field label="Instructions" htmlFor="add-med-instructions"><input id="add-med-instructions" name="instructions" maxLength={1000} className="field" placeholder="With food" /></Field>
@@ -79,9 +81,13 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
                 <li key={med.id} className="flex items-start justify-between gap-3 px-5 py-3 text-sm">
                   <div>
                     <p className="font-semibold">{med.name} <span className="font-normal text-mute">{med.dose}, {med.route}</span></p>
-                    <p className="mt-0.5 flex flex-wrap gap-1">
-                      {med.times.map(time => <span key={time} className="chip bg-plum-soft px-2 py-0 text-plum">{time}</span>)}
-                    </p>
+                    {med.asNeeded ? (
+                      <p className="mt-0.5 text-xs font-semibold text-plum">{prnSummary(med)}</p>
+                    ) : (
+                      <p className="mt-0.5 flex flex-wrap gap-1">
+                        {med.times.map(time => <span key={time} className="chip bg-plum-soft px-2 py-0 text-plum">{time}</span>)}
+                      </p>
+                    )}
                     {med.instructions && <p className="mt-1 text-xs text-mute">{med.instructions}</p>}
                     {med.controlled && <p className="mt-1 inline-flex rounded-full bg-flag-soft px-2 py-0.5 text-[11px] font-semibold text-flag">Controlled</p>}
                     <p className="text-xs text-dim">{[med.prescriber, med.startedAt ? `since ${fmt.day(med.startedAt)}` : null].filter(Boolean).join(" · ")}</p>
@@ -217,7 +223,7 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
             <ul className="divide-y divide-line/60">
               {data.stopped.map(med => (
                 <li key={med.id} className="px-5 py-3 text-sm">
-                  <p><span className="font-semibold">{med.name}</span> <span className="text-mute">{med.dose}, {med.times.join(", ")}</span></p>
+                  <p><span className="font-semibold">{med.name}</span> <span className="text-mute">{med.dose}, {med.asNeeded ? "as needed" : med.times.join(", ")}</span></p>
                   <p className="text-xs text-mute">
                     {[med.startedAt ? `Started ${fmt.day(med.startedAt)}` : null, med.stoppedAt ? `stopped ${fmt.dateTime(med.stoppedAt)}` : "stopped", med.stopReason].filter(Boolean).join(" · ")}
                   </p>

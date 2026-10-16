@@ -27,12 +27,19 @@ export function firstError(error: z.ZodError): FormState {
   return { error: field ? `${fieldName(String(field))}: ${issue.message}` : issue.message };
 }
 
-export const medicationFields = z.object({
+const optionalWhole = (min: number, max: number, message: string) =>
+  z
+    .union([z.literal(""), z.coerce.number().int(message).min(min, message).max(max, message)])
+    .optional()
+    .transform(value => (value === "" || value === undefined ? null : value));
+
+const medicationShape = z.object({
   name: z.string().trim().min(2, "Medication name is required.").max(120),
   dose: z.string().trim().min(1, "Dose is required.").max(80),
   route: z.string().trim().min(1).max(40).default("oral"),
   times: z
     .string()
+    .default("")
     .transform(value =>
       value
         .split(/[,\s]+/)
@@ -42,7 +49,6 @@ export const medicationFields = z.object({
     .pipe(
       z
         .array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, for example 08:00"))
-        .min(1, "Add at least one time.")
         .max(12)
         .transform(times => [...new Set(times)].sort()),
     ),
@@ -50,9 +56,27 @@ export const medicationFields = z.object({
   instructions: optional(1000),
   // A ticked checkbox sends "on"; unticked sends nothing.
   controlled: z.literal("on").optional().transform(value => value === "on"),
+  // Given as needed (PRN): no set times; when to use it, and its limits.
+  asNeeded: z.literal("on").optional().transform(value => value === "on"),
+  prnUse: optional(200),
+  prnMinHours: optionalWhole(1, 72, "Hours between doses must be a whole number from 1 to 72."),
+  prnMaxPerDay: optionalWhole(1, 24, "Most doses in 24 hours must be a whole number from 1 to 24."),
 });
 
-export const medicationSchema = medicationFields.extend({ individualId: uuid });
+type MedicationShape = z.infer<typeof medicationShape>;
+// Set times for a regular medicine; when to use it for an as-needed one, which has no times.
+const medicationRule = (value: MedicationShape, context: z.RefinementCtx) => {
+  if (value.asNeeded) {
+    value.times = [];
+    if (value.prnUse.length < 3) context.addIssue({ code: "custom", path: ["prnUse"], message: "Say when to give it, for example For pain over 4 out of 10." });
+  } else if (!value.times.length) {
+    context.addIssue({ code: "custom", path: ["times"], message: "Add at least one time." });
+  }
+};
+
+export const medicationFields = medicationShape.superRefine(medicationRule);
+
+export const medicationSchema = medicationShape.extend({ individualId: uuid }).superRefine(medicationRule);
 
 export const homeSchema = z.object({
   name: z.string().trim().min(2).max(80),

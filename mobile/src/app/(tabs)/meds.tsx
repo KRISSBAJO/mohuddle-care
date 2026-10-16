@@ -89,6 +89,42 @@ export default function MedsScreen() {
     }
   }
 
+  // As needed: always live, never saved for later, so the latest record is always seen first.
+  const [prnOpen, setPrnOpen] = useState<string | null>(null);
+  const [prnReason, setPrnReason] = useState("");
+  const [effectOpen, setEffectOpen] = useState<string | null>(null);
+  const [effectText, setEffectText] = useState("");
+
+  async function givePrn(medicationId: string) {
+    setBusy(medicationId);
+    setError("");
+    try {
+      await call("/meds/as-needed", { medicationId, reason: prnReason });
+      setPrnOpen(null);
+      setPrnReason("");
+      await load();
+    } catch (problem) {
+      setError(problem instanceof ApiError ? (problem.code === "offline" ? "No signal. As-needed medicines need a signal, so the latest record is seen first. Try again when you have one." : problem.message) : "Something went wrong. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveEffect(adminId: string) {
+    setBusy(adminId);
+    setError("");
+    try {
+      await call("/meds/effect", { adminId, effect: effectText });
+      setEffectOpen(null);
+      setEffectText("");
+      await load();
+    } catch (problem) {
+      setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const doses = round?.doses ?? [];
   const pending = (dose: Dose) => waiting.find(item => item.adminId === dose.id);
   const isDone = (dose: Dose) => dose.status !== "due" || Boolean(pending(dose));
@@ -264,7 +300,7 @@ export default function MedsScreen() {
           </View>
         ) : null}
 
-        {round?.home && doses.length === 0 ? (
+        {round?.home && doses.length === 0 && !round.prn.length ? (
           <View style={[styles.group, { padding: 24, alignItems: "center" }, shadow.soft]}>
             <Icon name="check-circle" size={22} color={colors.sage} />
             <T weight="semibold" style={{ marginTop: 8 }}>
@@ -274,6 +310,108 @@ export default function MedsScreen() {
         ) : null}
 
         {section(dueNow.length ? `Due now (${dueNow.length})` : "Due now", dueNow, true)}
+
+        {round?.prn.length ? (
+          <>
+            <T weight="bold" size={18} style={styles.head}>
+              As needed
+            </T>
+            <View style={[styles.group, shadow.soft]}>
+              {round.prn.map((med, index) => {
+                const who = round.people.find(item => item.id === med.individualId);
+                const waitUntil = med.nextAllowedAt && new Date(med.nextAllowedAt).getTime() > now ? med.nextAllowedAt : null;
+                return (
+                  <Fragment key={med.id}>
+                    {index > 0 ? <View style={styles.divider} /> : null}
+                    <View style={styles.dose}>
+                      <View style={styles.doseTop}>
+                        <View style={{ flex: 1 }}>
+                          <T weight="bold" size={15}>
+                            {who?.name}
+                          </T>
+                          <T weight="semibold" size={15}>
+                            {med.name} {med.dose}
+                          </T>
+                          <T size={13} color="#5b3f9a">
+                            {[med.prnUse, med.prnMinHours ? `at least ${med.prnMinHours} h apart` : null, med.prnMaxPerDay ? `up to ${med.prnMaxPerDay} a day` : null].filter(Boolean).join(" · ")}
+                          </T>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 4 }}>
+                          <Tag text="As needed" bg="#efe8fa" fg="#5b3f9a" />
+                          {med.controlled ? <Tag text="Controlled" bg={colors.flagSoft} fg={colors.flag} /> : null}
+                        </View>
+                      </View>
+                      <T size={13} color={colors.mute}>
+                        Given {med.givenToday} {med.givenToday === 1 ? "time" : "times"} in the last 24 hours.
+                      </T>
+                      {med.recent.map(given => {
+                        const effectDue = now - new Date(given.at).getTime() >= (round.effectMinutes ?? 60) * 60_000;
+                        return (
+                          <View key={given.id} style={[styles.state, { backgroundColor: colors.ground, flexDirection: "column", alignItems: "stretch", gap: 6 }]}>
+                            <T size={13}>
+                              <T weight="semibold" size={13}>
+                                {fmt.time(given.at, zone)}
+                              </T>
+                              {` · ${given.by ?? "staff"} · ${given.reason}`}
+                            </T>
+                            {given.effect ? (
+                              <T size={13} color={colors.sage}>
+                                Effect: {given.effect}
+                              </T>
+                            ) : effectDue ? (
+                              effectOpen === given.id ? (
+                                <View style={{ gap: 6 }}>
+                                  <TextInput value={effectText} onChangeText={setEffectText} maxLength={500} placeholder="How did it work? Pain down to 2 out of 10" placeholderTextColor={colors.dim} style={ui.field} />
+                                  <Pressable accessibilityRole="button" disabled={busy === given.id} onPress={() => saveEffect(given.id)} style={[styles.action, styles.give, { flex: 0 }]}>
+                                    <T weight="semibold" color="#ffffff">
+                                      Save how it worked
+                                    </T>
+                                  </Pressable>
+                                </View>
+                              ) : (
+                                <Pressable accessibilityRole="button" onPress={() => setEffectOpen(given.id)}>
+                                  <T size={13} weight="semibold" color="#9a6212">
+                                    Record how it worked
+                                  </T>
+                                </Pressable>
+                              )
+                            ) : (
+                              <T size={12} color={colors.mute}>
+                                Ask how it worked from {fmt.time(new Date(new Date(given.at).getTime() + (round.effectMinutes ?? 60) * 60_000), zone)}.
+                              </T>
+                            )}
+                          </View>
+                        );
+                      })}
+                      {waitUntil ? (
+                        <View style={[styles.state, { backgroundColor: "#fdf0dc" }]}>
+                          <Icon name="clock" size={14} color="#9a6212" />
+                          <T size={13} color="#9a6212" style={{ flex: 1 }}>
+                            Not allowed again until {fmt.time(waitUntil, zone)}.
+                          </T>
+                        </View>
+                      ) : prnOpen === med.id ? (
+                        <View style={{ gap: 8 }}>
+                          <TextInput value={prnReason} onChangeText={setPrnReason} maxLength={500} placeholder={`Why: ${med.prnUse}`} placeholderTextColor={colors.dim} style={ui.field} />
+                          <Pressable accessibilityRole="button" disabled={busy === med.id} onPress={() => givePrn(med.id)} style={[styles.action, styles.give, { flex: 0 }]}>
+                            <T weight="semibold" color="#ffffff">
+                              {busy === med.id ? "Saving…" : "Give now"}
+                            </T>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable accessibilityRole="button" onPress={() => setPrnOpen(med.id)} style={[styles.action, { flex: 0 }]}>
+                          <T weight="semibold">Give a dose</T>
+                        </Pressable>
+                      )}
+                    </View>
+                  </Fragment>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
+
         {section("Later today", later, false)}
         {section("Done today", done, false)}
       </ScrollView>
