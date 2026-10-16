@@ -3,6 +3,7 @@ import { and, count, eq, gt } from "drizzle-orm";
 import { Activity, AlertTriangle, ArrowRight, ArrowUpRight, BellRing, Building2, CheckCircle2, CircleDollarSign, Hourglass, Inbox, KeyRound, MailWarning, PieChart, Plus, Search, ServerCrash, Sparkles, TrendingUp, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BillingBadge } from "@/components/owner/BillingBadge";
+import { Kpi } from "@/components/owner/Kpi";
 import { initialsOf, OwnerCard } from "@/components/owner/OwnerCard";
 import { BILLING_STATUSES } from "@/lib/billing";
 import type { BillingStatus } from "@/lib/billing";
@@ -23,22 +24,6 @@ export const dynamic = "force-dynamic";
 type Attention = { icon: LucideIcon; tone: "warn" | "bad"; text: string; detail: string; href: string };
 
 const STATUS_COLOURS: Record<BillingStatus, string> = { active: "#2f7d5b", trial: "#d99a1e", complimentary: "#8a6cc4", cancelled: "#b9b3a6" };
-
-function Kpi({ icon: Icon, label, value, hint, href, tone }: { icon: LucideIcon; label: string; value: React.ReactNode; hint: string; href?: string; tone: string }) {
-  const body = (
-    <>
-      <div className="flex items-start justify-between">
-        <span className={cn("grid h-10 w-10 place-items-center rounded-xl", tone)}><Icon className="h-5 w-5" /></span>
-        {href && <ArrowUpRight className="h-4 w-4 text-dim transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand" />}
-      </div>
-      <p className="mt-4 text-3xl font-bold tabular-nums tracking-tight">{value}</p>
-      <p className="mt-0.5 text-sm font-semibold">{label}</p>
-      <p className="mt-1 text-xs text-mute">{hint}</p>
-    </>
-  );
-  const style = "group card block p-5 transition";
-  return href ? <Link href={href} className={cn(style, "hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_#173e35]")}>{body}</Link> : <div className={style}>{body}</div>;
-}
 
 /* The owner console's home: how Mohuddle is doing, and what needs doing. */
 export default async function OverviewPage() {

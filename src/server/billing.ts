@@ -155,3 +155,12 @@ export async function recordPayment(agencyId: string, payment: { amountCents: nu
 }
 
 export const paymentsFor = (agencyId: string) => systemDb.select().from(schema.billingPayments).where(eq(schema.billingPayments.agencyId, agencyId)).orderBy(desc(schema.billingPayments.paidOn), desc(schema.billingPayments.createdAt)).limit(50);
+
+/* The latest payments across every agency, newest first, for the billing page. */
+export const recentPayments = (limit = 8) =>
+  systemDb
+    .select({ id: schema.billingPayments.id, agencyId: schema.billingPayments.agencyId, agency: schema.agencies.name, amountCents: schema.billingPayments.amountCents, paidOn: schema.billingPayments.paidOn, coversUntil: schema.billingPayments.coversUntil, method: schema.billingPayments.method })
+    .from(schema.billingPayments)
+    .innerJoin(schema.agencies, eq(schema.agencies.id, schema.billingPayments.agencyId))
+    .orderBy(desc(schema.billingPayments.paidOn), desc(schema.billingPayments.createdAt))
+    .limit(limit);
