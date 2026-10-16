@@ -912,6 +912,28 @@ export const incidentNotes = pgTable(
 );
 
 /*
+ * Photos taken for an incident, such as an injury or damage, usually from the phone app. The file is
+ * in private storage (as documents are) and only reached through the Hub after a permission check.
+ */
+export const incidentPhotos = pgTable(
+  "incident_photos",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    incidentId: uuid("incident_id")
+      .notNull()
+      .references(() => incidents.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    caption: text("caption").notNull().default(""),
+    takenBy: uuid("taken_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("incident_photos_incident").on(table.incidentId, table.createdAt)],
+);
+
+/*
  * Doctor, dentist, therapy and other appointments for a person. Booking records who goes with them;
  * after the visit staff document what was said, any changes, and whether a follow-up is needed.
  */

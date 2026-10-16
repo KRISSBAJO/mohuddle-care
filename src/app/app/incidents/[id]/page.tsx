@@ -21,6 +21,7 @@ import {
 import { canManage } from "@/server/auth";
 import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
+import { photosFor } from "@/server/incident-photos";
 import { incidentRecord } from "@/server/queries/incidents";
 import { getSettings } from "@/server/settings";
 import { ReportableEventView } from "@/components/incidents/ReportableEventView";
@@ -55,7 +56,7 @@ function span(ms: number) {
 export default async function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const [record, now, settings] = await Promise.all([incidentRecord(id), requestTime(), getSettings()]);
+  const [record, now, settings, photos] = await Promise.all([incidentRecord(id), requestTime(), getSettings(), photosFor(id)]);
   if (!record) notFound();
   const { incident, person, home, reporter, filedBy, deadline, hours, timeline, others } = record;
   const manager = canManage(user);
@@ -143,6 +144,22 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
           <Panel title="What happened" action={<span className="text-[11px] text-dim">Original report, kept as written</span>}>
             <p className="whitespace-pre-line p-5 text-sm leading-relaxed">{incident.description}</p>
           </Panel>
+
+          {photos.length > 0 && (
+            <Panel title={`Photos (${photos.length})`}>
+              <ul className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3">
+                {photos.map(photo => (
+                  <li key={photo.id}>
+                    <a href={`/api/incidents/photos/${photo.id}`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-line">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- private files served through the Hub, not optimised */}
+                      <img src={`/api/incidents/photos/${photo.id}`} alt={photo.caption || "Incident photo"} className="aspect-square w-full object-cover" />
+                    </a>
+                    <p className="mt-1 text-xs text-mute">{fmt.dateTime(photo.createdAt)}{photo.by ? ` · ${photo.by}` : ""}</p>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
 
           <ReportableEventView incident={incident} parties={settings.incident_notify_parties} now={now} tier1Hours={settings.incident_tier1_hours} />
 

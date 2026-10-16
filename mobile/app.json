@@ -50,6 +50,13 @@
         {
           "microphonePermission": "Mohuddle uses the microphone when you choose Speak your note. The recording is turned into words and not kept."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Mohuddle uses the camera when you add a photo to an incident report, such as an injury or damage.",
+          "photosPermission": "Mohuddle lets you add a photo from your library to an incident report."
+        }
       ]
     ],
     "experiments": {
