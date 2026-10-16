@@ -1,4 +1,5 @@
 import "server-only";
+import { clientIpFrom } from "@/server/client-ip";
 import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -23,7 +24,7 @@ const position = z
 
 async function client() {
   const list = await headers();
-  return { ip: (list.get("x-forwarded-for") ?? list.get("x-real-ip") ?? "").split(",")[0].trim().slice(0, 64), userAgent: (list.get("user-agent") ?? "").slice(0, 300) };
+  return { ip: clientIpFrom(list), userAgent: (list.get("user-agent") ?? "").slice(0, 300) };
 }
 
 async function tellManagers(homeId: string | null, except: string, message: Parameters<typeof notify>[1]) {
@@ -53,6 +54,14 @@ const clockInInput = z.object({
 });
 
 /* Clocks a staff member in. Shared by the website and the phone app; every rule is checked here. */
+/* Whether a database error is this unique rule refusing a duplicate. The driver may wrap the error. */
+function breaks(error: unknown, constraint: string) {
+  for (let current = error as { code?: string; constraint?: string; cause?: unknown } | undefined; current; current = current.cause as typeof current) {
+    if (current.code === "23505" && current.constraint === constraint) return true;
+  }
+  return false;
+}
+
 export async function clockInFor(user: SessionUser, payload: unknown): Promise<Punch> {
   if (!user.staffId) return { error: "Your login is not linked to a staff record, so you cannot clock in." };
   const staffId = user.staffId;
@@ -125,7 +134,12 @@ export async function clockInFor(user: SessionUser, payload: unknown): Promise<P
     if (shiftId) await tx.update(schema.shifts).set({ status: "confirmed" }).where(and(eq(schema.shifts.id, shiftId), eq(schema.shifts.status, "scheduled")));
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "time:clock_in", entity: "time_entry", entityId: entry.id });
     return entry.id;
+  }).catch(error => {
+    // Another clock-in for this person landed a moment earlier (a double tap, or two devices).
+    if (breaks(error, "time_entries_one_open")) return null;
+    throw error;
   });
+  if (!entryId) return { error: "You are already clocked in." };
 
   // A remark on the handover goes to the home's managers and to everyone who handed over.
   if (unread.length && input.handoverRemark) {

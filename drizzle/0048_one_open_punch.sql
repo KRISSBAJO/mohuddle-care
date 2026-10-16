@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "time_entries_one_open" ON "time_entries" USING btree ("staff_id") WHERE clock_out_at is null;

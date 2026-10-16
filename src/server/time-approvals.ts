@@ -34,6 +34,16 @@ async function upsertSheet(periodId: string, staffId: string, values: Partial<ty
     .onConflictDoUpdate({ target: [schema.timesheets.periodId, schema.timesheets.staffId], set: values });
 }
 
+const OWN_TIME = "Another manager decides your own time. An administrator can change this in Settings, Time clock.";
+
+/* Whether this manager may decide about this staff member's time: not their own, unless the agency allows it. */
+async function ownTimeRefused(user: SessionUser, staffId: string) {
+  return user.staffId === staffId && (await getSettings()).self_approval !== "on";
+}
+
+// Thrown inside a transaction when someone else decided first; nothing is written.
+class AlreadyDecided extends Error {}
+
 async function periodById(id: string) {
   if (!uuid.safeParse(id).success) return null;
   const [row] = await db.select().from(schema.payPeriods).where(eq(schema.payPeriods.id, id)).limit(1);
@@ -46,8 +56,9 @@ async function periodById(id: string) {
 export async function reviewEntryFor(user: SessionUser, entryId: string, rawNote: string): Promise<Result & { entryId?: string }> {
   if (!canManage(user)) return { error: "Only coordinators and administrators review punches." };
   if (!isUuid(entryId)) return { error: "That punch no longer exists." };
-  const [entry] = await db.select({ id: schema.timeEntries.id }).from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
+  const [entry] = await db.select({ id: schema.timeEntries.id, staffId: schema.timeEntries.staffId }).from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
   if (!entry) return { error: "That punch no longer exists." };
+  if (await ownTimeRefused(user, entry.staffId)) return { error: OWN_TIME };
   const note = rawNote.trim().slice(0, 1000);
   await db.transaction(async tx => {
     await tx.update(schema.timeEntries).set({ reviewedBy: user.id, reviewedAt: new Date() }).where(eq(schema.timeEntries.id, entry.id));
@@ -64,38 +75,50 @@ export async function decideCorrectionFor(user: SessionUser, correctionId: strin
   if (!isUuid(correctionId)) return { error: "Unknown request." };
   const [request] = await db.select().from(schema.timeCorrections).where(eq(schema.timeCorrections.id, correctionId)).limit(1);
   if (!request || request.status !== "pending") return { error: "This request has already been decided." };
+  if (await ownTimeRefused(user, request.staffId)) return { error: OWN_TIME };
   const note = rawNote.trim().slice(0, 1000);
   if (!approve && note.length < 5) return { error: "Say why it is declined. The staff member sees this." };
   if (approve && request.clockInAt && (await lockedOn(dateKey(request.clockInAt)))) return { error: `${LOCKED} Then decline this request with a note saying so.` };
-  await db.transaction(async tx => {
-    if (approve) {
-      if (request.entryId) {
-        const [entry] = await tx.select().from(schema.timeEntries).where(eq(schema.timeEntries.id, request.entryId)).limit(1);
-        if (entry) {
-          await tx
-            .update(schema.timeEntries)
-            .set({ clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: entry.closedBy ?? "manager", flags: [...new Set([...entry.flags, "corrected"])] })
-            .where(eq(schema.timeEntries.id, entry.id));
-          await tx.update(schema.timeBreaks).set({ endAt: request.clockOutAt }).where(and(eq(schema.timeBreaks.entryId, entry.id), isNull(schema.timeBreaks.endAt)));
-          await tx.insert(schema.timeEntryChanges).values({
-            entryId: entry.id,
-            userId: user.id,
-            action: "corrected",
-            before: { clockInAt: iso(entry.clockInAt), clockOutAt: iso(entry.clockOutAt) },
-            after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) },
-            reason: [request.reason, note].filter(Boolean).join(" · "),
-          });
+  try {
+    await db.transaction(async tx => {
+      // Claimed first, so a second tap or a second manager at the same moment changes nothing.
+      const claimed = await tx
+        .update(schema.timeCorrections)
+        .set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note })
+        .where(and(eq(schema.timeCorrections.id, request.id), eq(schema.timeCorrections.status, "pending")))
+        .returning({ id: schema.timeCorrections.id });
+      if (!claimed.length) throw new AlreadyDecided();
+      if (approve) {
+        if (request.entryId) {
+          const [entry] = await tx.select().from(schema.timeEntries).where(eq(schema.timeEntries.id, request.entryId)).limit(1);
+          if (entry) {
+            await tx
+              .update(schema.timeEntries)
+              .set({ clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: entry.closedBy ?? "manager", flags: [...new Set([...entry.flags, "corrected"])] })
+              .where(eq(schema.timeEntries.id, entry.id));
+            await tx.update(schema.timeBreaks).set({ endAt: request.clockOutAt }).where(and(eq(schema.timeBreaks.entryId, entry.id), isNull(schema.timeBreaks.endAt)));
+            await tx.insert(schema.timeEntryChanges).values({
+              entryId: entry.id,
+              userId: user.id,
+              action: "corrected",
+              before: { clockInAt: iso(entry.clockInAt), clockOutAt: iso(entry.clockOutAt) },
+              after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) },
+              reason: [request.reason, note].filter(Boolean).join(" · "),
+            });
+          }
+        } else {
+          const [created] = await tx
+            .insert(schema.timeEntries)
+            .values({ staffId: request.staffId, homeId: request.homeId, clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: "manager", inNote: request.reason, flags: ["corrected"], reviewedBy: user.id, reviewedAt: new Date() })
+            .returning({ id: schema.timeEntries.id });
+          await tx.insert(schema.timeEntryChanges).values({ entryId: created.id, userId: user.id, action: "added", after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) }, reason: [request.reason, note].filter(Boolean).join(" · ") });
         }
-      } else {
-        const [created] = await tx
-          .insert(schema.timeEntries)
-          .values({ staffId: request.staffId, homeId: request.homeId, clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: "manager", inNote: request.reason, flags: ["corrected"], reviewedBy: user.id, reviewedAt: new Date() })
-          .returning({ id: schema.timeEntries.id });
-        await tx.insert(schema.timeEntryChanges).values({ entryId: created.id, userId: user.id, action: "added", after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) }, reason: [request.reason, note].filter(Boolean).join(" · ") });
       }
-    }
-    await tx.update(schema.timeCorrections).set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note }).where(eq(schema.timeCorrections.id, request.id));
-  });
+    });
+  } catch (error) {
+    if (error instanceof AlreadyDecided) return { error: "This request has already been decided." };
+    throw error;
+  }
   await notify(await logins(request.staffId), {
     kind: "time",
     title: approve ? "Your time correction was approved" : "Your time correction was declined",
@@ -117,6 +140,7 @@ export async function decideTimeOffFor(user: SessionUser, requestId: string, app
   if (!uuid.safeParse(requestId).success) return { error: "Unknown request." };
   const [request] = await db.select().from(schema.timeOffRequests).where(eq(schema.timeOffRequests.id, requestId)).limit(1);
   if (!request || request.status !== "pending") return { error: "This request has already been decided." };
+  if (await ownTimeRefused(user, request.staffId)) return { error: OWN_TIME };
   const note = decision.note.trim().slice(0, 500);
   if (!approve && note.length < 3) return { error: "Say why it is declined. They see this." };
   let opened = 0;
@@ -126,28 +150,40 @@ export async function decideTimeOffFor(user: SessionUser, requestId: string, app
       return { error: `They have ${(balance / 60).toFixed(2)} hours of leave and asked for ${(request.minutes / 60).toFixed(2)}. Tick "Allow going below zero" to approve anyway.` };
     }
   }
-  await db.transaction(async tx => {
-    if (approve) {
-      if (request.usesBalance) await tx.insert(schema.leaveLedger).values({ staffId: request.staffId, kind: "used", minutes: -request.minutes, onDate: request.startDate, note: request.type, requestId: request.id, createdBy: user.id });
-      if (decision.openShifts) {
-        const shifts = await tx
-          .update(schema.shifts)
-          .set({ staffId: null, status: "open" })
-          .where(
-            and(
-              eq(schema.shifts.staffId, request.staffId),
-              inArray(schema.shifts.status, ["scheduled", "confirmed"]),
-              gte(schema.shifts.startsAt, zonedTime(request.startDate, "00:00")),
-              lte(schema.shifts.startsAt, zonedTime(addDays(request.endDate, 1), "00:00")),
-            ),
-          )
-          .returning({ id: schema.shifts.id });
-        opened = shifts.length;
+  try {
+    await db.transaction(async tx => {
+      // Claimed first, so a second tap cannot take the leave twice.
+      const claimed = await tx
+        .update(schema.timeOffRequests)
+        .set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note })
+        .where(and(eq(schema.timeOffRequests.id, request.id), eq(schema.timeOffRequests.status, "pending")))
+        .returning({ id: schema.timeOffRequests.id });
+      if (!claimed.length) throw new AlreadyDecided();
+      if (approve) {
+        if (request.usesBalance) await tx.insert(schema.leaveLedger).values({ staffId: request.staffId, kind: "used", minutes: -request.minutes, onDate: request.startDate, note: request.type, requestId: request.id, createdBy: user.id });
+        if (decision.openShifts) {
+          const shifts = await tx
+            .update(schema.shifts)
+            .set({ staffId: null, status: "open" })
+            .where(
+              and(
+                eq(schema.shifts.staffId, request.staffId),
+                inArray(schema.shifts.status, ["scheduled", "confirmed"]),
+                gte(schema.shifts.startsAt, zonedTime(request.startDate, "00:00")),
+                lte(schema.shifts.startsAt, zonedTime(addDays(request.endDate, 1), "00:00")),
+              ),
+            )
+            .returning({ id: schema.shifts.id });
+          opened = shifts.length;
+        }
       }
-    }
-    await tx.update(schema.timeOffRequests).set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note, openedShifts: opened }).where(eq(schema.timeOffRequests.id, request.id));
-    await tx.insert(schema.auditLog).values({ userId: user.id, action: approve ? "time_off:approve" : "time_off:decline", entity: "time_off", entityId: request.id });
-  });
+      if (opened) await tx.update(schema.timeOffRequests).set({ openedShifts: opened }).where(eq(schema.timeOffRequests.id, request.id));
+      await tx.insert(schema.auditLog).values({ userId: user.id, action: approve ? "time_off:approve" : "time_off:decline", entity: "time_off", entityId: request.id });
+    });
+  } catch (error) {
+    if (error instanceof AlreadyDecided) return { error: "This request has already been decided." };
+    throw error;
+  }
   await notify(await logins(request.staffId), {
     kind: "time-off",
     title: approve ? `Your ${request.type.toLowerCase()} was approved` : `Your ${request.type.toLowerCase()} was declined`,
@@ -167,6 +203,7 @@ export async function approveTimesheetFor(user: SessionUser, periodId: string, s
   const period = await periodById(periodId);
   if (!period || !uuid.safeParse(staffId).success) return { error: "Unknown timesheet." };
   if (period.status === "locked") return { error: "This pay period is locked." };
+  if (await ownTimeRefused(user, staffId)) return { error: OWN_TIME };
   const range = { start: period.startDate, end: period.endDate };
   if (await openPunchesIn(range, staffId)) return { error: "A punch in this period is still open. Close it first." };
   const settings = await getSettings();

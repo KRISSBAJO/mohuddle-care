@@ -8,6 +8,8 @@ const body = z.object({ agencyId: z.uuid() });
 
 /* Moves the phone to another agency this person works for: this token ends and a new one is returned. */
 export const POST = phoneRoute(async (user, request) => {
+  // Only a phone sign-in moves: a browser session must not become a long-lived phone token.
+  if (!user.device) return problem(403, "not_phone", "Switching agency here is for the phone app.");
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return problem(400, "invalid", "Choose an agency.");
   const place = (await placesFor(user.loginId)).find(item => item.agencyId === parsed.data.agencyId);

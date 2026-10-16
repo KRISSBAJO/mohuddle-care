@@ -1281,7 +1281,13 @@ export const timeEntries = pgTable(
     ip: text("ip").notNull().default(""),
     createdAt: createdAt(),
   },
-  table => [index("time_entries_staff").on(table.staffId, table.clockInAt), index("time_entries_home").on(table.homeId, table.clockInAt), index("time_entries_shift").on(table.shiftId)],
+  table => [
+    index("time_entries_staff").on(table.staffId, table.clockInAt),
+    index("time_entries_home").on(table.homeId, table.clockInAt),
+    index("time_entries_shift").on(table.shiftId),
+    // One open punch per person: two clock-ins at the same moment cannot both go through.
+    uniqueIndex("time_entries_one_open").on(table.staffId).where(sql`clock_out_at is null`),
+  ],
 );
 
 /* Breaks within a stretch of work. Meal breaks are unpaid; rest breaks are paid. */

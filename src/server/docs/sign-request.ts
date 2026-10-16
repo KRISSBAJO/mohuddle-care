@@ -1,4 +1,5 @@
 import "server-only";
+import { clientIpFrom } from "@/server/client-ip";
 import { readOnlyNow } from "@/server/billing";
 import { signAccess } from "./sign-access";
 import { DocumentError } from "./service";
@@ -23,7 +24,7 @@ export type SignRequest = {
   userAgent: string;
 };
 
-export const clientIp = (request: Request) => (request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "").split(",")[0].trim();
+export const clientIp = (request: Request) => clientIpFrom(request.headers);
 
 export async function signRequested(data: SignRequest): Promise<{ ok: true; id: string } | { ok: false; error: string; status: number }> {
   if (await readOnlyNow()) return { ok: false, status: 403, error: "This agency's Mohuddle subscription has lapsed, so documents cannot be signed right now. Contact the agency." };

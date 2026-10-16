@@ -10,6 +10,7 @@ import { requireAgency } from "@/server/agency";
 import { placesInOrder } from "@/server/auth";
 import { asAgency, db, schema, systemDb } from "@/server/db";
 import { sendEmail } from "@/server/email";
+import { clientIpFrom } from "@/server/client-ip";
 import { hostAgency, requestHost } from "@/server/host";
 
 export type ResetState = { done?: boolean; error?: string };
@@ -36,7 +37,7 @@ export async function requestPasswordReset(_previous: ResetState, formData: Form
   const parsed = z.email().max(200).safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
   if (!parsed.success) return { error: "Enter the email address you sign in with." };
   const email = parsed.data;
-  const from = (await headers()).get("x-forwarded-for")?.split(",")[0].trim() || "local";
+  const from = clientIpFrom(await headers()) || "local";
   if (tooMany(`place:${from}`, PER_PLACE)) return { done: true };
 
   const [login] = await systemDb.select({ id: schema.logins.id, hasPassword: schema.logins.hasPassword }).from(schema.logins).where(eq(schema.logins.email, email)).limit(1);

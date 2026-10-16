@@ -57,6 +57,7 @@ const GROUPS: Group[] = [
     intro: "When a dose counts as late on the medication record, the Today page and home rounds.",
     items: [
       { key: "med_late_minutes", title: "A dose is late after", help: "Minutes after its scheduled time with nothing recorded.", unit: "minutes", min: 5, max: 240 },
+      { key: "med_record_scope", title: "Who may record medicines", help: "Direct support staff can record a dose only at a home where they are clocked in or on shift at the time of the dose. Nurses, coordinators and administrators can record at any home.", options: [["at_home", "Staff at the home they are working at"], ["anyone", "Anyone in the agency"]] },
       { key: "prn_effect_minutes", title: "Ask how an as-needed dose worked", help: "After this long, the dose shows that its effect is still to record. 0 means right away.", unit: "minutes after", min: 0, max: 480 },
       { key: "weight_change_percent", title: "Weight change worth telling", help: "A gain or loss of this much, compared with the earliest weight in the period below.", unit: "%", min: 1, max: 50 },
       { key: "weight_change_days", title: "Weight change period", help: "How far back to compare.", unit: "days", min: 7, max: 365 },
@@ -83,6 +84,7 @@ const GROUPS: Group[] = [
     items: [
       { key: "clock_in_requirements", title: "To clock in", help: "Location: on their phone, near the home. If a phone cannot share its location they can still clock in; it is flagged and the home manager is told. Handover: read and acknowledge the last handover at the home. Statements: tick each statement below.", choices: [["location", "Be at the home"], ["handover", "Read the last handover"], ["statements", "Tick the statements"]] },
       { key: "clock_out_blocking", title: "Must be done before clock-out", help: "Anything not chosen still shows as a warning and is flagged for a manager.", choices: [["handover", "Handover note"], ["checks", "Handover ticks"], ["incident", "Incident reported"], ["notes", "Daily notes written"], ["doses", "Doses recorded"]] },
+      { key: "self_approval", title: "Managers deciding their own time", help: "Whether a coordinator or administrator who also works shifts may approve their own punch fixes, time off and timesheet, and mark their own flagged punches reviewed. Off means another manager decides.", options: [["off", "Another manager decides"], ["on", "They may decide their own"]] },
       { key: "clock_early_minutes", title: "Clock in early by up to", help: "Earlier than this, the shift cannot be clocked in to yet.", unit: "minutes", min: 0, max: 120 },
       { key: "clock_pay_early_from", title: "Early clock-ins are paid from", help: "The real punch time is always kept; this only changes the hours counted.", options: [["shift", "The shift start"], ["punch", "When they clocked in"]] },
       { key: "clock_late_grace_minutes", title: "Still on time within", help: "Up to this late counts as on time and is not recorded as late.", unit: "minutes", min: 0, max: 120 },

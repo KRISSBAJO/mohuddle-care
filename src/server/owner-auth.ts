@@ -7,6 +7,7 @@ import { cache } from "react";
 import { checkCode, newSecret } from "@/lib/totp";
 import { verifyPassword } from "./auth";
 import { schema, systemDb } from "./db";
+import { clientIpFrom } from "./client-ip";
 import { env } from "./env";
 import { ipFrom, signInFailed, signInPaused, signInSucceeded } from "./sign-in-guard";
 
@@ -188,7 +189,7 @@ async function createOwnerSession(loginId: string) {
     tokenHash: hashOf(token),
     loginId,
     expiresAt,
-    ip: (request.get("x-forwarded-for") ?? "").split(",")[0].trim().slice(0, 64),
+    ip: clientIpFrom(request),
     userAgent: (request.get("user-agent") ?? "").slice(0, 300),
   });
   await systemDb.delete(schema.ownerSessions).where(lt(schema.ownerSessions.expiresAt, new Date()));

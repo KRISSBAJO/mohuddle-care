@@ -1,5 +1,6 @@
 import "server-only";
 import { and, count, eq, gte, inArray, lt } from "drizzle-orm";
+import { clientIpFrom } from "@/server/client-ip";
 import { schema, systemDb } from "@/server/db";
 
 /*
@@ -84,5 +85,5 @@ export async function signInSucceeded(rawEmail: string, ip: string) {
   await systemDb.delete(schema.signInFailures).where(and(eq(schema.signInFailures.email, normal(rawEmail)), eq(schema.signInFailures.ip, ip)));
 }
 
-/* Where a request came from, as the proxy in front of the server reports it. */
-export const ipFrom = (headers: Headers) => (headers.get("x-forwarded-for") ?? headers.get("x-real-ip") ?? "").split(",")[0].trim().slice(0, 64);
+/* Where a request came from: see src/server/client-ip.ts. */
+export const ipFrom = clientIpFrom;

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, gte, inArray, lt, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, dateKey, fmt, zonedTime } from "@/lib/format";
 import type { SessionUser } from "@/server/auth";
@@ -28,15 +28,45 @@ export type DoseInput = z.infer<typeof doseInput>;
 
 export type DoseResult =
   | { adminId: string; ok: true }
-  | { adminId: string; ok: false; code: "already_recorded" | "not_due" | "not_found" | "controlled_offline"; error: string };
+  | { adminId: string; ok: false; code: "already_recorded" | "not_due" | "not_found" | "controlled_offline" | "not_at_home"; error: string };
 
 // A dose saved on a phone with no signal is accepted for this long afterwards.
 const OFFLINE_MAX_MS = 24 * 3_600_000;
 
+// Around a dose, how far a clock-in or a shift may be and still count as working at the home.
+const AT_HOME_SLACK_MS = 60 * 60_000;
+
+/*
+ * Whether this person may record a dose for someone at this moment. With the agency's
+ * med_record_scope at its default, direct support staff record only at a home where they were
+ * clocked in, or had a shift, around the time of the dose; nurses and managers record anywhere.
+ * Checking the time of the dose, not now, lets a dose saved with no signal be sent after clock-out.
+ */
+async function mayRecordFor(user: SessionUser, individualId: string, at: Date): Promise<string | null> {
+  if (user.role !== "dsp" || (await getSettings()).med_record_scope === "anyone") return null;
+  if (!user.staffId) return "Your login is not linked to a staff record, so you cannot record medicines.";
+  const [person] = await db.select({ homeId: schema.individuals.homeId }).from(schema.individuals).where(eq(schema.individuals.id, individualId)).limit(1);
+  if (!person?.homeId) return "This person has no home on record. Ask a nurse or manager to record it.";
+  const latestStart = new Date(at.getTime() + AT_HOME_SLACK_MS);
+  const earliestEnd = new Date(at.getTime() - AT_HOME_SLACK_MS);
+  const [clocked] = await db
+    .select({ id: schema.timeEntries.id })
+    .from(schema.timeEntries)
+    .where(and(eq(schema.timeEntries.staffId, user.staffId), eq(schema.timeEntries.homeId, person.homeId), lte(schema.timeEntries.clockInAt, latestStart), or(isNull(schema.timeEntries.clockOutAt), gte(schema.timeEntries.clockOutAt, earliestEnd))))
+    .limit(1);
+  if (clocked) return null;
+  const [shift] = await db
+    .select({ id: schema.shifts.id })
+    .from(schema.shifts)
+    .where(and(eq(schema.shifts.staffId, user.staffId), eq(schema.shifts.homeId, person.homeId), ne(schema.shifts.status, "missed"), lte(schema.shifts.startsAt, latestStart), gte(schema.shifts.endsAt, earliestEnd)))
+    .limit(1);
+  return shift ? null : "You can record medicines only at the home you are working at. Clock in there first.";
+}
+
 export async function recordDose(user: SessionUser, input: DoseInput, options: { offline?: boolean } = {}): Promise<DoseResult> {
   const now = Date.now();
   const [dose] = await db
-    .select({ id: schema.medAdministrations.id, status: schema.medAdministrations.status, scheduledFor: schema.medAdministrations.scheduledFor, recordedAt: schema.medAdministrations.recordedAt, controlled: schema.medications.controlled, staffFirst: schema.staff.firstName, staffLast: schema.staff.lastName })
+    .select({ id: schema.medAdministrations.id, individualId: schema.medAdministrations.individualId, status: schema.medAdministrations.status, scheduledFor: schema.medAdministrations.scheduledFor, recordedAt: schema.medAdministrations.recordedAt, controlled: schema.medications.controlled, staffFirst: schema.staff.firstName, staffLast: schema.staff.lastName })
     .from(schema.medAdministrations)
     .innerJoin(schema.medications, eq(schema.medications.id, schema.medAdministrations.medicationId))
     .leftJoin(schema.staff, eq(schema.staff.id, schema.medAdministrations.staffId))
@@ -51,10 +81,13 @@ export async function recordDose(user: SessionUser, input: DoseInput, options: {
   };
   if (dose.status !== "due") return already();
 
-  // A phone's time is trusted only within limits: not in the future, and not more than a day back.
-  const said = input.at ? Date.parse(input.at) : now;
+  // A phone's time is used only for a dose saved with no signal, and only within limits: not in the
+  // future, and not more than a day back. A dose recorded live is always timed by the server.
+  const said = options.offline && input.at ? Date.parse(input.at) : now;
   const at = new Date(Number.isFinite(said) && said <= now && now - said <= OFFLINE_MAX_MS ? said : now);
   if (input.status === "given" && dose.scheduledFor.getTime() > at.getTime()) return { adminId: input.adminId, ok: false, code: "not_due", error: "This dose is not due yet." };
+  const refused = await mayRecordFor(user, dose.individualId, at);
+  if (refused) return { adminId: input.adminId, ok: false, code: "not_at_home", error: refused };
 
   const updated = await db.transaction(async tx => {
     const rows = await tx
@@ -184,6 +217,11 @@ export const prnInput = z.object({ medicationId: z.uuid(), reason: z.string().tr
  * The medicine row is locked while checking, so two staff cannot both give it at the same moment.
  */
 export async function givePrn(user: SessionUser, input: z.infer<typeof prnInput>): Promise<{ ok: true; adminId: string } | { ok: false; error: string }> {
+  const [forPerson] = await db.select({ individualId: schema.medications.individualId }).from(schema.medications).where(eq(schema.medications.id, input.medicationId)).limit(1);
+  if (forPerson) {
+    const refused = await mayRecordFor(user, forPerson.individualId, new Date());
+    if (refused) return { ok: false, error: refused };
+  }
   return db.transaction(async tx => {
     const [med] = await tx.select().from(schema.medications).where(eq(schema.medications.id, input.medicationId)).for("update");
     if (!med || !med.active || !med.asNeeded) return { ok: false as const, error: "This is not an as-needed medicine any more. Refresh." };
@@ -214,6 +252,11 @@ export const effectInput = z.object({ adminId: z.uuid(), effect: z.string().trim
 
 /* How an as-needed dose worked, recorded afterwards. Once only. */
 export async function recordEffect(user: SessionUser, input: z.infer<typeof effectInput>): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [given] = await db.select({ individualId: schema.medAdministrations.individualId }).from(schema.medAdministrations).where(eq(schema.medAdministrations.id, input.adminId)).limit(1);
+  if (given) {
+    const refused = await mayRecordFor(user, given.individualId, new Date());
+    if (refused) return { ok: false, error: refused };
+  }
   const rows = await db
     .update(schema.medAdministrations)
     .set({ effect: input.effect, effectAt: new Date() })

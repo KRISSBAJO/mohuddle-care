@@ -5,13 +5,18 @@ import { readOnlyNow } from "@/server/billing";
 import { db, schema } from "@/server/db";
 import { asLinkAgency, requestByToken, touchRequest } from "@/server/docs/requests";
 import { DocumentError, storeDocument, tellReviewers, type Owner } from "@/server/docs/service";
+import { env } from "@/server/env";
 
 /*
  * A requested document arrives, either from a private link (token) or from the staff member's own
  * Hub page (signed in). It waits for review. Nothing about existing documents is ever sent back.
  */
 export async function POST(request: Request) {
-  const form = await request.formData();
+  // Too big is refused before anything is read. The file itself is checked again once stored.
+  const limit = env.MAX_UPLOAD_MB * 1024 * 1024 + 64 * 1024;
+  if (Number(request.headers.get("content-length") ?? 0) > limit) return NextResponse.json({ error: `Files can be up to ${env.MAX_UPLOAD_MB} MB. Try a smaller scan or photo.` }, { status: 413 });
+  const form = await request.formData().catch(() => null);
+  if (!form) return NextResponse.json({ error: "Choose a file." }, { status: 400 });
   const file = form.get("file");
   const itemId = String(form.get("itemId") ?? "");
   const token = String(form.get("token") ?? "");

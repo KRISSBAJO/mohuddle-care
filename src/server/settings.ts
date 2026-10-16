@@ -21,6 +21,18 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(23),
     fallback: 22,
   },
+  med_record_scope: {
+    label: "Who may record medicines (at_home: direct support staff only at a home they are working at; anyone)",
+    kind: "text",
+    schema: z.enum(["at_home", "anyone"]),
+    fallback: "at_home",
+  },
+  self_approval: {
+    label: "Managers may approve their own punch fixes, time off and timesheets (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "off",
+  },
   prn_effect_minutes: {
     label: "Ask how an as-needed dose worked this many minutes after it is given (0 to 480)",
     kind: "number",
