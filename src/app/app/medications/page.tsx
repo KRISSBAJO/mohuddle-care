@@ -3,11 +3,15 @@ import { Avatar, Badge, Empty, PageHeader, Panel } from "@/components/app/ui";
 import { addDays, dateKey, fmt, initials, label } from "@/lib/format";
 import { ActionForm } from "@/components/app/ActionForm";
 import { prnSummary } from "@/lib/medicines";
-import { givePrnAction, recordEffectAction, recordMedication } from "@/server/actions/hub";
+import { DoseButtons } from "@/components/app/DoseButtons";
+import { givePrnAction, recordEffectAction } from "@/server/actions/hub";
 import { db, schema } from "@/server/db";
 import { prnFor } from "@/server/medication-round";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { requireUser } from "@/server/guard";
+import { openEntry } from "@/server/queries/timeclock";
+import { AutoSubmitForm } from "@/components/app/AutoSubmitForm";
+import { Select } from "@/components/app/Select";
 import { medicationRecordForDay } from "@/server/queries/hub";
 import { getSettings } from "@/server/settings";
 import { requestTime } from "@/server/clock";
@@ -15,17 +19,24 @@ import { requestTime } from "@/server/clock";
 export const metadata = { title: "Medications" };
 const statusTone = { due: "neutral", given: "good", refused: "warn", missed: "bad", held: "plum" } as const;
 
-export default async function MedicationsPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
-  await requireUser();
-  const { day } = await searchParams;
+export default async function MedicationsPage({ searchParams }: { searchParams: Promise<{ day?: string; home?: string }> }) {
+  const user = await requireUser();
+  const { day, home: asked } = await searchParams;
   const selected = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : dateKey();
-  const [rows, settings] = await Promise.all([medicationRecordForDay(selected), getSettings()]);
+  // One home at a time, so a large agency's day is not thousands of rows: the home asked for, else
+  // where you are clocked in, else your own home, else the first home. "all" shows every home.
+  const homes = await db.select({ id: schema.homes.id, name: schema.homes.name }).from(schema.homes).where(eq(schema.homes.active, true)).orderBy(asc(schema.homes.name));
+  const own = user.staffId ? ((await openEntry(user.staffId))?.entry.homeId ?? (await db.select({ homeId: schema.staff.homeId }).from(schema.staff).where(eq(schema.staff.id, user.staffId)).limit(1))[0]?.homeId ?? null) : null;
+  const homeId = asked === "all" ? null : homes.some(home => home.id === asked) ? asked! : ((homes.find(home => home.id === own) ?? homes[0])?.id ?? null);
+  const homeParam = asked === "all" ? "all" : homeId ?? "";
+  const keep = (extra: string) => `/app/medications?${[extra, homeParam ? `home=${homeParam}` : ""].filter(Boolean).join("&")}`;
+  const [rows, settings] = await Promise.all([medicationRecordForDay(selected, homeId), getSettings()]);
   const now = await requestTime();
   const lateBefore = now - settings.med_late_minutes * 60_000;
   // As-needed doses are listed with their medicine below, not in the day's schedule.
   const scheduled = rows.filter(row => !row.prn);
   const given = scheduled.filter(row => row.status === "given").length;
-  const people = await db.select({ id: schema.individuals.id, first: schema.individuals.firstName, last: schema.individuals.lastName, home: schema.homes.name }).from(schema.individuals).leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId)).where(eq(schema.individuals.active, true));
+  const people = await db.select({ id: schema.individuals.id, first: schema.individuals.firstName, last: schema.individuals.lastName, home: schema.homes.name }).from(schema.individuals).leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId)).where(and(eq(schema.individuals.active, true), homeId ? eq(schema.individuals.homeId, homeId) : undefined));
   const prn = await prnFor(people.map(person => person.id), now);
 
   return (
@@ -35,10 +46,14 @@ export default async function MedicationsPage({ searchParams }: { searchParams: 
         title={fmt.dayLong(selected)}
         description={`${given} of ${scheduled.length} doses recorded as given. A dose is late ${settings.med_late_minutes} minutes after its time.`}
         action={
-          <div className="flex items-center gap-2 text-sm">
-            <Link href={`/app/medications?day=${addDays(selected, -1)}`} className="btn-ghost btn-sm">Previous day</Link>
-            <Link href="/app/medications" className="btn-ghost btn-sm">Today</Link>
-            <Link href={`/app/medications?day=${addDays(selected, 1)}`} className="btn-ghost btn-sm">Next day</Link>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <AutoSubmitForm className="w-56">
+              {day && <input type="hidden" name="day" value={selected} />}
+              <Select name="home" defaultValue={homeParam || "all"} aria-label="Home" searchable options={[{ value: "all", label: "All homes" }, ...homes.map(home => ({ value: home.id, label: home.name }))]} />
+            </AutoSubmitForm>
+            <Link href={keep(`day=${addDays(selected, -1)}`)} className="btn-ghost btn-sm">Previous day</Link>
+            <Link href={keep("")} className="btn-ghost btn-sm">Today</Link>
+            <Link href={keep(`day=${addDays(selected, 1)}`)} className="btn-ghost btn-sm">Next day</Link>
           </div>
         }
       />
@@ -71,13 +86,7 @@ export default async function MedicationsPage({ searchParams }: { searchParams: 
                     </td>
                     <td>
                       {due ? (
-                        <form className="flex flex-wrap items-center gap-1.5">
-                          <input name="note" placeholder="Note" className="field w-28 py-1.5 text-xs" aria-label="Note" />
-                          <button formAction={recordMedication.bind(null, row.id, "given")} className="btn-brand btn-sm" disabled={upcoming} title={upcoming ? "Not yet due" : undefined}>Given</button>
-                          <button formAction={recordMedication.bind(null, row.id, "refused")} className="btn-ghost btn-sm">Refused</button>
-                          <button formAction={recordMedication.bind(null, row.id, "held")} className="btn-ghost btn-sm">Held</button>
-                          <button formAction={recordMedication.bind(null, row.id, "missed")} className="btn-ghost btn-sm text-flag">Missed</button>
-                        </form>
+                        <DoseButtons adminId={row.id} notYet={upcoming} noteLabel={`Note for ${row.first}'s ${row.medication}`} noteClassName="w-28" />
                       ) : <span className="text-xs text-dim">Recorded</span>}
                     </td>
                   </tr>

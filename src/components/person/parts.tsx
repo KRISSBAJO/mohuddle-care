@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { Badge, Empty } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { fmt, label } from "@/lib/format";
-import { recordMedication } from "@/server/actions/hub";
+import { DoseButtons } from "@/components/app/DoseButtons";
 import type { MoodDay } from "@/server/queries/person";
 
 export const moodTone = { great: "good", good: "good", okay: "neutral", low: "warn", distressed: "bad" } as const;
@@ -89,13 +89,7 @@ export function DoseList({ doses, now, lateMinutes, canRecord, firstName }: { do
               </div>
             </div>
             {due && canRecord && (
-              <form className="no-print mt-2 flex flex-wrap items-center gap-1.5 sm:pl-[76px]">
-                <input name="note" placeholder="Note" className="field w-32 py-1.5 text-xs" aria-label={`Note for ${firstName}'s ${dose.medication}`} />
-                <button formAction={recordMedication.bind(null, dose.id, "given")} className="btn-brand btn-sm disabled:opacity-50" disabled={notYet} title={notYet ? "Not due yet" : undefined}>Given</button>
-                <button formAction={recordMedication.bind(null, dose.id, "refused")} className="btn-ghost btn-sm">Refused</button>
-                <button formAction={recordMedication.bind(null, dose.id, "held")} className="btn-ghost btn-sm">Held</button>
-                <button formAction={recordMedication.bind(null, dose.id, "missed")} className="btn-ghost btn-sm text-flag">Missed</button>
-              </form>
+              <DoseButtons adminId={dose.id} notYet={notYet} noteLabel={`Note for ${firstName}'s ${dose.medication}`} className="no-print mt-2 sm:pl-[76px]" />
             )}
           </li>
         );

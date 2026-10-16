@@ -74,35 +74,78 @@ type Around = Awaited<ReturnType<typeof punchesAround>>[number];
 const asPunch = (row: Around): Punch => ({ id: row.id, clockInAt: row.clockInAt, clockOutAt: row.clockOutAt, mealMinutes: row.mealMinutes, homeId: row.homeId, home: row.home, shiftStart: row.shiftStart });
 
 /* One person's timesheet for a period: lines, totals, adjustments and where it stands. */
+/* One staff member's timesheet for a period: punches, totals, adjustments and where it stands. */
 export async function sheetFor(staffId: string, period: Period, settings: Settings) {
+  return (await sheetsFor([staffId], period, settings)).get(staffId)!;
+}
+
+/*
+ * Several staff members' timesheets for one period, read with one set of queries for all of them.
+ * A page listing everyone uses this; reading them one by one took seconds for a large agency.
+ */
+export async function sheetsFor(staffIds: string[], period: Period, settings: Settings) {
   const row = await ensurePeriod(period);
-  const [punches, adjustments, [sheet], [member]] = await Promise.all([
-    punchesAround(period, settings.workweek_starts_on, [staffId]),
-    db
-      .select({ adjustment: schema.timeAdjustments, by: schema.users.name })
-      .from(schema.timeAdjustments)
-      .leftJoin(schema.users, eq(schema.users.id, schema.timeAdjustments.createdBy))
-      .where(and(eq(schema.timeAdjustments.periodId, row.id), eq(schema.timeAdjustments.staffId, staffId)))
-      .orderBy(asc(schema.timeAdjustments.createdAt)),
-    db.select().from(schema.timesheets).where(and(eq(schema.timesheets.periodId, row.id), eq(schema.timesheets.staffId, staffId))).limit(1),
-    db.select({ first: schema.staff.firstName, last: schema.staff.lastName, employeeNumber: schema.staff.employeeNumber, email: schema.staff.email }).from(schema.staff).where(eq(schema.staff.id, staffId)).limit(1),
-  ]);
-  const computed = timesheet(punches.map(asPunch), period, sheetRules(settings), adjustments.map(item => ({ minutes: item.adjustment.minutes, overtime: item.adjustment.overtime })));
-  const timeOff = (await paidTimeOffMinutes(period, [staffId])).get(staffId) ?? 0;
-  const result = { ...computed, totals: { ...computed.totals, timeOff, paid: computed.totals.total + timeOff } };
+  const ids = [...new Set(staffIds)];
+  const [punches, adjustments, sheets, members, timeOff] = ids.length
+    ? await Promise.all([
+        punchesAround(period, settings.workweek_starts_on, ids),
+        db
+          .select({ adjustment: schema.timeAdjustments, by: schema.users.name })
+          .from(schema.timeAdjustments)
+          .leftJoin(schema.users, eq(schema.users.id, schema.timeAdjustments.createdBy))
+          .where(and(eq(schema.timeAdjustments.periodId, row.id), inArray(schema.timeAdjustments.staffId, ids)))
+          .orderBy(asc(schema.timeAdjustments.createdAt)),
+        db.select().from(schema.timesheets).where(and(eq(schema.timesheets.periodId, row.id), inArray(schema.timesheets.staffId, ids))),
+        db.select({ id: schema.staff.id, first: schema.staff.firstName, last: schema.staff.lastName, employeeNumber: schema.staff.employeeNumber, email: schema.staff.email }).from(schema.staff).where(inArray(schema.staff.id, ids)),
+        paidTimeOffMinutes(period, ids),
+      ])
+    : [[], [], [], [], new Map<string, number>()];
+  const rules = sheetRules(settings);
+  const result = new Map<string, ReturnType<typeof assembleSheet>>();
+  for (const staffId of ids) {
+    const found = members.find(item => item.id === staffId);
+    result.set(
+      staffId,
+      assembleSheet(
+        row,
+        period,
+        rules,
+        punches.filter(item => item.staffId === staffId),
+        adjustments.filter(item => item.adjustment.staffId === staffId),
+        sheets.find(item => item.staffId === staffId) ?? null,
+        found ? { first: found.first, last: found.last, employeeNumber: found.employeeNumber, email: found.email } : null,
+        timeOff.get(staffId) ?? 0,
+      ),
+    );
+  }
+  return result;
+}
+
+function assembleSheet(
+  row: PeriodRow,
+  period: Period,
+  rules: SheetRules,
+  punches: Around[],
+  adjustments: { adjustment: typeof schema.timeAdjustments.$inferSelect; by: string | null }[],
+  sheet: typeof schema.timesheets.$inferSelect | null,
+  member: { first: string; last: string; employeeNumber: string; email: string } | null,
+  timeOff: number,
+) {
+  const computed = timesheet(punches.map(asPunch), period, rules, adjustments.map(item => ({ minutes: item.adjustment.minutes, overtime: item.adjustment.overtime })));
   const inPeriod = punches.filter(item => dateKey(item.clockInAt) >= period.start && dateKey(item.clockInAt) <= period.end);
   return {
     period: row,
-    member: member ?? null,
-    sheet: sheet ?? null,
-    ...result,
+    member,
+    sheet,
+    ...computed,
+    totals: { ...computed.totals, timeOff, paid: computed.totals.total + timeOff },
     flags: Object.fromEntries(inPeriod.map(item => [item.id, { flags: item.flags, reviewed: Boolean(item.reviewedAt) }])),
     unreviewed: inPeriod.filter(item => item.flags.length && !item.reviewedAt).length,
     adjustments,
   };
 }
 
-export type StaffSheet = Awaited<ReturnType<typeof sheetFor>>;
+export type StaffSheet = ReturnType<typeof assembleSheet>;
 
 /* Everyone with time in a period, with their totals and where their timesheet stands. */
 export async function periodOverview(period: Period, settings: Settings) {
@@ -219,6 +262,7 @@ export async function periodPay(period: Period, staffIds: string[], settings: Se
   const { activeDifferentials, payFor, ratesFor, timeOffIn } = await import("@/server/queries/pay");
   const [rates, differentials, timeOff] = await Promise.all([ratesFor(staffIds), activeDifferentials(), timeOffIn(period, staffIds)]);
   const result = new Map<string, Awaited<ReturnType<typeof payFor>>>();
-  for (const staffId of staffIds) result.set(staffId, await payFor(await sheetFor(staffId, period, settings), staffId, settings, { rates, differentials, timeOff }));
+  const sheets = await sheetsFor(staffIds, period, settings);
+  for (const staffId of staffIds) result.set(staffId, await payFor(sheets.get(staffId)!, staffId, settings, { rates, differentials, timeOff }));
   return result;
 }

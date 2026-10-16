@@ -111,7 +111,8 @@ export async function ensureMedicationRecords(day = dateKey()) {
   if (rows.length) await db.insert(schema.medAdministrations).values(rows).onConflictDoNothing();
 }
 
-export async function medicationRecordForDay(day = dateKey()) {
+/* A day's doses, at one home or (homeId null) at every home. */
+export async function medicationRecordForDay(day = dateKey(), homeId: string | null = null) {
   await ensureMedicationRecords(day);
   const dayStart = zonedTime(day, "00:00");
   const dayEnd = zonedTime(addDays(day, 1), "00:00");
@@ -139,7 +140,7 @@ export async function medicationRecordForDay(day = dateKey()) {
     .innerJoin(schema.individuals, eq(schema.individuals.id, schema.medAdministrations.individualId))
     .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
     .leftJoin(schema.staff, eq(schema.staff.id, schema.medAdministrations.staffId))
-    .where(and(gte(schema.medAdministrations.scheduledFor, dayStart), lt(schema.medAdministrations.scheduledFor, dayEnd)))
+    .where(and(gte(schema.medAdministrations.scheduledFor, dayStart), lt(schema.medAdministrations.scheduledFor, dayEnd), homeId ? eq(schema.individuals.homeId, homeId) : undefined))
     .orderBy(asc(schema.medAdministrations.scheduledFor), asc(schema.individuals.firstName));
 }
 

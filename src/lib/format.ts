@@ -29,6 +29,21 @@ export function setBrowserZone(value: string) {
   zoneHolder.mohuddleBrowserZone = value;
 }
 
+/*
+ * Date formatters, made once per format and time zone and then reused. Making one is slow, and pay
+ * and timesheet sums ask for dates thousands of times per page.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${Object.entries(options).map(([name, value]) => `${name}=${value}`).join(",")}`;
+  let found = formatters.get(key);
+  if (!found) {
+    found = new Intl.DateTimeFormat(locale, options);
+    formatters.set(key, found);
+  }
+  return found;
+}
+
 export function zone(): string {
   return zoneHolder.mohuddleZoneSource?.() ?? zoneHolder.mohuddleBrowserZone ?? DEFAULT_ZONE;
 }
@@ -96,7 +111,7 @@ export function label<G extends LabelGroup>(group: G, value: string | null | und
 
 /* YYYY-MM-DD for a moment, in the agency's time zone. */
 export function dateKey(at: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
+  const parts = formatter("en-CA", { timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
   const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -114,7 +129,7 @@ export function zonedTime(day: string, hhmm: string): Date {
 
 /* Minutes the agency's time zone is ahead of UTC at the given instant (negative in the US). */
 export function tzOffsetMinutes(at: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = formatter("en-US", {
     timeZone: zone(),
     hourCycle: "h23",
     year: "numeric",
@@ -148,25 +163,25 @@ export function daysBetween(from: string, to: string): number {
 
 /* "Sat, Oct 17, 10:25 PM": when a one-time link stops working. */
 export const linkExpiry = (at: Date) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+  formatter("en-US", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
 
 export const fmt = {
   time: (at: Date | null | undefined) =>
-    at ? new Intl.DateTimeFormat("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(at) : "",
+    at ? formatter("en-US", { timeZone: zone(), hour: "numeric", minute: "2-digit" }).format(at) : "",
   day: (day: string | Date | null | undefined) => {
     if (!day) return "";
     const at = typeof day === "string" ? new Date(`${day}T12:00:00Z`) : day;
-    return new Intl.DateTimeFormat("en-US", { timeZone: typeof day === "string" ? "UTC" : zone(), month: "short", day: "numeric" }).format(at);
+    return formatter("en-US", { timeZone: typeof day === "string" ? "UTC" : zone(), month: "short", day: "numeric" }).format(at);
   },
   dayLong: (day: string | null | undefined) =>
     day
-      ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(
+      ? formatter("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(
           new Date(`${day}T12:00:00Z`),
         )
       : "",
   dateTime: (at: Date | null | undefined) =>
-    at ? new Intl.DateTimeFormat("en-US", { timeZone: zone(), month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at) : "",
-  weekday: (day: string) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(new Date(`${day}T12:00:00Z`)),
+    at ? formatter("en-US", { timeZone: zone(), month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at) : "",
+  weekday: (day: string) => formatter("en-US", { timeZone: "UTC", weekday: "short" }).format(new Date(`${day}T12:00:00Z`)),
 };
 
 export function age(dob: string | null | undefined, today = dateKey()): number | null {
@@ -206,4 +221,4 @@ export function shiftMonth(month: string, by: number) {
 }
 
 export const monthLabel = (month: string) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${month}-15T12:00:00Z`));
+  formatter("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${month}-15T12:00:00Z`));

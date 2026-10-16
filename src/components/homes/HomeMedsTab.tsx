@@ -3,7 +3,7 @@ import { AlertTriangle, Clock } from "lucide-react";
 import { Avatar, Badge, Empty, Panel } from "@/components/app/ui";
 import { cn } from "@/lib/cn";
 import { addDays, dateKey, fmt, initials, label } from "@/lib/format";
-import { recordMedication } from "@/server/actions/hub";
+import { DoseButtons } from "@/components/app/DoseButtons";
 import { requestTime } from "@/server/clock";
 import { homeMedRounds } from "@/server/queries/homes";
 
@@ -85,13 +85,7 @@ export async function HomeMedsTab({ homeId, day, lateMinutes }: { homeId: string
                         </div>
                       </div>
                       {due && (
-                        <form className="mt-2 flex flex-wrap items-center gap-1.5 pl-10">
-                          <input name="note" placeholder="Note" className="field w-32 py-1.5 text-xs" aria-label={`Note for ${dose.first}'s ${dose.medication}`} />
-                          <button formAction={recordMedication.bind(null, dose.id, "given")} className="btn-brand btn-sm disabled:opacity-50" disabled={notYet} title={notYet ? "Not due yet" : undefined}>Given</button>
-                          <button formAction={recordMedication.bind(null, dose.id, "refused")} className="btn-ghost btn-sm">Refused</button>
-                          <button formAction={recordMedication.bind(null, dose.id, "held")} className="btn-ghost btn-sm">Held</button>
-                          <button formAction={recordMedication.bind(null, dose.id, "missed")} className="btn-ghost btn-sm text-flag">Missed</button>
-                        </form>
+                        <DoseButtons adminId={dose.id} notYet={notYet} noteLabel={`Note for ${dose.first}'s ${dose.medication}`} className="mt-2 pl-10" />
                       )}
                     </li>
                   );

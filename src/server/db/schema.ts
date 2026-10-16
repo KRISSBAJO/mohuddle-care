@@ -290,7 +290,10 @@ export const staff = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
-  table => [uniqueIndex("staff_agency_email").on(table.agencyId, table.email)],
+  table => [
+    uniqueIndex("staff_agency_email").on(table.agencyId, table.email),
+    index("staff_home").on(table.homeId),
+  ],
 );
 
 /* Someone's place in one agency: their role there and their staff record. Signs in with a login. */
@@ -316,22 +319,28 @@ export const users = pgTable(
   table => [uniqueIndex("users_agency_email").on(table.agencyId, table.email), uniqueIndex("users_agency_login").on(table.agencyId, table.loginId)],
 );
 
-export const sessions = pgTable("sessions", {
-  agencyId: agencyId(),
-  tokenHash: text("token_hash").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  // When the session was last used, for signing out idle devices; and whether the device is shared.
-  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
-  shared: boolean("shared").notNull().default(false),
-  // Set for a sign-in from the Mohuddle phone app: the phone's name, shown so a lost phone can be signed out.
-  device: text("device"),
-  // The phone app's Expo push address, set when the phone allows notifications. Gone with the session.
-  pushToken: text("push_token"),
-  createdAt: createdAt(),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    agencyId: agencyId(),
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    // When the session was last used, for signing out idle devices; and whether the device is shared.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    shared: boolean("shared").notNull().default(false),
+    // Set for a sign-in from the Mohuddle phone app: the phone's name, shown so a lost phone can be signed out.
+    device: text("device"),
+    // The phone app's Expo push address, set when the phone allows notifications. Gone with the session.
+    pushToken: text("push_token"),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("sessions_user").on(table.userId),
+  ],
+);
 
 /* Phones and browsers that asked for notifications. One row per device; dead ones are removed when a push fails. */
 export const pushSubscriptions = pgTable(
@@ -378,63 +387,75 @@ export const credentials = pgTable("credentials", {
   note: text("note").notNull().default(""),
 });
 
-export const individuals = pgTable("individuals", {
-  id: id(),
-  agencyId: agencyId(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  dob: date("dob"),
-  homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
-  serviceType: serviceType("service_type").notNull(),
-  admittedAt: date("admitted_at"),
-  guardianName: text("guardian_name").notNull().default(""),
-  guardianPhone: text("guardian_phone").notNull().default(""),
-  emergencyContact: text("emergency_contact").notNull().default(""),
-  emergencyPhone: text("emergency_phone").notNull().default(""),
-  allergies: text("allergies").notNull().default(""),
-  diagnoses: text("diagnoses").notNull().default(""),
-  supportNotes: text("support_notes").notNull().default(""),
-  // Who they are, beyond the record: how to address them, communicate with them and support them well.
-  preferredName: text("preferred_name").notNull().default(""),
-  gender: text("gender").notNull().default(""),
-  pronouns: text("pronouns").notNull().default(""),
-  primaryLanguage: text("primary_language").notNull().default(""),
-  communication: text("communication").notNull().default(""),
-  mobility: text("mobility").notNull().default(""),
-  diet: text("diet").notNull().default(""),
-  likes: text("likes").notNull().default(""),
-  // Their Medicaid waiver, for state reports such as the Reportable Event Form.
-  waiverType: text("waiver_type").notNull().default(""),
-  // For the weight chart: height for BMI, and the suggested weight range from their doctor or plan.
-  heightInches: real("height_inches"),
-  weightLow: real("weight_low"),
-  weightHigh: real("weight_high"),
-  active: boolean("active").notNull().default(true),
-  // Set when support ends. The record and its history stay; active is false while discharged.
-  dischargedAt: date("discharged_at"),
-  dischargeReason: text("discharge_reason").notNull().default(""),
-  createdAt: createdAt(),
-});
+export const individuals = pgTable(
+  "individuals",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    dob: date("dob"),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    serviceType: serviceType("service_type").notNull(),
+    admittedAt: date("admitted_at"),
+    guardianName: text("guardian_name").notNull().default(""),
+    guardianPhone: text("guardian_phone").notNull().default(""),
+    emergencyContact: text("emergency_contact").notNull().default(""),
+    emergencyPhone: text("emergency_phone").notNull().default(""),
+    allergies: text("allergies").notNull().default(""),
+    diagnoses: text("diagnoses").notNull().default(""),
+    supportNotes: text("support_notes").notNull().default(""),
+    // Who they are, beyond the record: how to address them, communicate with them and support them well.
+    preferredName: text("preferred_name").notNull().default(""),
+    gender: text("gender").notNull().default(""),
+    pronouns: text("pronouns").notNull().default(""),
+    primaryLanguage: text("primary_language").notNull().default(""),
+    communication: text("communication").notNull().default(""),
+    mobility: text("mobility").notNull().default(""),
+    diet: text("diet").notNull().default(""),
+    likes: text("likes").notNull().default(""),
+    // Their Medicaid waiver, for state reports such as the Reportable Event Form.
+    waiverType: text("waiver_type").notNull().default(""),
+    // For the weight chart: height for BMI, and the suggested weight range from their doctor or plan.
+    heightInches: real("height_inches"),
+    weightLow: real("weight_low"),
+    weightHigh: real("weight_high"),
+    active: boolean("active").notNull().default(true),
+    // Set when support ends. The record and its history stay; active is false while discharged.
+    dischargedAt: date("discharged_at"),
+    dischargeReason: text("discharge_reason").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("individuals_home").on(table.homeId),
+  ],
+);
 
-export const planGoals = pgTable("plan_goals", {
-  id: id(),
-  agencyId: agencyId(),
-  individualId: uuid("individual_id")
-    .notNull()
-    .references(() => individuals.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description").notNull().default(""),
-  targetDate: date("target_date"),
-  status: goalStatus("status").notNull().default("active"),
-  // As written in the ISP: the measurable step, how often it is worked on, and which note records it.
-  measurableStep: text("measurable_step").notNull().default(""),
-  frequencyCount: integer("frequency_count"),
-  frequencyPeriod: text("frequency_period").$type<"day" | "week" | "month">(),
-  effectiveDate: date("effective_date"),
-  documentedOn: text("documented_on").notNull().default("Daily notes"),
-  setupNotes: text("setup_notes").notNull().default(""),
-  createdAt: createdAt(),
-});
+export const planGoals = pgTable(
+  "plan_goals",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    targetDate: date("target_date"),
+    status: goalStatus("status").notNull().default("active"),
+    // As written in the ISP: the measurable step, how often it is worked on, and which note records it.
+    measurableStep: text("measurable_step").notNull().default(""),
+    frequencyCount: integer("frequency_count"),
+    frequencyPeriod: text("frequency_period").$type<"day" | "week" | "month">(),
+    effectiveDate: date("effective_date"),
+    documentedOn: text("documented_on").notNull().default("Daily notes"),
+    setupNotes: text("setup_notes").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("plan_goals_person").on(table.individualId, table.status),
+  ],
+);
 
 /* Named shift times admins set up, such as "Weekday day 07:00-15:00" or "Weekend night 19:00-07:00". */
 export const shiftPatterns = pgTable("shift_patterns", {
@@ -450,89 +471,105 @@ export const shiftPatterns = pgTable("shift_patterns", {
   createdAt: createdAt(),
 });
 
-export const shifts = pgTable("shifts", {
-  id: id(),
-  agencyId: agencyId(),
-  homeId: uuid("home_id")
-    .notNull()
-    .references(() => homes.id, { onDelete: "cascade" }),
-  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  // Worked out from the start time. Only used for colour and grouping; the pattern carries the name.
-  kind: shiftKind("kind").notNull(),
-  patternId: uuid("pattern_id").references(() => shiftPatterns.id, { onDelete: "set null" }),
-  status: shiftStatus("status").notNull().default("scheduled"),
-  note: text("note").notNull().default(""),
-});
+export const shifts = pgTable(
+  "shifts",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    homeId: uuid("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    // Worked out from the start time. Only used for colour and grouping; the pattern carries the name.
+    kind: shiftKind("kind").notNull(),
+    patternId: uuid("pattern_id").references(() => shiftPatterns.id, { onDelete: "set null" }),
+    status: shiftStatus("status").notNull().default("scheduled"),
+    note: text("note").notNull().default(""),
+  },
+  table => [
+    index("shifts_home_start").on(table.homeId, table.startsAt),
+    index("shifts_staff_start").on(table.staffId, table.startsAt),
+    index("shifts_start").on(table.startsAt),
+  ],
+);
 
-export const dailyLogs = pgTable("daily_logs", {
-  id: id(),
-  agencyId: agencyId(),
-  individualId: uuid("individual_id")
-    .notNull()
-    .references(() => individuals.id, { onDelete: "cascade" }),
-  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
-  logDate: date("log_date").notNull(),
-  mood: mood("mood").notNull().default("good"),
-  checks: jsonb("checks").$type<string[]>().notNull().default(emptyList()),
-  meals: text("meals").notNull().default(""),
-  activities: text("activities").notNull().default(""),
-  health: text("health").notNull().default(""),
-  behaviours: text("behaviours").notNull().default(""),
-  goalProgress: text("goal_progress").notNull().default(""),
-  // The shift summary. Older logs used it for "anything else for the next shift".
-  notes: text("notes").notNull().default(""),
-  // A full shift note, in the shape reviewers expect from a Therap T-Log. Older logs leave these empty.
-  shift: shiftKind("shift"),
-  // The scheduled shift this note is for, and its pattern name at the time of writing.
-  shiftId: uuid("shift_id").references(() => shifts.id, { onDelete: "set null" }),
-  shiftName: text("shift_name").notNull().default(""),
-  timeIn: text("time_in").notNull().default(""),
-  timeOut: text("time_out").notNull().default(""),
-  location: text("location").notNull().default(""),
-  presentation: text("presentation").notNull().default(""),
-  adl: jsonb("adl").$type<Record<string, string>>().notNull().default(emptyMap()),
-  mealIntake: jsonb("meal_intake").$type<Record<string, string>>().notNull().default(emptyMap()),
-  fluidsOz: integer("fluids_oz"),
-  sleepHours: real("sleep_hours"),
-  sleepQuality: text("sleep_quality").notNull().default(""),
-  bowelMovements: integer("bowel_movements"),
-  incontinence: integer("incontinence"),
-  vitals: jsonb("vitals").$type<Partial<Record<"bpSys" | "bpDia" | "pulse" | "temp" | "weight" | "pain", number>>>().notNull().default(emptyMap()),
-  seizure: boolean("seizure").notNull().default(false),
-  seizureNotes: text("seizure_notes").notNull().default(""),
-  behaviourOccurred: boolean("behaviour_occurred").notNull().default(false),
-  antecedent: text("antecedent").notNull().default(""),
-  intervention: text("intervention").notNull().default(""),
-  behaviourOutcome: text("behaviour_outcome").notNull().default(""),
-  activityTypes: jsonb("activity_types").$type<string[]>().notNull().default(emptyList()),
-  familyContact: text("family_contact").notNull().default(""),
-  appointments: text("appointments").notNull().default(""),
-  // Free-text notes per personal care task, and the newer sleep and bowel details.
-  adlNotes: jsonb("adl_notes").$type<Record<string, string>>().notNull().default(emptyMap()),
-  sleepNotes: text("sleep_notes").notNull().default(""),
-  stoolType: text("stool_type").notNull().default(""),
-  continenceNotes: text("continence_notes").notNull().default(""),
-  // Answers to extra items set for everyone, the home or the person. Labels are kept so old notes still read right.
-  extra: jsonb("extra")
-    .$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person"; followUp?: { prompt: string; note: string; docs: { label: string; done: boolean }[] } }[]>()
-    .notNull()
-    .default(emptyList()),
-  // The optional hourly timeline: a line per hour, with the doses due in it as they stood when signed.
-  timeline: jsonb("timeline").$type<{ hour: string; note: string; meds: string[] }[]>().notNull().default(emptyList()),
-  // Optional sections that were switched on for this person when the note was written.
-  sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
-  signedName: text("signed_name").notNull().default(""),
-  signedAt: timestamp("signed_at", { withTimezone: true }),
-  // Review: every note starts as submitted; a reviewer approves it or returns it to the writer.
-  reviewStatus: text("review_status").$type<"submitted" | "returned" | "approved">().notNull().default("submitted"),
-  reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  returnReason: text("return_reason").notNull().default(""),
-  editedAt: timestamp("edited_at", { withTimezone: true }),
-  createdAt: createdAt(),
-});
+export const dailyLogs = pgTable(
+  "daily_logs",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    logDate: date("log_date").notNull(),
+    mood: mood("mood").notNull().default("good"),
+    checks: jsonb("checks").$type<string[]>().notNull().default(emptyList()),
+    meals: text("meals").notNull().default(""),
+    activities: text("activities").notNull().default(""),
+    health: text("health").notNull().default(""),
+    behaviours: text("behaviours").notNull().default(""),
+    goalProgress: text("goal_progress").notNull().default(""),
+    // The shift summary. Older logs used it for "anything else for the next shift".
+    notes: text("notes").notNull().default(""),
+    // A full shift note, in the shape reviewers expect from a Therap T-Log. Older logs leave these empty.
+    shift: shiftKind("shift"),
+    // The scheduled shift this note is for, and its pattern name at the time of writing.
+    shiftId: uuid("shift_id").references(() => shifts.id, { onDelete: "set null" }),
+    shiftName: text("shift_name").notNull().default(""),
+    timeIn: text("time_in").notNull().default(""),
+    timeOut: text("time_out").notNull().default(""),
+    location: text("location").notNull().default(""),
+    presentation: text("presentation").notNull().default(""),
+    adl: jsonb("adl").$type<Record<string, string>>().notNull().default(emptyMap()),
+    mealIntake: jsonb("meal_intake").$type<Record<string, string>>().notNull().default(emptyMap()),
+    fluidsOz: integer("fluids_oz"),
+    sleepHours: real("sleep_hours"),
+    sleepQuality: text("sleep_quality").notNull().default(""),
+    bowelMovements: integer("bowel_movements"),
+    incontinence: integer("incontinence"),
+    vitals: jsonb("vitals").$type<Partial<Record<"bpSys" | "bpDia" | "pulse" | "temp" | "weight" | "pain", number>>>().notNull().default(emptyMap()),
+    seizure: boolean("seizure").notNull().default(false),
+    seizureNotes: text("seizure_notes").notNull().default(""),
+    behaviourOccurred: boolean("behaviour_occurred").notNull().default(false),
+    antecedent: text("antecedent").notNull().default(""),
+    intervention: text("intervention").notNull().default(""),
+    behaviourOutcome: text("behaviour_outcome").notNull().default(""),
+    activityTypes: jsonb("activity_types").$type<string[]>().notNull().default(emptyList()),
+    familyContact: text("family_contact").notNull().default(""),
+    appointments: text("appointments").notNull().default(""),
+    // Free-text notes per personal care task, and the newer sleep and bowel details.
+    adlNotes: jsonb("adl_notes").$type<Record<string, string>>().notNull().default(emptyMap()),
+    sleepNotes: text("sleep_notes").notNull().default(""),
+    stoolType: text("stool_type").notNull().default(""),
+    continenceNotes: text("continence_notes").notNull().default(""),
+    // Answers to extra items set for everyone, the home or the person. Labels are kept so old notes still read right.
+    extra: jsonb("extra")
+      .$type<{ id: string; label: string; value: string | string[]; unit: string; scope: "all" | "home" | "person"; followUp?: { prompt: string; note: string; docs: { label: string; done: boolean }[] } }[]>()
+      .notNull()
+      .default(emptyList()),
+    // The optional hourly timeline: a line per hour, with the doses due in it as they stood when signed.
+    timeline: jsonb("timeline").$type<{ hour: string; note: string; meds: string[] }[]>().notNull().default(emptyList()),
+    // Optional sections that were switched on for this person when the note was written.
+    sections: jsonb("sections").$type<string[]>().notNull().default(emptyList()),
+    signedName: text("signed_name").notNull().default(""),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    // Review: every note starts as submitted; a reviewer approves it or returns it to the writer.
+    reviewStatus: text("review_status").$type<"submitted" | "returned" | "approved">().notNull().default("submitted"),
+    reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    returnReason: text("return_reason").notNull().default(""),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("daily_logs_person_day").on(table.individualId, table.logDate),
+    index("daily_logs_staff_day").on(table.staffId, table.logDate),
+    index("daily_logs_shift").on(table.shiftId),
+  ],
+);
 
 /*
  * What daily notes must cover, beyond the core. Scope "all" is the agency default; "home" and "person"
@@ -667,33 +704,39 @@ export const dailyLogGoals = pgTable(
   table => [uniqueIndex("daily_log_goal_once").on(table.logId, table.goalId), index("daily_log_goals_goal").on(table.goalId)],
 );
 
-export const medications = pgTable("medications", {
-  id: id(),
-  agencyId: agencyId(),
-  individualId: uuid("individual_id")
-    .notNull()
-    .references(() => individuals.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  dose: text("dose").notNull(),
-  route: text("route").notNull().default("oral"),
-  times: jsonb("times").$type<string[]>().notNull().default(emptyList()),
-  prescriber: text("prescriber").notNull().default(""),
-  instructions: text("instructions").notNull().default(""),
-  // A controlled medicine (on a count sheet). The phone app only records these with a signal.
-  controlled: boolean("controlled").notNull().default(false),
-  // Given as needed (PRN) instead of at set times: when to use it, the least time between doses and
-  // the most doses in 24 hours. These have no times and no scheduled doses.
-  asNeeded: boolean("as_needed").notNull().default(false),
-  prnUse: text("prn_use").notNull().default(""),
-  prnMinHours: integer("prn_min_hours"),
-  prnMaxPerDay: integer("prn_max_per_day"),
-  active: boolean("active").notNull().default(true),
-  // Doses are only generated from startedAt onwards. A change stops this row and starts a new one,
-  // so past administration records keep the dose that was actually given.
-  startedAt: timestamp("started_at", { withTimezone: true }),
-  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
-  stopReason: text("stop_reason").notNull().default(""),
-});
+export const medications = pgTable(
+  "medications",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    individualId: uuid("individual_id")
+      .notNull()
+      .references(() => individuals.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    dose: text("dose").notNull(),
+    route: text("route").notNull().default("oral"),
+    times: jsonb("times").$type<string[]>().notNull().default(emptyList()),
+    prescriber: text("prescriber").notNull().default(""),
+    instructions: text("instructions").notNull().default(""),
+    // A controlled medicine (on a count sheet). The phone app only records these with a signal.
+    controlled: boolean("controlled").notNull().default(false),
+    // Given as needed (PRN) instead of at set times: when to use it, the least time between doses and
+    // the most doses in 24 hours. These have no times and no scheduled doses.
+    asNeeded: boolean("as_needed").notNull().default(false),
+    prnUse: text("prn_use").notNull().default(""),
+    prnMinHours: integer("prn_min_hours"),
+    prnMaxPerDay: integer("prn_max_per_day"),
+    active: boolean("active").notNull().default(true),
+    // Doses are only generated from startedAt onwards. A change stops this row and starts a new one,
+    // so past administration records keep the dose that was actually given.
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    stopReason: text("stop_reason").notNull().default(""),
+  },
+  table => [
+    index("medications_person").on(table.individualId),
+  ],
+);
 
 export const medAdministrations = pgTable(
   "med_administrations",
@@ -716,77 +759,97 @@ export const medAdministrations = pgTable(
     effect: text("effect").notNull().default(""),
     effectAt: timestamp("effect_at", { withTimezone: true }),
   },
-  table => [uniqueIndex("med_admin_once").on(table.medicationId, table.scheduledFor)],
+  table => [
+    uniqueIndex("med_admin_once").on(table.medicationId, table.scheduledFor),
+    index("med_admin_person_time").on(table.individualId, table.scheduledFor),
+    index("med_admin_due").on(table.scheduledFor).where(sql`status = 'due'`),
+  ],
 );
 
-export const incidents = pgTable("incidents", {
-  id: id(),
-  agencyId: agencyId(),
-  individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
-  homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
-  reportedBy: uuid("reported_by").references(() => staff.id, { onDelete: "set null" }),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-  category: incidentCategory("category").notNull(),
-  severity: incidentSeverity("severity").notNull().default("low"),
-  description: text("description").notNull(),
-  actionsTaken: text("actions_taken").notNull().default(""),
-  reportable: boolean("reportable").notNull().default(false),
-  status: incidentStatus("status").notNull().default("open"),
-  closedAt: timestamp("closed_at", { withTimezone: true }),
-  // Reportable incidents: when the report was filed with the state, its reference and who filed it.
-  stateFiledAt: timestamp("state_filed_at", { withTimezone: true }),
-  stateReference: text("state_reference").notNull().default(""),
-  stateFiledBy: uuid("state_filed_by").references(() => users.id, { onDelete: "set null" }),
-  // The state's Reportable Event Form. Older incidents leave these empty.
-  responsibleProvider: text("responsible_provider").notNull().default(""),
-  reportingProvider: text("reporting_provider").notNull().default(""),
-  personAlias: text("person_alias").notNull().default(""),
-  waiverType: text("waiver_type").notNull().default(""),
-  mco: text("mco").notNull().default(""),
-  mcoNumber: text("mco_number").notNull().default(""),
-  eventLocation: text("event_location").notNull().default(""),
-  eventAddress: text("event_address").notNull().default(""),
-  eventCity: text("event_city").notNull().default(""),
-  eventState: text("event_state").notNull().default(""),
-  eventZip: text("event_zip").notNull().default(""),
-  eventRegion: text("event_region").notNull().default(""),
-  // When the time of the event is unknown, when it was discovered instead.
-  occurredUnknown: boolean("occurred_unknown").notNull().default(false),
-  discoveredAt: timestamp("discovered_at", { withTimezone: true }),
-  witnessType: text("witness_type").$type<"" | "witnessed" | "discovered">().notNull().default(""),
-  witnessedBy: text("witnessed_by").notNull().default(""),
-  eventTypes: jsonb("event_types").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  otherEventText: text("other_event_text").notNull().default(""),
-  injuredParties: jsonb("injured_parties").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  interventions: jsonb("interventions").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  prnGivenBy: text("prn_given_by").notNull().default(""),
-  injury: text("injury").$type<"" | "yes" | "no">().notNull().default(""),
-  injuryDetails: text("injury_details").notNull().default(""),
-  involvement: jsonb("involvement").$type<Record<string, "yes" | "no">>().notNull().default(sql`'{}'::jsonb`),
-  notifications: jsonb("notifications").$type<{ party: string; at: string | null; name: string; comments: string }[]>().notNull().default(sql`'[]'::jsonb`),
-  // The most urgent tier among the event types: tier1, tier2, reportable, or empty.
-  tier: text("tier").$type<"" | "tier1" | "tier2" | "reportable">().notNull().default(""),
-  createdAt: createdAt(),
-});
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    reportedBy: uuid("reported_by").references(() => staff.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    category: incidentCategory("category").notNull(),
+    severity: incidentSeverity("severity").notNull().default("low"),
+    description: text("description").notNull(),
+    actionsTaken: text("actions_taken").notNull().default(""),
+    reportable: boolean("reportable").notNull().default(false),
+    status: incidentStatus("status").notNull().default("open"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    // Reportable incidents: when the report was filed with the state, its reference and who filed it.
+    stateFiledAt: timestamp("state_filed_at", { withTimezone: true }),
+    stateReference: text("state_reference").notNull().default(""),
+    stateFiledBy: uuid("state_filed_by").references(() => users.id, { onDelete: "set null" }),
+    // The state's Reportable Event Form. Older incidents leave these empty.
+    responsibleProvider: text("responsible_provider").notNull().default(""),
+    reportingProvider: text("reporting_provider").notNull().default(""),
+    personAlias: text("person_alias").notNull().default(""),
+    waiverType: text("waiver_type").notNull().default(""),
+    mco: text("mco").notNull().default(""),
+    mcoNumber: text("mco_number").notNull().default(""),
+    eventLocation: text("event_location").notNull().default(""),
+    eventAddress: text("event_address").notNull().default(""),
+    eventCity: text("event_city").notNull().default(""),
+    eventState: text("event_state").notNull().default(""),
+    eventZip: text("event_zip").notNull().default(""),
+    eventRegion: text("event_region").notNull().default(""),
+    // When the time of the event is unknown, when it was discovered instead.
+    occurredUnknown: boolean("occurred_unknown").notNull().default(false),
+    discoveredAt: timestamp("discovered_at", { withTimezone: true }),
+    witnessType: text("witness_type").$type<"" | "witnessed" | "discovered">().notNull().default(""),
+    witnessedBy: text("witnessed_by").notNull().default(""),
+    eventTypes: jsonb("event_types").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    otherEventText: text("other_event_text").notNull().default(""),
+    injuredParties: jsonb("injured_parties").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    interventions: jsonb("interventions").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    prnGivenBy: text("prn_given_by").notNull().default(""),
+    injury: text("injury").$type<"" | "yes" | "no">().notNull().default(""),
+    injuryDetails: text("injury_details").notNull().default(""),
+    involvement: jsonb("involvement").$type<Record<string, "yes" | "no">>().notNull().default(sql`'{}'::jsonb`),
+    notifications: jsonb("notifications").$type<{ party: string; at: string | null; name: string; comments: string }[]>().notNull().default(sql`'[]'::jsonb`),
+    // The most urgent tier among the event types: tier1, tier2, reportable, or empty.
+    tier: text("tier").$type<"" | "tier1" | "tier2" | "reportable">().notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("incidents_person").on(table.individualId, table.occurredAt),
+    index("incidents_home").on(table.homeId, table.occurredAt),
+    index("incidents_status").on(table.status, table.occurredAt),
+  ],
+);
 
-export const tasks = pgTable("tasks", {
-  id: id(),
-  agencyId: agencyId(),
-  title: text("title").notNull(),
-  details: text("details").notNull().default(""),
-  assignedTo: uuid("assigned_to").references(() => staff.id, { onDelete: "set null" }),
-  homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
-  individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
-  dueAt: timestamp("due_at", { withTimezone: true }),
-  priority: taskPriority("priority").notNull().default("normal"),
-  status: taskStatus("status").notNull().default("open"),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-  category: text("category").notNull().default(""),
-  createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
-  completedBy: uuid("completed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
-  completionNote: text("completion_note").notNull().default(""),
-  createdAt: createdAt(),
-});
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    title: text("title").notNull(),
+    details: text("details").notNull().default(""),
+    assignedTo: uuid("assigned_to").references(() => staff.id, { onDelete: "set null" }),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "set null" }),
+    individualId: uuid("individual_id").references(() => individuals.id, { onDelete: "set null" }),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    priority: taskPriority("priority").notNull().default("normal"),
+    status: taskStatus("status").notNull().default("open"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    category: text("category").notNull().default(""),
+    createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    completedBy: uuid("completed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    completionNote: text("completion_note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  table => [
+    index("tasks_assignee").on(table.assignedTo, table.status),
+    index("tasks_home").on(table.homeId, table.status),
+    index("tasks_status_due").on(table.status, table.dueAt),
+  ],
+);
 
 /* A running conversation on a task: updates, questions and answers. */
 export const taskComments = pgTable(
@@ -851,15 +914,22 @@ export const settings = pgTable(
   table => [primaryKey({ name: "settings_pkey", columns: [table.agencyId, table.key] })],
 );
 
-export const auditLog = pgTable("audit_log", {
-  id: id(),
-  agencyId: agencyId(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-  action: text("action").notNull(),
-  entity: text("entity").notNull(),
-  entityId: text("entity_id").notNull().default(""),
-  at: createdAt(),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    entity: text("entity").notNull(),
+    entityId: text("entity_id").notNull().default(""),
+    at: createdAt(),
+  },
+  table => [
+    index("audit_log_entity").on(table.entity, table.entityId),
+    index("audit_log_at").on(table.at),
+  ],
+);
 
 /*
  * Money spent for a home. Amounts are cents. Small amounts are approved on entry; larger ones wait

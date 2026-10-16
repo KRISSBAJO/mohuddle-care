@@ -114,11 +114,12 @@ export async function addMedication(_p: FormState, formData: FormData): Promise<
   return {};
 }
 
-export async function recordMedication(adminId: string, status: "given" | "refused" | "missed" | "held", formData: FormData) {
+/* Records one dose from the website: the dose and the button pressed (given, refused, held or missed) come in the form. */
+export async function recordDoseAction(formData: FormData) {
   const user = await requireUser();
-  const input = doseInput.safeParse({ adminId, status, note: String(formData.get("note") ?? "").slice(0, 500) });
+  const input = doseInput.safeParse({ adminId: String(formData.get("adminId") ?? ""), status: String(formData.get("status") ?? ""), note: String(formData.get("note") ?? "").slice(0, 500) });
   if (!input.success) throw new Error("Invalid medication update.");
-  // The rules (once only, not before it is due) are shared with the phone app in src/server/medication-round.ts.
+  // The rules (once only, not before it is due, at the home you are working at) are shared with the phone app in src/server/medication-round.ts.
   const result = await recordDose(user, input.data);
   if (!result.ok) throw new Error(result.code === "already_recorded" ? `${result.error} Refresh the medication record.` : result.error);
   revalidatePath("/app/medications");
