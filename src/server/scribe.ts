@@ -33,7 +33,7 @@ const whisperDir = (speech: string) => join(WHISPER_ROOT, `faster-whisper-${spee
 
 /* Whether each engine is there to use, with a plain reason when not. */
 export async function scribeStatus(speech: string, model: string) {
-  const speechReady = Boolean(PYTHON && WHISPER_ROOT && existsSync(PYTHON) && existsSync(whisperDir(speech)));
+  const speechReady = Boolean(PYTHON && WHISPER_ROOT && existsSync(/*turbopackIgnore: true*/ PYTHON) && existsSync(/*turbopackIgnore: true*/ whisperDir(speech)));
   let draftReady = false;
   try {
     const response = await fetch(`${OLLAMA}/api/tags`, { signal: AbortSignal.timeout(2500) });
@@ -93,7 +93,7 @@ function restartIdleTimer(worker: Worker) {
 }
 
 function startWorker(dir: string): Worker {
-  const child = spawn(PYTHON, [WORKER, dir], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
+  const child = spawn(/*turbopackIgnore: true*/ PYTHON, [WORKER, dir], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
   let markReady: () => void = () => undefined;
   let failStart: (error: Error) => void = () => undefined;
   const ready = new Promise<void>((resolve, reject) => {
@@ -174,7 +174,7 @@ function speechWorker(speech: string): Worker {
 
 /* Starts the speech worker ahead of use, so the first request does not wait for the model to load. */
 export function warmSpeech(speech: string) {
-  if (!PYTHON || !existsSync(PYTHON) || !existsSync(whisperDir(speech))) return;
+  if (!PYTHON || !existsSync(/*turbopackIgnore: true*/ PYTHON) || !existsSync(/*turbopackIgnore: true*/ whisperDir(speech))) return;
   speechWorker(speech);
 }
 
@@ -184,7 +184,7 @@ export function warmSpeech(speech: string) {
  */
 export function transcribe(pcm: Buffer, speech: string, vocabulary: string[], encoded = false): Promise<{ text: string; seconds: number; decodeMs: number }> {
   if (!pcm.length || pcm.length > (encoded ? MAX_ENCODED_BYTES : MAX_PCM_BYTES) || (!encoded && pcm.length % 2)) return Promise.reject(new ScribeError("The recording is empty or longer than ten minutes."));
-  if (!PYTHON || !existsSync(PYTHON) || !existsSync(whisperDir(speech))) return Promise.reject(new ScribeError("The speech engine is not set up on this server."));
+  if (!PYTHON || !existsSync(/*turbopackIgnore: true*/ PYTHON) || !existsSync(/*turbopackIgnore: true*/ whisperDir(speech))) return Promise.reject(new ScribeError("The speech engine is not set up on this server."));
   return oneAtATime(async () => {
     const worker = speechWorker(speech);
     await worker.ready;

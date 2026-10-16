@@ -66,9 +66,10 @@ function s3Storage(): Storage {
 }
 
 function localStorage(): Storage {
-  const root = path.resolve(process.cwd(), env.STORAGE_DIR);
+  // The marker keeps the build from packing the whole project into the server: files are only read here at run time.
+  const root = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.STORAGE_DIR);
   const file = (key: string) => {
-    const target = path.resolve(root, safeKey(key));
+    const target = path.resolve(/*turbopackIgnore: true*/ root, safeKey(key));
     if (!target.startsWith(root + path.sep)) throw new Error("Unsafe storage key.");
     return target;
   };
@@ -101,7 +102,7 @@ export function storage(): Storage {
 
 /* For tests and the health check: read a stored file back in full. */
 export async function readAll(key: string) {
-  if (storage().kind === "local") return readFile(path.resolve(process.cwd(), env.STORAGE_DIR, safeKey(key)));
+  if (storage().kind === "local") return readFile(path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.STORAGE_DIR, safeKey(key)));
   const { body } = await storage().read(key);
   return Buffer.from(await new Response(body).arrayBuffer());
 }
