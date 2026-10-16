@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { asLinkAgency } from "@/server/docs/requests";
-import { readOnlyNow } from "@/server/billing";
-import { signAccess } from "@/server/docs/sign-access";
 import { DocumentError } from "@/server/docs/service";
-import { pngFromDataUrl, signItem } from "@/server/docs/sign";
+import { pngFromDataUrl } from "@/server/docs/sign";
+import { clientIp, signRequested } from "@/server/docs/sign-request";
 
 const input = z.object({
   itemId: z.uuid(),
@@ -35,36 +34,15 @@ export async function POST(request: Request) {
 }
 
 async function sign(data: z.infer<typeof input>, request: Request) {
-  if (await readOnlyNow()) return NextResponse.json({ error: "This agency's Mohuddle subscription has lapsed, so documents cannot be signed right now. Contact the agency." }, { status: 403 });
-  const access = await signAccess(data.itemId, data.token);
-  if ("error" in access) return NextResponse.json({ error: access.error }, { status: 403 });
-  if (access.item.status === "approved") return NextResponse.json({ error: "This document has already been signed." }, { status: 409 });
-  const consentedAt = new Date(data.consentedAt);
-  if (Math.abs(consentedAt.getTime() - Date.now()) > 6 * 3_600_000) return NextResponse.json({ error: "Refresh the page and try again." }, { status: 400 });
+  let signaturePng: Buffer;
+  let initialsPng: Buffer;
   try {
-    const doc = await signItem({
-      itemId: access.item.id,
-      owner: access.owner,
-      template: access.template,
-      signerName: access.signerName,
-      signerRelation: access.signerRelation,
-      method: data.method,
-      typedName: data.typedName,
-      typedInitials: data.typedInitials,
-      signaturePng: pngFromDataUrl(data.signature, "signature"),
-      initialsPng: pngFromDataUrl(data.initials, "initials"),
-      initialsCount: data.initialsCount,
-      appliedFields: data.appliedFields,
-      ip: (request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "").split(",")[0].trim(),
-      userAgent: request.headers.get("user-agent") ?? "",
-      consentedAt,
-      source: access.source,
-      uploadedBy: access.userId,
-    });
-    return NextResponse.json({ ok: true, id: doc.id });
+    signaturePng = pngFromDataUrl(data.signature, "signature");
+    initialsPng = pngFromDataUrl(data.initials, "initials");
   } catch (error) {
     if (error instanceof DocumentError) return NextResponse.json({ error: error.message }, { status: 400 });
-    console.error("Signing failed", error);
-    return NextResponse.json({ error: "The document could not be signed. Try again." }, { status: 500 });
+    throw error;
   }
+  const result = await signRequested({ ...data, signaturePng, initialsPng, consentedAt: new Date(data.consentedAt), ip: clientIp(request), userAgent: request.headers.get("user-agent") ?? "" });
+  return NextResponse.json(result.ok ? { ok: true, id: result.id } : { error: result.error }, { status: result.ok ? 200 : result.status });
 }

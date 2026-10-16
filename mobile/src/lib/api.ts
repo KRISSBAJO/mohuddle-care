@@ -206,3 +206,14 @@ export type TaskDetail = Omit<TaskSummary, "person"> & {
   personLast: string | null;
   comments: { id: string; body: string; createdAt: string; by: string | null }[];
 };
+
+/* What GET /documents returns. */
+export type MyDocuments = {
+  requests: { id: string; title: string; message: string; dueOn: string | null; sentAt: string; items: { id: string; label: string; kind: "upload" | "sign"; status: "pending" | "submitted" | "approved" | "rejected"; reviewNote: string }[] }[];
+  file: { name: string; state: string; tone: string; expiresOn: string | null }[];
+};
+
+/* What GET /documents/sign/{itemId} returns. */
+export type DocumentToSign =
+  | { signed: true; title: string }
+  | { signed: false; title: string; signerName: string; initialEach: boolean; kind: "text" | "pdf"; sections: { heading: string; text: string }[] };

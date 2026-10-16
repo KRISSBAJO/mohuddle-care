@@ -73,6 +73,17 @@ export default function MoreScreen() {
             <Icon name="chevron-right" size={18} color={colors.dim} />
           </Card>
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/documents")} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+          <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={styles.linkIcon}>
+              <Icon name="file-text" size={18} color={colors.sage} />
+            </View>
+            <T weight="semibold" style={{ flex: 1 }}>
+              My documents
+            </T>
+            <Icon name="chevron-right" size={18} color={colors.dim} />
+          </Card>
+        </Pressable>
         <Card style={{ gap: 4 }}>
           <T size={13} color={colors.mute}>
             Signed in as

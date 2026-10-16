@@ -40,7 +40,18 @@ function Gate() {
 }
 
 export default function RootLayout() {
-  const [fontsReady] = useFonts({ PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold });
+  const [fontsReady] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+    // The handwriting fonts typed signatures use, the same files the server draws them with.
+    SigCaveat: require("../../assets/fonts/Caveat.ttf"),
+    SigDancing: require("../../assets/fonts/DancingScript.ttf"),
+    SigVibes: require("../../assets/fonts/GreatVibes.ttf"),
+    SigApple: require("../../assets/fonts/HomemadeApple.ttf"),
+  });
   useEffect(() => {
     if (fontsReady) void SplashScreen.hideAsync();
   }, [fontsReady]);
