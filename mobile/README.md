@@ -40,6 +40,19 @@ Medicines with no signal: regular scheduled doses can be recorded offline and ar
 - Ask Mohuddle (`/api/v1/assistant`, from the Ask button on Today and from More): type, or tap the microphone and speak (`/api/v1/scribe/transcribe?mode=assistant`; it stops after a pause). The website's assistant answers (`src/server/assistant.ts`); `src/server/mobile/assistant.ts` turns its website links into app screens where the app has one, and marks the rest as website links. Breaks start and end from the answer with a tap; a clock-in opens the clock screen, which shows the handover and checks the location. Answers can be read aloud (expo-speech), switched on per phone. Shown only when the agency's plan includes it and Settings has it on.
 - More: account, Ask Mohuddle, My tasks, My documents, switching agency, sign-out.
 
+### Notifications
+
+- Every message the website's bell gets (`notify()` in `src/server/notify.ts`) also goes to the person's signed-in phones, through Expo's push service (`src/server/phone-push.ts`). Reminders from the background sweep, no-shows, approvals and so on all arrive this way; nothing else needs to call it.
+- What a notification shows is the agency setting `phone_push_detail` (Settings, Sign-in and security): private (default, "You have a new alert"), the title only, or title and details. Expo, Apple and Google can read phone notifications, so the default names nobody (`src/lib/push-words.ts`).
+- The phone's push address is stored on its sign-in session (`sessions.push_token`, migration 0044), so signing out, or an admin signing out a lost phone, stops its notifications. Expo reporting a phone as gone clears the address.
+- The phone asks once, after the first sign-in (`src/components/PushListener.tsx`); it can be turned off or on in More. Tapping a notification opens the matching screen (`src/lib/phone-screens.ts`, shared with Ask Mohuddle), or Alerts.
+- Alerts (`/api/v1/notifications`, the bell on Today): the same list as the website's bell, with the details.
+- The Expo project is `@krissbajo/mohuddle` (id in `app.json`, `extra.eas.projectId`). To receive notifications on a real phone, the app must be a development or store build, not Expo Go:
+  - Sign in to Expo on this computer: `npx eas-cli login`, then `npx eas-cli build --profile development --platform android` (EAS creates `eas.json` on first run).
+  - Android: create a free Firebase project, add an Android app `com.mohuddle.app`, and upload its FCM V1 service account key in the Expo project's Credentials page.
+  - iPhone: needs the Apple Developer Program; EAS creates the push key during the first iOS build.
+  - If the Expo project turns on "enhanced push security", put its access token in the server's `.env` as `EXPO_ACCESS_TOKEN`.
+
 ### For managers (coordinators and administrators)
 
 - Team tab (`/api/v1/team`, shown only when `me.user.canManage`): who needs a call now (no-shows, late, forgotten clock-outs, clocked in away from the home) with a call button, what is waiting for a decision, new incidents with the state reporting deadline, and who is on shift at each home. The numbers come from the website's `liveBoard` (`src/server/queries/timeclock.ts`); the phone shapes are in `src/server/mobile/team.ts`.

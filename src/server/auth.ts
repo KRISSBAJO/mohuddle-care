@@ -62,6 +62,16 @@ export async function destroyDeviceSession() {
   if (token) await db.delete(schema.sessions).where(and(eq(schema.sessions.tokenHash, tokenHash(token)), isNotNull(schema.sessions.device)));
 }
 
+/* Saves (or clears) the Expo push address of this request's phone session. A phone has one address, so any older session holding it lets go. */
+export async function setDevicePushToken(pushToken: string | null) {
+  const token = await requestSessionToken();
+  if (!token) return false;
+  const hash = tokenHash(token);
+  if (pushToken) await db.update(schema.sessions).set({ pushToken: null }).where(and(eq(schema.sessions.pushToken, pushToken), sql`${schema.sessions.tokenHash} <> ${hash}`));
+  const updated = await db.update(schema.sessions).set({ pushToken }).where(and(eq(schema.sessions.tokenHash, hash), isNotNull(schema.sessions.device))).returning({ hash: schema.sessions.tokenHash });
+  return updated.length > 0;
+}
+
 /*
  * Checks an email and password against the logins of every agency. Returns the login, or null.
  * Verifies against a fixed hash when the login is unknown, so timing does not reveal which emails

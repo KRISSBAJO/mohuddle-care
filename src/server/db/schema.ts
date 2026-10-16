@@ -310,6 +310,8 @@ export const sessions = pgTable("sessions", {
   shared: boolean("shared").notNull().default(false),
   // Set for a sign-in from the Mohuddle phone app: the phone's name, shown so a lost phone can be signed out.
   device: text("device"),
+  // The phone app's Expo push address, set when the phone allows notifications. Gone with the session.
+  pushToken: text("push_token"),
   createdAt: createdAt(),
 });
 

@@ -1,4 +1,5 @@
 import { answer } from "@/server/assistant";
+import { canManage } from "@/server/auth";
 import { forPhone } from "@/server/mobile/assistant";
 import { phoneRoute, problem, reply } from "@/server/mobile/api";
 import { getSettings } from "@/server/settings";
@@ -14,5 +15,5 @@ export const POST = phoneRoute(async (user, request) => {
   const body = (await request.json().catch(() => ({}))) as { text?: unknown };
   const text = String(body.text ?? "").trim().slice(0, 500);
   if (!text) return problem(400, "invalid", "Say or type what you need.");
-  return reply(forPhone(await answer(text, user, settings, Date.now())));
+  return reply(forPhone(await answer(text, user, settings, Date.now()), canManage(user)));
 });

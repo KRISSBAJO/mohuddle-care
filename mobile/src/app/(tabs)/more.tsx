@@ -2,11 +2,14 @@ import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, ErrorText, Icon, T } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
 import { queuedDoses } from "@/lib/outbox";
+import { disablePush, enablePush, pushState, type PushState } from "@/lib/push";
+import { readValue, removeValue, writeValue } from "@/lib/storage";
+import { PUSH_OFF_KEY } from "@/components/PushListener";
 import { useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
 
@@ -14,7 +17,7 @@ const ROLES: Record<string, string> = { admin: "Administrator", coordinator: "Co
 
 /* Who is signed in, switching agency, and signing out. */
 export default function MoreScreen() {
-  const { me, signOut, switchAgency, biometricsOn } = useSession();
+  const { me, call, signOut, switchAgency, biometricsOn } = useSession();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const others = me?.agencies.filter(agency => agency.agencyId !== me.agency?.id) ?? [];
@@ -26,6 +29,36 @@ export default function MoreScreen() {
       queuedDoses(`${me?.user.email}|${me?.agency?.id}`).then(list => setUnsent(list.length));
     }, [me]),
   );
+
+  // Notifications: allowed by the phone, and not turned off here.
+  const [push, setPush] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      Promise.all([pushState(), readValue(PUSH_OFF_KEY)]).then(
+        ([state, off]) => setPush(state === "on" && off === "1" ? "off" : state),
+        () => setPush("unsupported"),
+      );
+    }, []),
+  );
+  async function changePush(on: boolean) {
+    setPushBusy(true);
+    setError("");
+    try {
+      if (on) {
+        await removeValue(PUSH_OFF_KEY);
+        setPush(await enablePush(call, true));
+      } else {
+        await disablePush(call);
+        await writeValue(PUSH_OFF_KEY, "1");
+        setPush("off");
+      }
+    } catch (problem) {
+      setError(problem instanceof ApiError ? problem.message : "Notifications could not be changed. Try again.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function switchTo(agencyId: string) {
     setBusy(agencyId);
@@ -97,6 +130,30 @@ export default function MoreScreen() {
             <Icon name="chevron-right" size={18} color={colors.dim} />
           </Card>
         </Pressable>
+        {push ? (
+          <Card style={{ gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={styles.linkIcon}>
+                <Icon name={push === "on" ? "bell" : "bell-off"} size={18} color={colors.sage} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T weight="semibold">Notifications</T>
+                <T size={13} color={colors.mute}>
+                  {push === "on"
+                    ? "On. Reminders and alerts come to this phone."
+                    : push === "denied"
+                      ? "Blocked in your phone's settings."
+                      : push === "unsupported"
+                        ? "They work in the Mohuddle app on a phone."
+                        : "Off. Alerts still show in the app."}
+                </T>
+              </View>
+            </View>
+            {push === "on" ? <Button label="Turn off" tone="ghost" busy={pushBusy} onPress={() => changePush(false)} /> : null}
+            {push === "off" ? <Button label="Turn on notifications" icon="bell" busy={pushBusy} onPress={() => changePush(true)} /> : null}
+            {push === "denied" ? <Button label="Open phone settings" tone="ghost" icon="settings" onPress={() => Linking.openSettings()} /> : null}
+          </Card>
+        ) : null}
         <Card style={{ gap: 4 }}>
           <T size={13} color={colors.mute}>
             Signed in as

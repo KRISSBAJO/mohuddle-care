@@ -57,10 +57,22 @@
           "cameraPermission": "Mohuddle uses the camera when you add a photo to an incident report, such as an injury or damage.",
           "photosPermission": "Mohuddle lets you add a photo from your library to an incident report."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#173e35"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "owner": "krissbajo",
+    "extra": {
+      "eas": {
+        "projectId": "910067b6-454c-434f-ad53-6a514041e7fc"
+      }
     }
   }
 }

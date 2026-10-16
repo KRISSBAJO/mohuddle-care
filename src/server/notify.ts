@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db, schema } from "@/server/db";
+import { pushToPhones } from "@/server/phone-push";
 import { pushTo } from "@/server/push";
 
 export type Role = "admin" | "coordinator" | "nurse" | "dsp";
@@ -47,12 +48,14 @@ export async function notify(userIds: string[], message: Message) {
     )
     .onConflictDoNothing()
     .returning({ id: schema.notifications.id, userId: schema.notifications.userId });
-  // New messages also go to the phones of the people told. A repeat (same dedupe key) goes nowhere.
+  // New messages also go to the browsers and phone apps of the people told. A repeat (same dedupe key) goes nowhere.
   if (rows.length) {
-    await pushTo(
-      rows.map(row => row.userId),
-      { title: message.title, body: message.body, href: message.href, tone: message.tone, tag: message.dedupeKey },
-    ).catch(error => console.error("Push failed", error));
+    const push = { title: message.title, body: message.body, href: message.href, tone: message.tone, tag: message.dedupeKey };
+    const told = rows.map(row => row.userId);
+    await Promise.all([
+      pushTo(told, push).catch(error => console.error("Push failed", error)),
+      pushToPhones(told, { ...push, notificationIds: Object.fromEntries(rows.map(row => [row.userId, row.id])) }).catch(error => console.error("Phone push failed", error)),
+    ]);
   }
   return rows.length;
 }

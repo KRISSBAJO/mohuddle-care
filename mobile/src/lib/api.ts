@@ -273,3 +273,6 @@ export type TeamIncident = {
   timeline: { id: string; kind: string; body: string; at: string; by: string | null }[];
   photos: { id: string; caption: string; by: string | null; at: string }[];
 };
+
+/* What GET /notifications returns: the same alerts as the bell on the website. */
+export type Alerts = { unread: number; items: { id: string; title: string; body: string; tone: "info" | "warn" | "bad" | "good"; at: string; read: boolean; screen: string | null; web: string | null }[] };

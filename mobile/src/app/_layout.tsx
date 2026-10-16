@@ -6,8 +6,10 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/LockScreen";
+import { PushListener } from "@/components/PushListener";
 import { SetPin } from "@/components/SetPin";
 import { SignIn } from "@/components/SignIn";
+import { pushSupported } from "@/lib/push";
 import { SessionProvider, useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
 
@@ -30,6 +32,7 @@ function Gate() {
       <View style={{ flex: 1 }} importantForAccessibility={status === "locked" ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={status === "locked"}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }} />
       </View>
+      {pushSupported ? <PushListener /> : null}
       {status === "locked" ? (
         <View style={StyleSheet.absoluteFill}>
           <LockScreen />

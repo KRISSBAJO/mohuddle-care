@@ -1,0 +1,37 @@
+/*
+ * Website pages that have a screen in the phone app, for links in Ask Mohuddle answers and for
+ * tapping a notification. Null means the page is only on the website. Team and incident screens
+ * are for coordinators and administrators.
+ */
+export function phoneScreenFor(href: string, manager: boolean): string | null {
+  if (!href) return null;
+  const url = new URL(href, "http://phone");
+  const person = url.searchParams.get("individual");
+  const parts = url.pathname.split("/").filter(Boolean);
+  const id = /^[0-9a-f-]{36}$/.test(parts[2] ?? "") ? parts[2] : null;
+  switch (url.pathname) {
+    case "/app":
+      return "/today";
+    case "/app/clock":
+    case "/app/clock/in":
+    case "/app/clock/out":
+      return "/clock";
+    case "/app/daily-logs/new":
+      return person ? `/note?person=${person}` : "/notes";
+    case "/app/daily-logs":
+      return "/notes";
+    case "/app/incidents/new":
+      return person ? `/report?person=${person}` : "/report";
+    case "/app/medications":
+      return "/meds";
+    case "/app/tasks":
+      return "/tasks";
+    case "/app/my-documents":
+      return "/documents";
+    case "/app/time":
+      return manager ? "/team" : null;
+  }
+  if (parts[1] === "tasks" && id) return `/task?id=${id}`;
+  if (parts[1] === "incidents" && id) return manager ? `/incident?id=${id}` : null;
+  return null;
+}

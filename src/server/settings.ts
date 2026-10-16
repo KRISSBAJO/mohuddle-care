@@ -489,6 +489,12 @@ export const settingDefs = {
     schema: z.enum(["on", "off"]),
     fallback: "on",
   },
+  phone_push_detail: {
+    label: "What phone app notifications show (private, title or full)",
+    kind: "text",
+    schema: z.enum(["private", "title", "full"]),
+    fallback: "private",
+  },
   phone_pin_attempts: {
     label: "Wrong PINs before the phone app signs out (3 to 10)",
     kind: "number",

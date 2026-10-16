@@ -33,17 +33,20 @@ export default function TodayScreen() {
   const [now, setNow] = useState(() => Date.now());
   const zone = me?.agency?.zone;
 
-  const load = useCallback(
-    () =>
-      call<Today>("/today").then(
-        data => {
-          setToday(data);
-          setError("");
-        },
-        problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
-      ),
-    [call],
-  );
+  const [unread, setUnread] = useState(0);
+  const load = useCallback(() => {
+    call<{ unread: number }>("/notifications?count=1").then(
+      data => setUnread(data.unread),
+      () => undefined,
+    );
+    return call<Today>("/today").then(
+      data => {
+        setToday(data);
+        setError("");
+      },
+      problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
+    );
+  }, [call]);
 
   useEffect(() => {
     // The first load happens when the screen comes into focus, below. The time on shift counts up; the list refreshes every few minutes.
@@ -193,6 +196,16 @@ export default function TodayScreen() {
                   </T>
                 </Pressable>
               ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Alerts, ${unread} unread` : "Alerts"} onPress={() => router.push("/alerts")} style={({ pressed }) => [styles.bell, shadow.soft, pressed && { opacity: 0.7 }]}>
+                <Icon name="bell" size={18} color={colors.brand} />
+                {unread ? (
+                  <View style={styles.bellBadge}>
+                    <T weight="bold" size={10} color="#ffffff">
+                      {unread > 9 ? "9+" : unread}
+                    </T>
+                  </View>
+                ) : null}
+              </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Your account" onPress={() => router.push("/more")} style={styles.me}>
               <T weight="bold" size={14} color={colors.lime}>
                   {initials}
@@ -407,6 +420,8 @@ const styles = StyleSheet.create({
   agency: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
   agencyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.sage },
   ask: { flexDirection: "row", alignItems: "center", gap: 6, height: 42, borderRadius: 21, paddingHorizontal: 14, backgroundColor: colors.card },
+  bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
+  bellBadge: { position: "absolute", top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.flag, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.ground },
   me: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
   shift: { marginHorizontal: 20, backgroundColor: colors.card, borderRadius: 28, padding: 20 },
   shiftTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
