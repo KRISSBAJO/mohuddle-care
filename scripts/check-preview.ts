@@ -48,6 +48,8 @@ async function main() {
       const { rows: agencies } = await owner.query("select id from agencies order by created_at limit 1");
       const page = `/owner/agencies/${agencies[0].id}`;
       ownerRoutes.push(page, ...["profile", "admins", "billing", "activity", "not-a-tab"].map(tab => `${page}?tab=${tab}`));
+      const { rows: plans } = await owner.query("select id from plans order by sort_order limit 1");
+      ownerRoutes.push("/owner/plans?edit=new", "/owner/plans?edit=not-a-plan", ...plans.map(plan => `/owner/plans?edit=${plan.id}`));
     }
     const { rows: people } = await pool.query("select id from individuals limit 1");
     const { rows: incidents } = await pool.query("select id from incidents order by status");

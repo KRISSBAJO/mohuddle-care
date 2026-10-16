@@ -20,18 +20,18 @@ export function PlanFields({ plan = blank }: { plan?: Plan }) {
         <span>Counting each</span>
         <Select name="unit" defaultValue={plan.unit} options={Object.entries(PLAN_UNITS).map(([value, words]) => ({ value, label: words }))} aria-label="What the per-unit price counts" />
       </div>
-      <fieldset className="grid gap-2 sm:col-span-2">
-        <legend className="mb-1 text-sm font-medium">Included features</legend>
+      <fieldset className="grid gap-2.5 sm:col-span-2 lg:grid-cols-3">
+        <legend className="mb-2 text-sm font-medium">Included features</legend>
         {PLAN_FEATURES.map(feature => (
-          <label key={feature.key} className="flex items-start gap-2.5 text-sm">
-            <input type="checkbox" name="features" value={feature.key} defaultChecked={plan.features.includes(feature.key)} className="mt-1" />
-            <span><span className="font-semibold">{feature.label}</span> <span className="text-mute">{feature.help}</span></span>
+          <label key={feature.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3.5 text-sm transition hover:border-brand/40 has-[:checked]:border-brand has-[:checked]:bg-sky/40">
+            <input type="checkbox" name="features" value={feature.key} defaultChecked={plan.features.includes(feature.key)} className="mt-0.5 h-4 w-4 accent-[#173e35]" />
+            <span><span className="block font-semibold">{feature.label}</span> <span className="block text-xs text-mute">{feature.help}</span></span>
           </label>
         ))}
-        <p className="text-xs text-mute">Everything else (notes, medications, schedules, time clock, incidents, documents) comes with every plan.</p>
+        <p className="text-xs text-mute lg:col-span-3">Everything else (notes, medications, schedules, time clock, incidents, documents) comes with every plan.</p>
       </fieldset>
-      <label className="flex items-center gap-2.5 text-sm sm:col-span-2">
-        <input type="checkbox" name="active" defaultChecked={plan.active} /> Offered to agencies (switch off to retire a plan; agencies already on it keep it)
+      <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-[var(--color-panel)]/60 p-3.5 text-sm sm:col-span-2">
+        <input type="checkbox" name="active" defaultChecked={plan.active} className="h-4 w-4 accent-[#173e35]" /> Offered to agencies (switch off to retire a plan; agencies already on it keep it)
       </label>
     </div>
   );
