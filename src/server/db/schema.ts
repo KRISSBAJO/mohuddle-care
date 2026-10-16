@@ -1280,6 +1280,8 @@ export const handoverReads = pgTable(
       .references(() => staff.id, { onDelete: "cascade" }),
     entryId: uuid("entry_id").references(() => timeEntries.id, { onDelete: "set null" }),
     readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+    // What the person taking over said when they acknowledged it, such as "fridge not cleaned". Empty when all was as handed over.
+    remark: text("remark").notNull().default(""),
   },
   table => [uniqueIndex("handover_read_once").on(table.handoverId, table.staffId)],
 );

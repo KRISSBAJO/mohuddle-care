@@ -1,0 +1,1 @@
+ALTER TABLE "handover_reads" ADD COLUMN "remark" text DEFAULT '' NOT NULL;

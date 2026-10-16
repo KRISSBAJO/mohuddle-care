@@ -319,7 +319,7 @@ export async function entryDetail(id: string) {
       .where(eq(schema.timeEntryChanges.entryId, id))
       .orderBy(asc(schema.timeEntryChanges.createdAt)),
     db
-      .select({ handoverId: schema.handoverReads.handoverId, readAt: schema.handoverReads.readAt, writer: staffName, note: schema.handovers.note })
+      .select({ handoverId: schema.handoverReads.handoverId, readAt: schema.handoverReads.readAt, remark: schema.handoverReads.remark, writer: staffName, note: schema.handovers.note })
       .from(schema.handoverReads)
       .innerJoin(schema.handovers, eq(schema.handovers.id, schema.handoverReads.handoverId))
       .leftJoin(schema.staff, eq(schema.staff.id, schema.handovers.staffId))
@@ -341,6 +341,8 @@ export async function handoverLog(options: { home: string; page: number; per: nu
       home: schema.homes.name,
       staff: staffName,
       reads: sql<number>`(select count(*) from handover_reads r where r.handover_id = ${schema.handovers.id})::int`,
+      // Who took over and acknowledged it, with any remark, in the order they did.
+      acks: sql<{ staff: string; remark: string; readAt: string }[]>`(select coalesce(json_agg(json_build_object('staff', s.first_name || ' ' || s.last_name, 'remark', r.remark, 'readAt', r.read_at) order by r.read_at), '[]'::json) from handover_reads r join staff s on s.id = r.staff_id where r.handover_id = ${schema.handovers.id})`,
     })
     .from(schema.handovers)
     .innerJoin(schema.homes, eq(schema.homes.id, schema.handovers.homeId))

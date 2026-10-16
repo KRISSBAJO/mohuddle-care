@@ -12,6 +12,7 @@ export const OWNER_ACTIONS: Record<string, string> = {
   "support:close": "Ended a support visit",
   "plan:save": "Saved a plan",
   "billing:rules": "Changed the billing rules",
+  "library:handover": "Changed the shift-change library",
   "billing:update": "Changed the plan or status",
   "billing:payment": "Recorded a payment",
   "owner:sign-in": "Signed in",

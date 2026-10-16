@@ -301,7 +301,7 @@ export async function noteReview(kind: NoteKind, id: string, user: SessionUser, 
       .where(eq(table.id, id))
       .limit(1),
   ]);
-  return { note, events, reviewedBy: reviewer[0] ?? null, rights: noteRights(user, { ...asTarget(note), status: note.status }, settings.note_review_roles) };
+  return { note, events, reviewedBy: reviewer[0] ?? null, rights: noteRights(user, { ...asTarget(note), status: note.status }, settings.note_review_roles, settings.note_writer_edit) };
 }
 
 /* The user's own notes that a reviewer sent back, oldest first so the longest-waiting is fixed first. */

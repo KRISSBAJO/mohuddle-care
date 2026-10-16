@@ -92,6 +92,70 @@ export function ListEditor({ name, initial, placeholder }: { name: string; initi
   );
 }
 
+/*
+ * A list chosen from Mohuddle's library plus the agency's own items, such as the shift-change
+ * ticks. Sent the same way as ListEditor: library picks in library order, then the agency's own.
+ */
+export function LibraryPicker({ name, initial, library }: { name: string; initial: string[]; library: string[] }) {
+  const [picked, setPicked] = useState(library.filter(item => initial.includes(item)));
+  const [own, setOwn] = useState(initial.filter(item => !library.includes(item)));
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const value = draft.trim();
+    setDraft("");
+    if (!value || [...library, ...own].some(item => item.toLowerCase() === value.toLowerCase())) return;
+    setOwn([...own, value]);
+  };
+  const chosen = [...library.filter(item => picked.includes(item)), ...own];
+  return (
+    <div className="space-y-4">
+      <input type="hidden" name={name} value={chosen.join("\n")} />
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">From the Mohuddle library</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {library.map(item => (
+            <label key={item} className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line px-3 py-2.5 text-sm transition hover:border-brand/40 has-[:checked]:border-brand has-[:checked]:bg-sky/40">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#173e35]" checked={picked.includes(item)} onChange={event => setPicked(event.target.checked ? [...picked, item] : picked.filter(value => value !== item))} />
+              <span>{item}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Your own</p>
+        <ul className="flex flex-wrap gap-1.5">
+          {own.map(item => (
+            <li key={item} className="inline-flex items-center gap-1 rounded-full border border-line bg-white py-1 pl-3 pr-1 text-sm">
+              {item}
+              <button type="button" onClick={() => setOwn(own.filter(value => value !== item))} className="rounded-full p-0.5 text-mute hover:bg-flag-soft hover:text-flag" aria-label={`Remove ${item}`}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+          {own.length === 0 && <li className="text-sm text-mute">None yet.</li>}
+        </ul>
+        <div className="mt-2 flex max-w-md gap-2">
+          <input
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            className="field py-2"
+            placeholder="Add your own item"
+            aria-label={`Add to ${name.replace(/_/g, " ")}`}
+          />
+          <button type="button" onClick={add} className="btn-ghost btn-sm"><Plus className="h-4 w-4" /> Add</button>
+        </div>
+      </div>
+      <p className="text-xs text-mute">{chosen.length} {chosen.length === 1 ? "item" : "items"} in your handover.</p>
+    </div>
+  );
+}
+
 const ROLES = [
   ["admin", "Administrators"],
   ["coordinator", "Coordinators"],

@@ -43,7 +43,7 @@ async function main() {
     owner = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     const { rows: ownerRows } = await owner.query("select l.id, l.is_owner from users u join logins l on l.id = u.login_id where u.id = $1", [users[0].id]);
     if (ownerRows[0]?.is_owner) await owner.query("insert into owner_sessions(token_hash, login_id, expires_at) values ($1, $2, $3)", [ownerHash, ownerRows[0].id, new Date(Date.now() + 600_000)]);
-    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/agencies", "/owner/agencies/new", "/owner/security", "/owner/enquiries", "/owner/health", "/owner/activity", "/owner/search", "/owner/search?q=angela", "/owner/search?q=%25_", "/owner/billing", "/owner/plans"] : [];
+    const ownerRoutes = ownerRows[0]?.is_owner ? ["/owner", "/owner/agencies", "/owner/agencies/new", "/owner/security", "/owner/enquiries", "/owner/health", "/owner/activity", "/owner/search", "/owner/search?q=angela", "/owner/search?q=%25_", "/owner/billing", "/owner/plans", "/owner/library"] : [];
     if (ownerRows[0]?.is_owner) {
       const { rows: agencies } = await owner.query("select id from agencies order by created_at limit 1");
       const page = `/owner/agencies/${agencies[0].id}`;

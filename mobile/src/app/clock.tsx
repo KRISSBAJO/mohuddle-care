@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -6,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Check, Choice, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
 import { ApiError, type ClockScreen } from "@/lib/api";
 import { fmt } from "@/lib/format";
+import { combineHandovers } from "@/lib/handover";
 import { distanceWords, locationVerdict, readPosition, type Reading } from "@/lib/location";
+import { goBack } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
@@ -35,7 +36,7 @@ export default function ClockScreenPage() {
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
       <StatusBar style="dark" />
       <SafeAreaView edges={["top"]} style={styles.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack()} style={styles.back}>
           <Icon name="chevron-left" size={22} />
         </Pressable>
         <T weight="bold" size={17}>
@@ -125,6 +126,10 @@ function ClockIn({ data }: { data: Off }) {
   const needs = data.rules.requirements;
   const home = data.homes.find(item => item.id === homeId) ?? null;
   const handovers = needs.includes("handover") ? data.handovers.filter(handover => handover.homeId === homeId) : [];
+  // However many handed over, one combined handover to read and acknowledge once.
+  const combined = combineHandovers(handovers);
+  const allRead = handovers.every(handover => read_.includes(handover.id));
+  const [remark, setRemark] = useState("");
   const [now] = useState(() => Date.now());
 
   async function submit() {
@@ -132,8 +137,8 @@ function ClockIn({ data }: { data: Off }) {
     setBusy(true);
     try {
       const position = reading === "reading" ? null : reading.position;
-      await call("/clock/in", { shiftId: data.shift?.id ?? null, homeId: data.shift ? null : homeId, position, reason, statements, handoversRead: read_ });
-      router.back();
+      await call("/clock/in", { shiftId: data.shift?.id ?? null, homeId: data.shift ? null : homeId, position, reason, statements, handoversRead: read_, handoverRemark: remark.trim() });
+      goBack();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
       setBusy(false);
@@ -173,41 +178,57 @@ function ClockIn({ data }: { data: Off }) {
         {working && home && needs.includes("location") ? <LocationBlock reading={reading} retry={read} home={home} homeName={home.name} radius={data.rules.geofence} reason={reason} setReason={setReason} verb="clocking in" /> : null}
 
         {working && handovers.length ? (
-          <Section title="Read the handover" hint="From the last shift at this home. Tick each one once you have read it." tone={handovers.every(handover => read_.includes(handover.id)) ? "good" : "must"}>
-            {handovers.map(handover => (
-              <View key={handover.id} style={styles.handover}>
-                <T size={13} color={colors.mute}>
-                  {handover.staff ?? "Staff"} · {fmt.time(handover.createdAt, zone)}
+          <Section title="Handover from the last shift" hint={`From ${combined.from.join(", ")}. Read it, then acknowledge it once.`} tone={allRead ? "good" : "must"}>
+            {combined.incidents.map(incident => (
+              <View key={incident.staff} style={[styles.callout, { backgroundColor: incident.reported ? "#fdf0dc" : colors.flagSoft }]}>
+                <T size={13} weight="semibold" color={incident.reported ? "#9a6212" : colors.flag}>
+                  {incident.staff}: {incident.reported ? "an incident happened and was reported." : "an incident happened and is not reported yet."}
                 </T>
-                {handover.note ? <T style={{ marginTop: 6 }}>{handover.note}</T> : null}
-                {handover.people.map(person => (
-                  <T key={person.individualId} size={14} style={{ marginTop: 6 }}>
-                    <T weight="semibold" size={14}>
-                      {person.name}:
-                    </T>{" "}
-                    {person.note}
-                  </T>
-                ))}
-                {handover.checks
-                  .filter(check => !check.done)
-                  .map(check => (
-                    <T key={check.label} size={14} color={colors.flag} style={{ marginTop: 6 }}>
-                      Not done: {check.label}
-                      {check.comment ? ` (${check.comment})` : ""}
-                    </T>
-                  ))}
-                {handover.incident !== "none" ? (
-                  <T size={14} weight="semibold" color={colors.flag} style={{ marginTop: 6 }}>
-                    {handover.incident === "reported" ? "There was an incident, and it was reported." : "There was an incident that is not reported yet."}
-                  </T>
-                ) : null}
-                <View style={{ marginTop: 8 }}>
-                  <Check checked={read_.includes(handover.id)} onToggle={() => setRead(read_.includes(handover.id) ? read_.filter(id => id !== handover.id) : [...read_, handover.id])}>
-                    I have read this
-                  </Check>
-                </View>
               </View>
             ))}
+            {combined.notes.map(entry => (
+              <View key={entry.staff + String(entry.at)} style={{ gap: 2 }}>
+                <T size={12} weight="semibold" color={colors.mute}>
+                  {entry.staff} · {fmt.time(entry.at, zone)}
+                </T>
+                <T>{entry.note}</T>
+              </View>
+            ))}
+            {combined.people.map(person => (
+              <T key={person.name} size={14}>
+                <T weight="semibold" size={14}>
+                  {person.name}:
+                </T>{" "}
+                {person.notes.map(note => (combined.from.length > 1 ? `${note.note} (${note.staff})` : note.note)).join(" · ")}
+              </T>
+            ))}
+            {combined.checks.length ? (
+              <View style={styles.handover}>
+                {combined.checks.map(check => (
+                  <View key={check.label} style={{ flexDirection: "row", gap: 8, paddingVertical: 4 }}>
+                    <Icon name={check.notDone.length ? "x-circle" : "check-circle"} size={16} color={check.notDone.length ? colors.flag : colors.sage} />
+                    <View style={{ flex: 1 }}>
+                      <T size={14} weight={check.notDone.length ? "semibold" : "regular"} color={check.notDone.length ? colors.flag : colors.ink}>
+                        {check.label}
+                      </T>
+                      {check.notDone.map(miss => (
+                        <T key={miss.staff} size={13} color={colors.ink}>
+                          Not done by {miss.staff}
+                          {miss.comment ? `: ${miss.comment}` : ""}
+                        </T>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <Check checked={allRead} onToggle={() => setRead(allRead ? [] : handovers.map(handover => handover.id))}>
+              {handovers.length === 1 ? "I have read this handover" : `I have read the handover from all ${handovers.length}`}
+            </Check>
+            <Field label="Anything not as handed over? (optional)" value={remark} onChangeText={setRemark} placeholder="Fridge was not cleaned" maxLength={1000} />
+            <T size={12} color={colors.mute}>
+              Your manager and whoever handed over will see it.
+            </T>
           </Section>
         ) : null}
 
@@ -278,7 +299,7 @@ function ClockOut({ data }: { data: On }) {
         attestedName: signed,
         confirmWarnings: confirm,
       });
-      router.back();
+      goBack();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
       setBusy(false);
@@ -411,7 +432,8 @@ const styles = StyleSheet.create({
   summaryItem: { flex: 1, alignItems: "center", gap: 2 },
   summaryRule: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.line },
   line: { flexDirection: "row", alignItems: "center", gap: 10 },
-  handover: { backgroundColor: colors.ground, borderRadius: 16, padding: 14 },
+  handover: { backgroundColor: colors.ground, borderRadius: 16, padding: 12 },
+  callout: { borderRadius: 12, padding: 10 },
   why: { minHeight: 42, marginLeft: 36, marginTop: 2, marginBottom: 6, fontSize: 14 },
   go: { minHeight: 56, borderRadius: 18 },
 });

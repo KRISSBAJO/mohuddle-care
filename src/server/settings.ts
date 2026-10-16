@@ -93,6 +93,12 @@ export const settingDefs = {
     schema: z.array(z.enum(["admin", "coordinator", "nurse", "dsp"])),
     fallback: ["admin", "coordinator"],
   },
+  note_writer_edit: {
+    label: "Writers can change their own note: until it is approved, or only when a reviewer sends it back (until_approved or when_returned)",
+    kind: "text",
+    schema: z.enum(["until_approved", "when_returned"]),
+    fallback: "until_approved",
+  },
   note_review_checks: {
     label: "What flags a note for a closer look (late, no_punch, outside_punch, attention, resubmitted, copied, early)",
     kind: "list",

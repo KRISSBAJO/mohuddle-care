@@ -123,7 +123,7 @@ export default async function TimeEntryPage({ params }: { params: Promise<{ id: 
           </Panel>
 
           {detail.reads.length > 0 && (
-            <Panel title="Handovers they read before clocking in">
+            <Panel title="Handovers they acknowledged before clocking in">
               <ul className="divide-y divide-line/60">
                 {detail.reads.map(read => (
                   <li key={read.handoverId} className="flex gap-3 px-5 py-3 text-sm">
@@ -131,6 +131,7 @@ export default async function TimeEntryPage({ params }: { params: Promise<{ id: 
                     <span className="min-w-0">
                       <span className="font-semibold">From {read.writer ?? "a staff member"}</span> <span className="text-xs text-mute">read {fmt.time(read.readAt)}</span>
                       <span className="block truncate text-mute">{read.note}</span>
+                      {read.remark && <span className="mt-1 block rounded-lg bg-accent-soft px-2.5 py-1.5 text-xs text-[#8a5a10]">Their remark: {read.remark}</span>}
                     </span>
                   </li>
                 ))}

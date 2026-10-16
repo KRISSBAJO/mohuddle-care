@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { formatMinutes, handoverProblems, lateMinutes, locationVerdict, nameMatches } from "@/lib/timeclock";
@@ -32,6 +32,13 @@ async function tellManagers(homeId: string | null, except: string, message: Para
   await notify(ids, message);
 }
 
+/* The staff who wrote these handovers. */
+async function handoverWriters(ids: string[]) {
+  if (!ids.length) return [];
+  const rows = await db.select({ staffId: schema.handovers.staffId }).from(schema.handovers).where(inArray(schema.handovers.id, ids));
+  return rows.map(row => row.staffId).filter((id): id is string => Boolean(id));
+}
+
 /* ---------- Clock in ---------- */
 
 const clockInInput = z.object({
@@ -41,6 +48,8 @@ const clockInInput = z.object({
   reason: z.string().trim().max(500).default(""),
   statements: z.array(z.string()).max(30).default([]),
   handoversRead: z.array(z.string()).max(30).default([]),
+  // Anything not as handed over, from the person taking over. Goes to the manager and the outgoing staff.
+  handoverRemark: z.string().trim().max(1000).default(""),
 });
 
 /* Clocks a staff member in. Shared by the website and the phone app; every rule is checked here. */
@@ -112,11 +121,25 @@ export async function clockInFor(user: SessionUser, payload: unknown): Promise<P
         userAgent,
       })
       .returning({ id: schema.timeEntries.id });
-    if (unread.length) await tx.insert(schema.handoverReads).values(unread.map(handover => ({ handoverId: handover.id, staffId, entryId: entry.id }))).onConflictDoNothing();
+    if (unread.length) await tx.insert(schema.handoverReads).values(unread.map(handover => ({ handoverId: handover.id, staffId, entryId: entry.id, remark: input.handoverRemark }))).onConflictDoNothing();
     if (shiftId) await tx.update(schema.shifts).set({ status: "confirmed" }).where(and(eq(schema.shifts.id, shiftId), eq(schema.shifts.status, "scheduled")));
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "time:clock_in", entity: "time_entry", entityId: entry.id });
     return entry.id;
   });
+
+  // A remark on the handover goes to the home's managers and to everyone who handed over.
+  if (unread.length && input.handoverRemark) {
+    const from = [...new Set(unread.map(handover => handover.staff).filter(Boolean))].join(", ");
+    const ids = await recipients({ roles: settings.notify_roles_time as Role[], staffIds: [await homeManagerOf(homeId), ...(await handoverWriters(unread.map(handover => handover.id)))], except: user.id });
+    await notify(ids, {
+      kind: "time",
+      title: `${user.name} took over at ${home.name} with a remark`,
+      body: `${input.handoverRemark}${from ? ` (handover from ${from})` : ""}`,
+      href: `/app/time?tab=handovers&home=${homeId}`,
+      tone: "warn",
+      dedupeKey: `handover:remark:${entryId}`,
+    });
+  }
 
   const serious = flags;
   if (serious.length) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, CreditCard, Gauge, Inbox, Layers, LogOut, Menu, PlusCircle, ScrollText, Search, ShieldCheck, X } from "lucide-react";
+import { Activity, Building2, CreditCard, Gauge, Inbox, Layers, ListChecks, LogOut, Menu, PlusCircle, ScrollText, Search, ShieldCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Logo } from "@/components/marketing/Logo";
 import { cn } from "@/lib/cn";
@@ -19,7 +19,7 @@ export function OwnerSidebar({ owner, waiting, signOut }: { owner: { name: strin
     { title: "Agencies", items: [{ href: "/owner/agencies", label: "All agencies", icon: Building2, exact: true }, { href: "/owner/agencies/new", label: "Add an agency", icon: PlusCircle }] },
     { title: "Money", items: [{ href: "/owner/billing", label: "Billing", icon: CreditCard }, { href: "/owner/plans", label: "Plans and prices", icon: Layers }] },
     { title: "Growth", items: [{ href: "/owner/enquiries", label: "Demo requests", icon: Inbox, badge: waiting }] },
-    { title: "Running Mohuddle", items: [{ href: "/owner/health", label: "Health", icon: Activity }, { href: "/owner/activity", label: "Activity log", icon: ScrollText }, { href: "/owner/search", label: "Search", icon: Search }] },
+    { title: "Running Mohuddle", items: [{ href: "/owner/health", label: "Health", icon: Activity }, { href: "/owner/library", label: "Shared lists", icon: ListChecks }, { href: "/owner/activity", label: "Activity log", icon: ScrollText }, { href: "/owner/search", label: "Search", icon: Search }] },
     { title: "You", items: [{ href: "/owner/security", label: "Security", icon: ShieldCheck }] },
   ];
   const isActive = (item: Item) => (item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`));

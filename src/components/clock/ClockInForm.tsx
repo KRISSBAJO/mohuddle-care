@@ -3,7 +3,8 @@
 import { startTransition, useActionState, useState } from "react";
 import { AlertTriangle, CalendarClock, Check, Loader2, LocateFixed, MapPin, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
 import { Select } from "@/components/app/Select";
-import { HandoverCard, type HandoverView } from "@/components/clock/HandoverCard";
+import { CombinedHandover } from "@/components/clock/CombinedHandover";
+import type { HandoverView } from "@/components/clock/HandoverCard";
 import { usePosition } from "@/components/clock/usePosition";
 import { cn } from "@/lib/cn";
 import { locationVerdict } from "@/lib/timeclock";
@@ -58,6 +59,7 @@ export function ClockInForm({
   const [homeId, setHomeId] = useState(shift?.homeId ?? "");
   const [reason, setReason] = useState("");
   const [read, setRead] = useState<string[]>([]);
+  const [remark, setRemark] = useState("");
   const [ticked, setTicked] = useState<string[]>([]);
   const needLocation = requirements.includes("location");
   const needHandover = requirements.includes("handover");
@@ -95,6 +97,7 @@ export function ClockInForm({
             reason: reason.trim(),
             statements: needStatements ? ticked : [],
             handoversRead: read,
+            handoverRemark: remark.trim(),
           }),
         );
         startTransition(() => formAction(data));
@@ -175,15 +178,20 @@ export function ClockInForm({
           ) : toRead.length === 0 ? (
             <p className="flex items-center gap-2 text-sm text-mute"><ScrollText className="h-4 w-4" /> No new handover at this home in the last day.</p>
           ) : (
-            <div className="space-y-3">
-              {toRead.map(item => (
-                <div key={item.id} className={cn("rounded-xl border p-4", read.includes(item.id) ? "border-sage/40 bg-sage-soft/30" : "border-line")}>
-                  <HandoverCard handover={item} />
-                  <label className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-sm font-semibold">
-                    <input type="checkbox" checked={read.includes(item.id)} onChange={event => setRead(event.target.checked ? [...read, item.id] : read.filter(id => id !== item.id))} /> I have read this handover
-                  </label>
-                </div>
-              ))}
+            <div className={cn("rounded-xl border p-4", handoverDone ? "border-sage/40 bg-sage-soft/30" : "border-line")}>
+              {/* One handover however many people handed over: acknowledged once, with an optional remark. */}
+              <CombinedHandover handovers={toRead} />
+              <div className="mt-4 space-y-3 border-t border-line pt-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={handoverDone} onChange={event => setRead(event.target.checked ? toRead.map(item => item.id) : [])} />
+                  {toRead.length === 1 ? "I have read this handover" : `I have read the handover from all ${toRead.length}`}
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="font-medium">Anything not as handed over? <span className="font-normal text-mute">(optional)</span></span>
+                  <textarea rows={2} maxLength={1000} value={remark} onChange={event => setRemark(event.target.value)} className="field" placeholder="Fridge was not cleaned; one count sheet not signed" />
+                  <span className="text-xs text-mute">Your manager and whoever handed over will see it.</span>
+                </label>
+              </div>
             </div>
           )}
         </Step>

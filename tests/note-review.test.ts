@@ -40,8 +40,13 @@ test("what each person may do depends on the status", () => {
   assert.deepEqual(noteRights(admin, { ...note, status: "submitted" }, ["admin"]), { reviewer: true, writer: false, approve: true, returnIt: true, edit: true, reopen: false });
   assert.equal(noteRights(admin, { ...note, status: "approved" }, ["admin"]).edit, false);
   assert.equal(noteRights(admin, { ...note, status: "approved" }, ["admin"]).reopen, true);
-  assert.equal(noteRights(writer, { ...note, status: "submitted" }, ["admin"]).edit, false);
+  // By default writers fix their own note until it is approved; then it is locked.
+  assert.equal(noteRights(writer, { ...note, status: "submitted" }, ["admin"]).edit, true);
   assert.equal(noteRights(writer, { ...note, status: "returned" }, ["admin"]).edit, true);
+  assert.equal(noteRights(writer, { ...note, status: "approved" }, ["admin"]).edit, false);
+  // An agency can choose "only when sent back".
+  assert.equal(noteRights(writer, { ...note, status: "submitted" }, ["admin"], "when_returned").edit, false);
+  assert.equal(noteRights(writer, { ...note, status: "returned" }, ["admin"], "when_returned").edit, true);
 });
 
 test("edits list only what changed; bulk refs are checked", () => {

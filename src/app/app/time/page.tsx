@@ -310,11 +310,22 @@ async function HandoversView({ query: raw }: { query: Search }) {
         <Panel><Empty>No handovers yet. They are written when staff clock out.</Empty></Panel>
       ) : (
         <ul className="grid gap-4 lg:grid-cols-2">
-          {result.rows.map(({ handover, home, staff, reads }) => (
+          {result.rows.map(({ handover, home, staff, reads, acks }) => (
             <li key={handover.id} className="card p-5">
               <HandoverCard handover={{ ...handover, staff, home }} compact />
+              {acks.some(ack => ack.remark) && (
+                <ul className="mt-3 space-y-1.5">
+                  {acks
+                    .filter(ack => ack.remark)
+                    .map(ack => (
+                      <li key={ack.staff + ack.readAt} className="rounded-lg bg-accent-soft px-3 py-2 text-xs text-[#8a5a10]">
+                        <span className="font-semibold">{ack.staff} took over and said:</span> {ack.remark}
+                      </li>
+                    ))}
+                </ul>
+              )}
               <p className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-mute">
-                <span>{reads ? `Read by ${reads} ${reads === 1 ? "person" : "people"}` : "Not read yet"}</span>
+                <span>{reads ? `Acknowledged by ${acks.map(ack => ack.staff).join(", ")}` : "Not acknowledged yet"}</span>
                 {handover.entryId && <Link href={`/app/time/${handover.entryId}`} className="font-semibold text-brand">The punch</Link>}
               </p>
             </li>

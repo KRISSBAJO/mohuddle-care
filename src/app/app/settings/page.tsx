@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Palmtree, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
-import { ChoicePicker, ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
+import { ChoicePicker, LibraryPicker, ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { Select } from "@/components/app/Select";
 import { SettingsNav } from "@/components/app/SettingsNav";
 import { PageHeader } from "@/components/app/ui";
 import { saveSettings } from "@/server/actions/hub";
 import { requireManager } from "@/server/guard";
 import { storedSettings, settingDefs, type SettingKey } from "@/server/settings";
+import { handoverLibrary } from "@/server/handover-library";
 import { currentBilling, planAllows } from "@/server/billing";
 import { BillingBadge } from "@/components/owner/BillingBadge";
 import { PLAN_FEATURES } from "@/lib/billing";
@@ -14,7 +15,7 @@ import { zoneLabel } from "@/lib/format";
 
 export const metadata = { title: "Settings" };
 
-type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean; choices?: [string, string][]; options?: [string, string][]; date?: boolean };
+type Item = { key: SettingKey; title: string; help: string; unit?: string; min?: number; max?: number; roles?: boolean; choices?: [string, string][]; options?: [string, string][]; date?: boolean; library?: boolean };
 type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?: [string, string]; items: Item[] };
 
 /* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
@@ -40,6 +41,7 @@ const GROUPS: Group[] = [
       { key: "scribe_model", title: "Note model", help: "The Ollama model that drafts the note, such as qwen3.5:4b. It must be installed on the server." },
       { key: "cp_note_min_chars", title: "Shortest Community Participation note", help: "The note box on a Community Participation note. 0 turns the check off.", unit: "characters", min: 0, max: 500 },
       { key: "cp_cost_centers", title: "Community Participation cost centers", help: "Optional. Leave empty to hide the cost center box." },
+      { key: "note_writer_edit", title: "Writers change their own notes", help: "Approved notes are always locked. A note sent back to its writer can always be fixed.", options: [["until_approved", "Until the note is approved"], ["when_returned", "Only when a reviewer sends it back"]] },
       { key: "note_review_roles", title: "Who reviews notes", help: "They approve notes, send them back to the writer, and edit them with a reason. Home managers review notes for their own home too. Nobody approves their own note.", roles: true },
       { key: "note_review_checks", title: "What flags a note", help: "Flagged notes are marked in the review list so they get a closer look.", choices: [["late", "Written after the day"], ["no_punch", "No clock punch for those times"], ["outside_punch", "Times outside the clock punch"], ["attention", "Behaviour, seizure or low mood"], ["resubmitted", "Sent back and resubmitted"], ["copied", "Same words as another note"], ["early", "Written before the shift ended"]] },
       { key: "note_copy_percent", title: "Copied note when this similar", help: "Compared with the same writer's notes from the last 14 days, for any person. Short notes are not compared.", unit: "%", min: 50, max: 100 },
@@ -96,7 +98,7 @@ const GROUPS: Group[] = [
       { key: "remind_break_end_minutes", title: "Remind before a break ends", help: "0 turns it off.", unit: "minutes", min: 0, max: 30 },
       { key: "clock_forgot_hours", title: "Forgotten clock-out after", help: "Staff and managers are told. A manager closes it with the right time.", unit: "hours", min: 1, max: 24 },
       { key: "handover_min_chars", title: "Shortest handover note", help: "0 turns the length check off.", unit: "characters", min: 0, max: 1000 },
-      { key: "handover_checks", title: "Handover ticks", help: "Staff tick each one, or explain why not. Homes can add their own on their details." },
+      { key: "handover_checks", title: "Handover ticks", help: "What outgoing staff confirm at clock out, and incoming staff read and acknowledge at clock in. Tick items from the Mohuddle library and add your own. Homes can add more on their details.", library: true },
       { key: "clock_in_statements", title: "Statements at clock in", help: "Staff tick each one before they can clock in." },
       { key: "notify_roles_time", title: "Told about time", help: "No-shows, forgotten clock-outs, punches away from the home and correction requests.", roles: true },
     ],
@@ -243,7 +245,7 @@ const GROUPS: Group[] = [
 export default async function SettingsPage() {
   await requireManager();
   const settings = await storedSettings();
-  const billing = await currentBilling();
+  const [billing, library] = await Promise.all([currentBilling(), handoverLibrary()]);
   // Features the plan leaves out stay off, whatever is chosen here.
   const offByPlan: Partial<Record<SettingKey, boolean>> = { scribe_enabled: !(await planAllows("scribe")), assistant_enabled: !(await planAllows("assistant")) };
   const grouped = new Set(GROUPS.flatMap(group => group.items.map(item => item.key)));
@@ -309,6 +311,8 @@ export default async function SettingsPage() {
                       </div>
                       {item.choices ? (
                         <ChoicePicker name={item.key} initial={value as string[]} choices={item.choices} />
+                      ) : item.library ? (
+                        <LibraryPicker name={item.key} initial={value as string[]} library={library} />
                       ) : item.roles ? (
                         <RolePicker name={item.key} initial={value as string[]} />
                       ) : def.kind === "list" ? (

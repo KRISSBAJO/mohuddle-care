@@ -281,6 +281,13 @@
       "when": 1792119210692,
       "tag": "0039_phone_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792125184769,
+      "tag": "0040_handover_remarks",
+      "breakpoints": true
     }
   ]
 }

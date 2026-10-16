@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -7,6 +7,7 @@ import { SpeakNote, type Draft } from "@/components/SpeakNote";
 import { Button, Check, Chips, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
 import { ApiError, type NoteForm, type SectionKey } from "@/lib/api";
 import { fmt } from "@/lib/format";
+import { goBack } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
@@ -122,7 +123,7 @@ export default function NoteScreen() {
     setBusy(true);
     try {
       await call("/notes", { fields });
-      router.back();
+      goBack();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
       setBusy(false);
@@ -424,7 +425,7 @@ function Bar() {
   return (
     <SafeAreaView edges={["top"]} style={styles.bar}>
       <StatusBar style="dark" />
-      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack()} style={styles.back}>
         <Icon name="chevron-left" size={22} />
       </Pressable>
       <T weight="bold" size={17}>

@@ -73,7 +73,11 @@ export function mayReview(user: Reviewer, note: ReviewTarget, roles: string[]): 
 }
 
 /* What may happen to a note now, for this user. */
-export function noteRights(user: Reviewer, note: ReviewTarget & { status: ReviewStatus }, roles: string[]) {
+/*
+ * What someone may do with a note. Writers fix their own note until it is approved (or, if the agency
+ * chose "when_returned", only after a reviewer sends it back). Approved notes are locked.
+ */
+export function noteRights(user: Reviewer, note: ReviewTarget & { status: ReviewStatus }, roles: string[], writerEdit: "until_approved" | "when_returned" = "until_approved") {
   const reviewer = mayReview(user, note, roles);
   const writer = user.staffId ? user.staffId === note.writerStaffId : !note.writerStaffId && user.name === note.signedName;
   return {
@@ -81,7 +85,7 @@ export function noteRights(user: Reviewer, note: ReviewTarget & { status: Review
     writer,
     approve: reviewer && note.status === "submitted",
     returnIt: reviewer && note.status === "submitted",
-    edit: (reviewer && note.status !== "approved") || (writer && note.status === "returned"),
+    edit: (reviewer && note.status !== "approved") || (writer && (note.status === "returned" || (writerEdit === "until_approved" && note.status === "submitted"))),
     reopen: user.role === "admin" && !writer && note.status === "approved",
   };
 }

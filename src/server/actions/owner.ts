@@ -14,6 +14,7 @@ import type { FormState } from "./auth";
 import { BILLING_STATUSES, PLAN_FEATURES, PLAN_UNITS, type BillingStatus, type PlanFeature, type PlanUnit } from "@/lib/billing";
 import { linkExpiry, money as formatMoney, parseMoney } from "@/lib/format";
 import { agencyBilling, recordPayment, saveBillingRules, saveDefaultPlan, savePlan, setAgencyBilling } from "@/server/billing";
+import { saveHandoverLibrary } from "@/server/handover-library";
 
 const uuid = z.uuid();
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -187,6 +188,25 @@ export async function saveBillingRulesAction(_previous: FormState, formData: For
   if (uuid.safeParse(defaultPlan).success) await saveDefaultPlan(defaultPlan);
   await recordOwnerEvent(owner, "billing:rules", null, `Trial ${rules.trialDays} days, grace ${rules.graceDays} days, warning ${rules.warnDays} days`);
   revalidatePath("/owner", "layout");
+  return {};
+}
+
+/* The shift-change items Mohuddle offers every agency to choose from. */
+export async function saveHandoverLibraryAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  const items = [
+    ...new Set(
+      String(formData.get("handover_library") ?? "")
+        .split("\n")
+        .map(item => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (!items.length) return { error: "Keep at least one item in the library." };
+  if (items.length > 80 || items.some(item => item.length > 200)) return { error: "Keep the library under 80 items of 200 characters each." };
+  await saveHandoverLibrary(items);
+  await recordOwnerEvent(owner, "library:handover", null, `${items.length} shift-change items`);
+  revalidatePath("/owner/library");
   return {};
 }
 
