@@ -8,23 +8,12 @@ import { label, zonedTime } from "@/lib/format";
 import { db, schema } from "@/server/db";
 import { getSettings } from "@/server/settings";
 import { requireManager, requireUser } from "@/server/guard";
+import { addIncidentNoteFor, incidentById, startIncidentReviewFor, timelineNote } from "@/server/incident-follow-up";
 import { fileIncident } from "@/server/incident-report";
 import type { FormState } from "./auth";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-const uuid = z.uuid();
-
-async function load(id: string) {
-  if (!uuid.safeParse(id).success) return null;
-  const [incident] = await db.select().from(schema.incidents).where(eq(schema.incidents.id, id)).limit(1);
-  return incident ?? null;
-}
-
-async function note(tx: Tx, incidentId: string, userId: string, kind: string, body: string) {
-  await tx.insert(schema.incidentNotes).values({ incidentId, userId, kind, body });
-  // Its own action name, so the timeline never mistakes it for an older status change from the audit log.
-  await tx.insert(schema.auditLog).values({ userId, action: `incident:timeline:${kind}`, entity: "incident", entityId: incidentId });
-}
+const load = incidentById;
+const note = timelineNote;
 
 function refresh(id: string) {
   revalidatePath(`/app/incidents/${id}`);
@@ -35,12 +24,8 @@ function refresh(id: string) {
 /* Anyone can add what they learned later. The original account is never edited. */
 export async function addIncidentNote(id: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  const incident = await load(id);
-  if (!incident) return { error: "This incident no longer exists." };
-  const body = String(formData.get("body") ?? "").trim();
-  if (body.length < 3) return { error: "Write the follow-up note first." };
-  if (body.length > 3000) return { error: "Keep a note under 3,000 characters." };
-  await db.transaction(tx => note(tx, id, user.id, "note", body));
+  const result = await addIncidentNoteFor(user, id, String(formData.get("body") ?? ""));
+  if (result.error) return result;
   refresh(id);
   return {};
 }
@@ -111,13 +96,8 @@ export async function removeStateFiling(id: string): Promise<FormState> {
 
 export async function startIncidentReview(id: string): Promise<FormState> {
   const user = await requireManager();
-  const incident = await load(id);
-  if (!incident) return { error: "This incident no longer exists." };
-  if (incident.status !== "open") return { error: "Only open incidents can move to review." };
-  await db.transaction(async tx => {
-    await tx.update(schema.incidents).set({ status: "under_review" }).where(eq(schema.incidents.id, id));
-    await note(tx, id, user.id, "review", "Review started.");
-  });
+  const result = await startIncidentReviewFor(user, id);
+  if (result.error) return result;
   refresh(id);
   return {};
 }

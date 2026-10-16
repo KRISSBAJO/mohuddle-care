@@ -14,3 +14,20 @@ export function duration(fromIso: string, now = Date.now()) {
   const hours = Math.floor(minutes / 60);
   return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
 }
+
+/* Minutes as hours, the way timesheets show them: "8 h", "7.5 h". */
+export const hoursText = (minutes: number) => `${Number((minutes / 60).toFixed(2))} h`;
+
+/* The time when it is today, "Thu 3:00 PM" within the last week, otherwise "Oct 2, 8:00 AM". */
+export function whenText(at: string, zone?: string, now = Date.now()) {
+  const day = (value: string | number) => formatter(zone, { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  if (day(at) === day(now)) return fmt.time(at, zone);
+  const recent = Math.abs(now - new Date(at).getTime()) < 6 * 86_400_000;
+  return recent ? `${formatter(zone, { weekday: "short" }).format(new Date(at))} ${fmt.time(at, zone)}` : `${formatter(zone, { month: "short", day: "numeric" }).format(new Date(at))}, ${fmt.time(at, zone)}`;
+}
+
+/* "Oct 30", or "Oct 30 – Oct 31", for days given as 2026-10-30. */
+export function daysText(start: string, end: string) {
+  const day = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric", weekday: "short" }).format(new Date(`${value}T12:00:00Z`));
+  return start === end ? day(start) : `${day(start)} – ${day(end)}`;
+}

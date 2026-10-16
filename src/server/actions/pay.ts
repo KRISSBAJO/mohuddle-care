@@ -1,16 +1,16 @@
 "use server";
 
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { addDays, dateKey, zonedTime } from "@/lib/format";
+import { addDays, dateKey } from "@/lib/format";
 import { daysInRange } from "@/lib/pay";
 import { canManage } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
-import { leaveBalance } from "@/server/queries/pay";
 import { getSettings } from "@/server/settings";
+import { decideTimeOffFor } from "@/server/time-approvals";
 import type { FormState } from "./auth";
 
 const uuid = z.uuid();
@@ -24,9 +24,6 @@ async function admin() {
 async function manager() {
   const user = await requireUser();
   return canManage(user) ? user : null;
-}
-async function logins(staffId: string) {
-  return (await db.select({ id: schema.users.id }).from(schema.users).where(and(eq(schema.users.staffId, staffId), eq(schema.users.active, true)))).map(row => row.id);
 }
 
 /* ---------- Pay rates (administrators only) ---------- */
@@ -184,48 +181,8 @@ export async function cancelTimeOff(requestId: string): Promise<FormState> {
 export async function decideTimeOff(requestId: string, approve: boolean, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await manager();
   if (!user) return { error: "Only coordinators and administrators decide time off." };
-  if (!uuid.safeParse(requestId).success) return { error: "Unknown request." };
-  const [request] = await db.select().from(schema.timeOffRequests).where(eq(schema.timeOffRequests.id, requestId)).limit(1);
-  if (!request || request.status !== "pending") return { error: "This request has already been decided." };
-  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
-  if (!approve && note.length < 3) return { error: "Say why it is declined. They see this." };
-  let opened = 0;
-  if (approve && request.usesBalance) {
-    const balance = await leaveBalance(request.staffId);
-    if (balance < request.minutes && formData.get("allowNegative") !== "on") {
-      return { error: `They have ${(balance / 60).toFixed(2)} hours of leave and asked for ${(request.minutes / 60).toFixed(2)}. Tick "Allow going below zero" to approve anyway.` };
-    }
-  }
-  await db.transaction(async tx => {
-    if (approve) {
-      if (request.usesBalance) await tx.insert(schema.leaveLedger).values({ staffId: request.staffId, kind: "used", minutes: -request.minutes, onDate: request.startDate, note: request.type, requestId: request.id, createdBy: user.id });
-      if (formData.get("openShifts") === "on") {
-        const shifts = await tx
-          .update(schema.shifts)
-          .set({ staffId: null, status: "open" })
-          .where(
-            and(
-              eq(schema.shifts.staffId, request.staffId),
-              inArray(schema.shifts.status, ["scheduled", "confirmed"]),
-              gte(schema.shifts.startsAt, zonedTime(request.startDate, "00:00")),
-              lte(schema.shifts.startsAt, zonedTime(addDays(request.endDate, 1), "00:00")),
-            ),
-          )
-          .returning({ id: schema.shifts.id });
-        opened = shifts.length;
-      }
-    }
-    await tx.update(schema.timeOffRequests).set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note, openedShifts: opened }).where(eq(schema.timeOffRequests.id, request.id));
-    await tx.insert(schema.auditLog).values({ userId: user.id, action: approve ? "time_off:approve" : "time_off:decline", entity: "time_off", entityId: request.id });
-  });
-  await notify(await logins(request.staffId), {
-    kind: "time-off",
-    title: approve ? `Your ${request.type.toLowerCase()} was approved` : `Your ${request.type.toLowerCase()} was declined`,
-    body: [request.startDate === request.endDate ? request.startDate : `${request.startDate} to ${request.endDate}`, note].filter(Boolean).join(". "),
-    href: "/app/clock/time-off",
-    tone: approve ? "good" : "warn",
-    dedupeKey: `time-off:decided:${request.id}`,
-  });
+  const result = await decideTimeOffFor(user, requestId, approve, { note: String(formData.get("note") ?? ""), openShifts: formData.get("openShifts") === "on", allowNegative: formData.get("allowNegative") === "on" });
+  if (result.error) return result;
   revalidatePath("/app/time");
   revalidatePath("/app/schedule");
   revalidatePath("/app/clock/time-off");

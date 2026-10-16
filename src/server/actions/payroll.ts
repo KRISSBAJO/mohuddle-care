@@ -13,6 +13,7 @@ import { ensurePeriod, isDay, openPunchesIn, sheetFor, type PeriodRow } from "@/
 import { accrual } from "@/lib/pay";
 import { leaveBalances } from "@/server/queries/pay";
 import { getSettings } from "@/server/settings";
+import { approveTimesheetFor, returnTimesheetFor } from "@/server/time-approvals";
 import type { FormState } from "./auth";
 
 const uuid = z.uuid();
@@ -74,19 +75,9 @@ export async function signTimesheet(start: string, _previous: FormState, formDat
 export async function approveTimesheet(periodId: string, staffId: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await manager();
   if (!user) return { error: "Only coordinators and administrators approve timesheets." };
-  const period = await periodById(periodId);
-  if (!period || !uuid.safeParse(staffId).success) return { error: "Unknown timesheet." };
-  if (period.status === "locked") return { error: "This pay period is locked." };
-  const range = { start: period.startDate, end: period.endDate };
-  if (await openPunchesIn(range, staffId)) return { error: "A punch in this period is still open. Close it first." };
-  const settings = await getSettings();
-  const sheet = await sheetFor(staffId, range, settings);
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  if (sheet.sheet?.status !== "signed" && note.length < 5) return { error: "They have not signed it. Add a note saying why you are approving it anyway." };
-  await upsertSheet(period.id, staffId, { status: "approved", approvedBy: user.id, approvedAt: new Date(), approvalNote: note, approvedTotals: snapshot(sheet.totals), returnNote: "" });
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "timesheet:approve", entity: "timesheet", entityId: `${period.id}:${staffId}` });
-  await notify(await logins(staffId), { kind: "timesheet", title: "Your timesheet was approved", body: `${period.startDate} to ${period.endDate}`, href: `/app/clock/timesheets/${period.startDate}`, tone: "good", dedupeKey: `timesheet:approved:${period.id}:${staffId}:${Date.now()}` });
-  refresh(period.startDate, staffId);
+  const result = await approveTimesheetFor(user, periodId, staffId, String(formData.get("note") ?? ""));
+  if (result.error) return { error: result.error };
+  refresh(result.start!, staffId);
   return {};
 }
 
@@ -114,15 +105,9 @@ export async function approveSigned(periodId: string): Promise<FormState> {
 export async function returnTimesheet(periodId: string, staffId: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await manager();
   if (!user) return { error: "Only coordinators and administrators can do this." };
-  const period = await periodById(periodId);
-  if (!period || !uuid.safeParse(staffId).success) return { error: "Unknown timesheet." };
-  if (period.status === "locked") return { error: "This pay period is locked." };
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  if (note.length < 5) return { error: "Say what they need to check." };
-  await upsertSheet(period.id, staffId, { status: "open", returnNote: note, signedName: "", signedAt: null, approvedBy: null, approvedAt: null });
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "timesheet:return", entity: "timesheet", entityId: `${period.id}:${staffId}` });
-  await notify(await logins(staffId), { kind: "timesheet", title: "Your timesheet needs another look", body: note, href: `/app/clock/timesheets/${period.startDate}`, tone: "warn", dedupeKey: `timesheet:returned:${period.id}:${staffId}:${Date.now()}` });
-  refresh(period.startDate, staffId);
+  const result = await returnTimesheetFor(user, periodId, staffId, String(formData.get("note") ?? ""));
+  if (result.error) return { error: result.error };
+  refresh(result.start!, staffId);
   return {};
 }
 

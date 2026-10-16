@@ -227,3 +227,49 @@ export type AskReply = {
   confirm?: { action: "clock_in"; title: string; detail: string } | { action: "break_start"; options: { kind: "meal" | "rest"; label: string }[] } | { action: "break_end"; title: string };
   via: "rules" | "model" | "help" | "none";
 };
+
+/* ---------- The manager's phone ---------- */
+
+/* What GET /team returns: who needs a call, who is on shift, new incidents, and what waits for a decision. */
+export type TeamNow = {
+  needs: { key: string; kind: "no_show" | "late" | "forgot_out" | "away"; staff: string; phone: string; home: string; what: string; at: string }[];
+  homes: { id: string; name: string; expected: number; on: { id: string; staff: string; since: string; until: string | null; onBreak: string | null; away: boolean; lateMinutes: number }[] }[];
+  onClock: number;
+  onBreak: number;
+  incidents: { id: string; occurredAt: string; category: string; severity: string; severityLabel: string; reportable: boolean; person: string | null; home: string | null; reporter: string | null; deadline: string | null; overdue: boolean }[];
+  reviewing: number;
+  waiting: { timeOff: number; corrections: number; punches: number; timesheets: number };
+};
+
+/* Minutes, as the website's timesheets count them. */
+export type SheetTotals = { regular: number; overtime: number; total: number; holiday: number; adjustments: number; punches: number };
+
+/* What GET /team/approvals returns. */
+export type Approvals = {
+  timeOff: { id: string; staff: string; type: string; paid: boolean; start: string; end: string; minutes: number; reason: string; usesBalance: boolean; balance: number; shifts: number; shortNotice: number | null; askedAt: string }[];
+  corrections: { id: string; staff: string; home: string | null; clockInAt: string; clockOutAt: string; reason: string; newPunch: boolean; askedAt: string }[];
+  punches: { id: string; staff: string; home: string | null; clockInAt: string; clockOutAt: string | null; flags: string[]; warnings: string[] }[];
+  timesheets: { periodId: string; start: string; end: string; staffId: string; staff: string; signedAt: string | null; totals: SheetTotals | null }[];
+};
+
+/* What GET /team/incidents/{id} returns. */
+export type TeamIncident = {
+  id: string;
+  status: "open" | "under_review" | "closed";
+  statusLabel: string;
+  occurredAt: string;
+  category: string;
+  severity: string;
+  severityLabel: string;
+  description: string;
+  actionsTaken: string;
+  reportable: boolean;
+  stateFiledAt: string | null;
+  deadline: string | null;
+  overdue: boolean;
+  person: string | null;
+  home: string | null;
+  reporter: string | null;
+  timeline: { id: string; kind: string; body: string; at: string; by: string | null }[];
+  photos: { id: string; caption: string; by: string | null; at: string }[];
+};

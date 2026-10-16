@@ -13,6 +13,7 @@ import { isUuid } from "@/server/queries/timeclock";
 import { lockedOn } from "@/server/queries/payroll";
 import { getSettings } from "@/server/settings";
 import { clockInFor, clockOutFor, endBreakFor, startBreakFor } from "@/server/time-clock";
+import { decideCorrectionFor, reviewEntryFor } from "@/server/time-approvals";
 import type { FormState } from "./auth";
 
 const LOCKED = "That pay period is locked and has gone to payroll. Add an adjustment to the current period instead.";
@@ -197,14 +198,9 @@ export async function fixEntryTimes(entryId: string, _previous: FormState, formD
 /* Marks a flagged punch as looked at. The flags stay on record. */
 export async function reviewEntry(entryId: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
-  const entry = await managerEntry(entryId);
-  if (!entry) return { error: "That punch no longer exists." };
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  await db.transaction(async tx => {
-    await tx.update(schema.timeEntries).set({ reviewedBy: user.id, reviewedAt: new Date() }).where(eq(schema.timeEntries.id, entry.id));
-    await tx.insert(schema.timeEntryChanges).values({ entryId: entry.id, userId: user.id, action: "reviewed", reason: note });
-  });
-  revalidatePath(`/app/time/${entry.id}`);
+  const result = await reviewEntryFor(user, entryId, String(formData.get("note") ?? ""));
+  if (result.error) return { error: result.error };
+  revalidatePath(`/app/time/${result.entryId}`);
   revalidatePath("/app/time");
   return {};
 }
@@ -212,49 +208,8 @@ export async function reviewEntry(entryId: string, _previous: FormState, formDat
 /* Approves or declines a staff member's correction request. Approving changes or creates the punch. */
 export async function decideCorrection(correctionId: string, approve: boolean, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
-  if (!isUuid(correctionId)) return { error: "Unknown request." };
-  const [request] = await db.select().from(schema.timeCorrections).where(eq(schema.timeCorrections.id, correctionId)).limit(1);
-  if (!request || request.status !== "pending") return { error: "This request has already been decided." };
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  if (!approve && note.length < 5) return { error: "Say why it is declined. The staff member sees this." };
-  if (approve && (await touchesLocked(request.clockInAt))) return { error: `${LOCKED} Then decline this request with a note saying so.` };
-  await db.transaction(async tx => {
-    if (approve) {
-      if (request.entryId) {
-        const [entry] = await tx.select().from(schema.timeEntries).where(eq(schema.timeEntries.id, request.entryId)).limit(1);
-        if (entry) {
-          await tx
-            .update(schema.timeEntries)
-            .set({ clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: entry.closedBy ?? "manager", flags: [...new Set([...entry.flags, "corrected"])] })
-            .where(eq(schema.timeEntries.id, entry.id));
-          await tx.update(schema.timeBreaks).set({ endAt: request.clockOutAt }).where(and(eq(schema.timeBreaks.entryId, entry.id), isNull(schema.timeBreaks.endAt)));
-          await tx.insert(schema.timeEntryChanges).values({
-            entryId: entry.id,
-            userId: user.id,
-            action: "corrected",
-            before: { clockInAt: iso(entry.clockInAt), clockOutAt: iso(entry.clockOutAt) },
-            after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) },
-            reason: [request.reason, note].filter(Boolean).join(" · "),
-          });
-        }
-      } else {
-        const [created] = await tx
-          .insert(schema.timeEntries)
-          .values({ staffId: request.staffId, homeId: request.homeId, clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: "manager", inNote: request.reason, flags: ["corrected"], reviewedBy: user.id, reviewedAt: new Date() })
-          .returning({ id: schema.timeEntries.id });
-        await tx.insert(schema.timeEntryChanges).values({ entryId: created.id, userId: user.id, action: "added", after: { clockInAt: iso(request.clockInAt), clockOutAt: iso(request.clockOutAt) }, reason: [request.reason, note].filter(Boolean).join(" · ") });
-      }
-    }
-    await tx.update(schema.timeCorrections).set({ status: approve ? "approved" : "declined", decidedBy: user.id, decidedAt: new Date(), decisionNote: note }).where(eq(schema.timeCorrections.id, request.id));
-  });
-  await notify(await staffLogins(request.staffId), {
-    kind: "time",
-    title: approve ? "Your time correction was approved" : "Your time correction was declined",
-    body: note || undefined,
-    href: "/app/clock",
-    tone: approve ? "good" : "warn",
-    dedupeKey: `time:decided:${request.id}`,
-  });
+  const result = await decideCorrectionFor(user, correctionId, approve, String(formData.get("note") ?? ""));
+  if (result.error) return result;
   revalidatePath("/app/time");
   return {};
 }
