@@ -63,6 +63,10 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
                   <Field label="Prescriber" htmlFor="add-med-prescriber"><input id="add-med-prescriber" name="prescriber" maxLength={120} className="field" /></Field>
                   <Field label="Instructions" htmlFor="add-med-instructions"><input id="add-med-instructions" name="instructions" maxLength={1000} className="field" placeholder="With food" /></Field>
                 </div>
+                <label className="flex items-start gap-2.5 text-sm">
+                  <input type="checkbox" name="controlled" className="mt-0.5 h-4 w-4" />
+                  <span><span className="font-semibold">Controlled medicine</span> <span className="text-mute">Counted on a count sheet. On the phone app it can only be recorded with a signal.</span></span>
+                </label>
               </ModalForm>
             ) : undefined
           }
@@ -79,6 +83,7 @@ export async function PersonMedicationsTab({ id, person, manager, end, days, lat
                       {med.times.map(time => <span key={time} className="chip bg-plum-soft px-2 py-0 text-plum">{time}</span>)}
                     </p>
                     {med.instructions && <p className="mt-1 text-xs text-mute">{med.instructions}</p>}
+                    {med.controlled && <p className="mt-1 inline-flex rounded-full bg-flag-soft px-2 py-0.5 text-[11px] font-semibold text-flag">Controlled</p>}
                     <p className="text-xs text-dim">{[med.prescriber, med.startedAt ? `since ${fmt.day(med.startedAt)}` : null].filter(Boolean).join(" · ")}</p>
                   </div>
                   {manager && <Link href={`/app/individuals/${id}/medications/${med.id}`} className="no-print shrink-0 text-xs font-semibold text-brand">Change or stop</Link>}

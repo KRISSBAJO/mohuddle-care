@@ -659,6 +659,8 @@ export const medications = pgTable("medications", {
   times: jsonb("times").$type<string[]>().notNull().default(emptyList()),
   prescriber: text("prescriber").notNull().default(""),
   instructions: text("instructions").notNull().default(""),
+  // A controlled medicine (on a count sheet). The phone app only records these with a signal.
+  controlled: boolean("controlled").notNull().default(false),
   active: boolean("active").notNull().default(true),
   // Doses are only generated from startedAt onwards. A change stops this row and starts a new one,
   // so past administration records keep the dose that was actually given.

@@ -1,0 +1,1 @@
+ALTER TABLE "medications" ADD COLUMN "controlled" boolean DEFAULT false NOT NULL;

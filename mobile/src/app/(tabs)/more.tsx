@@ -1,10 +1,12 @@
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, ErrorText, Icon, T } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
+import { queuedDoses } from "@/lib/outbox";
 import { useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
 
@@ -16,6 +18,14 @@ export default function MoreScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const others = me?.agencies.filter(agency => agency.agencyId !== me.agency?.id) ?? [];
+  // Doses saved with no signal are sent with this login; signing out first would strand them.
+  const [unsent, setUnsent] = useState(0);
+  const [sure, setSure] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      queuedDoses(`${me?.user.email}|${me?.agency?.id}`).then(list => setUnsent(list.length));
+    }, [me]),
+  );
 
   async function switchTo(agencyId: string) {
     setBusy(agencyId);
@@ -80,7 +90,12 @@ export default function MoreScreen() {
           </T>
         </Card>
 
-        <Button label="Sign out" tone="danger" icon="log-out" onPress={() => signOut()} />
+        {unsent ? (
+          <ErrorText>
+            {unsent} {unsent === 1 ? "dose is" : "doses are"} saved on this phone and not sent yet. Stay signed in until you have a signal, or they will not reach the medication record.
+          </ErrorText>
+        ) : null}
+        <Button label={unsent && !sure ? "Sign out anyway" : unsent ? "Tap again to sign out" : "Sign out"} tone="danger" icon="log-out" onPress={() => (unsent && !sure ? setSure(true) : signOut())} />
         <T size={12} color={colors.dim} style={{ textAlign: "center" }}>
           Mohuddle {Constants.expoConfig?.version} · {API_URL.replace(/^https?:\/\//, "")}
         </T>

@@ -49,6 +49,10 @@ export default async function MedicationPage({ params }: { params: Promise<{ id:
               <Field label="Prescriber" htmlFor="med-prescriber"><input id="med-prescriber" name="prescriber" className="field" defaultValue={med.prescriber} /></Field>
               <Field label="Instructions" htmlFor="med-instructions"><input id="med-instructions" name="instructions" className="field" defaultValue={med.instructions} /></Field>
             </div>
+            <label className="flex items-start gap-2.5 text-sm">
+              <input type="checkbox" name="controlled" defaultChecked={med.controlled} className="mt-0.5 h-4 w-4" />
+              <span><span className="font-semibold">Controlled medicine</span> <span className="text-mute">Counted on a count sheet. On the phone app it can only be recorded with a signal.</span></span>
+            </label>
             <Field label="Why it changed" htmlFor="med-reason" hint="Kept with the record, for example who ordered it and when.">
               <input id="med-reason" name="reason" required minLength={3} className="field" placeholder="Dr. Ferris increased dose at 10/14 visit" />
             </Field>

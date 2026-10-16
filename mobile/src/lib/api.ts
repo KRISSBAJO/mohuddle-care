@@ -131,3 +131,29 @@ export type NoteForm = {
   scribe: boolean;
 };
 
+export type DoseStatus = "given" | "refused" | "missed" | "held";
+
+/* What GET /meds returns: today's medicine round at a home. */
+export type MedRound = {
+  home: { id: string; name: string } | null;
+  homes: { id: string; name: string }[];
+  people: { id: string; name: string; allergies: string }[];
+  doses: {
+    id: string;
+    individualId: string;
+    scheduledFor: string;
+    status: "due" | DoseStatus;
+    recordedAt: string | null;
+    note: string;
+    medication: string;
+    dose: string;
+    route: string;
+    instructions: string;
+    controlled: boolean;
+    by: string | null;
+  }[];
+  lateMinutes: number;
+};
+
+export type DoseResult = { adminId: string; ok: true } | { adminId: string; ok: false; code: string; error: string };
+

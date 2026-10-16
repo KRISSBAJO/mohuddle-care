@@ -48,6 +48,8 @@ export const medicationFields = z.object({
     ),
   prescriber: optional(120),
   instructions: optional(1000),
+  // A ticked checkbox sends "on"; unticked sends nothing.
+  controlled: z.literal("on").optional().transform(value => value === "on"),
 });
 
 export const medicationSchema = medicationFields.extend({ individualId: uuid });

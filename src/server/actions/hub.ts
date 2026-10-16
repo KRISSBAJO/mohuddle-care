@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { parseMoney } from "@/lib/format";
 import { saveSetting, settingDefs, type SettingKey } from "@/server/settings";
 import { normaliseStaffing } from "@/server/patterns";
 import { firstError, homeFormValues, homeSchema, medicationSchema, optional, optionalDate, optionalUuid, staffSchema, uuid } from "@/server/forms";
+import { doseInput, recordDose } from "@/server/medication-round";
 import type { FormState } from "./auth";
 
 async function audit(userId: string, action: string, entity: string, entityId = "") {
@@ -115,17 +116,11 @@ export async function addMedication(_p: FormState, formData: FormData): Promise<
 
 export async function recordMedication(adminId: string, status: "given" | "refused" | "missed" | "held", formData: FormData) {
   const user = await requireUser();
-  if (!uuid.safeParse(adminId).success || !z.enum(["given", "refused", "missed", "held"]).safeParse(status).success) throw new Error("Invalid medication update.");
-  const note = String(formData.get("note") ?? "").slice(0, 500);
-  const now = new Date();
-  await db.transaction(async tx => {
-    const updated = await tx.update(schema.medAdministrations)
-      .set({ status, recordedAt: now, staffId: user.staffId, note })
-      .where(and(eq(schema.medAdministrations.id, adminId), eq(schema.medAdministrations.status, "due"), status === "given" ? lte(schema.medAdministrations.scheduledFor, now) : undefined))
-      .returning({ id: schema.medAdministrations.id });
-    if (!updated.length) throw new Error("This dose is not due yet or has already been recorded. Refresh the medication record.");
-    await tx.insert(schema.auditLog).values({ userId: user.id, action: `med:${status}`, entity: "med_administration", entityId: adminId });
-  });
+  const input = doseInput.safeParse({ adminId, status, note: String(formData.get("note") ?? "").slice(0, 500) });
+  if (!input.success) throw new Error("Invalid medication update.");
+  // The rules (once only, not before it is due) are shared with the phone app in src/server/medication-round.ts.
+  const result = await recordDose(user, input.data);
+  if (!result.ok) throw new Error(result.code === "already_recorded" ? `${result.error} Refresh the medication record.` : result.error);
   revalidatePath("/app/medications");
   revalidatePath("/app/homes/[id]", "page");
   revalidatePath("/app");

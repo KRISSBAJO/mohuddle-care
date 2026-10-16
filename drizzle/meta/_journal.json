@@ -288,6 +288,13 @@
       "when": 1792125184769,
       "tag": "0040_handover_remarks",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792126367784,
+      "tag": "0041_controlled_medicines",
+      "breakpoints": true
     }
   ]
 }

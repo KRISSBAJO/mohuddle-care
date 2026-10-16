@@ -9,7 +9,7 @@ import { duration, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
-type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string; href?: "/notes" };
+type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string; href?: "/notes" | "/meds" };
 
 const TINTS = {
   dose: { bg: "#fdf0dc", fg: "#9a6212" },
@@ -102,6 +102,7 @@ export default function TodayScreen() {
       detail: `${round.doses} ${round.doses === 1 ? "dose" : "doses"} for ${round.people} ${round.people === 1 ? "person" : "people"}`,
       late: round.late,
       side: fmt.time(round.at, zone),
+      href: "/meds",
     });
   }
   if (today?.notes?.missing) {
