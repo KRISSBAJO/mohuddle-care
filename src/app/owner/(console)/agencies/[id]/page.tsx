@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Activity, ArrowLeft, Building2, CalendarClock, CircleDollarSign, Clock3, ExternalLink, Globe2, Home, KeyRound, LifeBuoy, Power, Receipt, ScrollText, Settings2, ShieldCheck, Sparkles, UserPlus, Users, UsersRound } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { LinkIssuer } from "@/components/app/LinkIssuer";
@@ -9,11 +8,12 @@ import { Select } from "@/components/app/Select";
 import { AgencyFields } from "@/components/owner/AgencyFields";
 import { BillingBadge } from "@/components/owner/BillingBadge";
 import { CopyButton } from "@/components/owner/CopyButton";
+import { initialsOf, OwnerCard as Card } from "@/components/owner/OwnerCard";
 import { SupportForm } from "@/components/owner/SupportForm";
 import { agencyOrigin } from "@/lib/agency-host";
 import { BILLING_STATUSES, monthlyCents, PLAN_FEATURES, unitCount } from "@/lib/billing";
 import { cn } from "@/lib/cn";
-import { fmt, money } from "@/lib/format";
+import { dateKey, fmt, money } from "@/lib/format";
 import { ownerActionWords } from "@/lib/owner-events";
 import { addAdminAction, newAdminLinkAction, openSupportAction, recordPaymentAction, setAgencyActiveAction, setAgencyBillingAction, updateAgencyAction } from "@/server/actions/owner";
 import { agencyBilling, listPlans, paymentsFor, unitsFor } from "@/server/billing";
@@ -32,20 +32,6 @@ const TABS = [
   { key: "activity", label: "Activity", icon: Activity },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
-
-const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join("").toUpperCase();
-
-function Card({ title, icon: Icon, action, children, className }: { title: string; icon: LucideIcon; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <section className={cn("card overflow-hidden", className)}>
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-        <h2 className="flex items-center gap-2 text-sm font-bold"><Icon className="h-4 w-4 text-brand" /> {title}</h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
-}
 
 function AdminStatus({ active, hasPassword }: { active: boolean; hasPassword: boolean | null }) {
   const [tone, words] = !active ? ["bg-[var(--color-panel)] text-mute", "Off"] : hasPassword ? ["bg-sage-soft text-sage", "Can sign in"] : ["bg-accent-soft text-[#8a5a10]", "Invited"];
@@ -68,7 +54,7 @@ export default async function AgencyPage({ params, searchParams }: { params: Pro
   const units = billing.plan ? await unitsFor(agency.id, billing.plan.unit) : 0;
   const monthly = billing.plan ? monthlyCents(billing.plan, units) : 0;
   const address = `${agencyOrigin(agency.slug, env.APP_URL)}`;
-  const today = new Date(now).toISOString().slice(0, 10);
+  const today = dateKey(new Date(now));
   const { state } = billing;
   // How much of the trial or paid period is left, for the bar.
   const periodDays = billing.billing.status === "trial" ? billing.rules.trialDays || 14 : 31;
@@ -105,7 +91,7 @@ export default async function AgencyPage({ params, searchParams }: { params: Pro
                   <Globe2 className="h-3.5 w-3.5 text-[#dcef98]" /> {new URL(address).host}
                   <CopyButton text={address} className="rounded-full bg-white/10 px-2.5 py-1 font-sans text-[11px] font-semibold hover:bg-white/20" />
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs"><Clock3 className="h-3.5 w-3.5 text-[#dcef98]" /> Since {fmt.day(agency.createdAt.toISOString().slice(0, 10))}</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs"><Clock3 className="h-3.5 w-3.5 text-[#dcef98]" /> Since {fmt.day(dateKey(agency.createdAt))}</span>
               </div>
             </div>
           </div>
