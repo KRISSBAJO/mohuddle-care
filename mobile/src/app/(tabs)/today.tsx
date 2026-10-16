@@ -9,7 +9,7 @@ import { duration, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
-type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string; href?: "/notes" | "/meds" };
+type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string; href?: string };
 
 const TINTS = {
   dose: { bg: "#fdf0dc", fg: "#9a6212" },
@@ -129,6 +129,7 @@ export default function TodayScreen() {
       detail: task.dueAt ? `${overdue ? "Was due" : "Due"} ${fmt.dayShort(task.dueAt, zone)}` : "Task",
       late: overdue,
       side: task.dueAt ? fmt.time(task.dueAt, zone) : undefined,
+      href: `/task?id=${task.id}`,
     });
   }
   const lateCount = rows.filter(row => row.late).length;
@@ -357,7 +358,7 @@ export default function TodayScreen() {
                   const tone = AVATARS[index % AVATARS.length];
                   const ring = person.doseLate ? colors.flag : person.dosesDue ? "#e0a43a" : "transparent";
                   return (
-                    <View key={person.id} style={styles.person} accessibilityLabel={`${person.name}${person.dosesDue ? `, ${person.dosesDue} doses due${person.doseLate ? ", late" : ""}` : ""}`}>
+                    <Pressable key={person.id} accessibilityRole="button" onPress={() => router.push(`/person?id=${person.id}`)} style={({ pressed }) => [styles.person, pressed && { opacity: 0.7 }]} accessibilityLabel={`${person.name}${person.dosesDue ? `, ${person.dosesDue} doses due${person.doseLate ? ", late" : ""}` : ""}`}>
                       <View style={[styles.ring, { borderColor: ring }]}>
                         <View style={[styles.avatar, { backgroundColor: tone.bg }]}>
                           <T weight="bold" size={17} color={tone.fg}>
@@ -378,7 +379,7 @@ export default function TodayScreen() {
                       <T size={12} color={person.doseLate ? colors.flag : colors.mute} numberOfLines={1}>
                         {person.dosesDue ? `${person.dosesDue} ${person.dosesDue === 1 ? "dose" : "doses"}${person.doseLate ? " late" : ""}` : "Nothing due"}
                       </T>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </ScrollView>

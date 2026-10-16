@@ -174,3 +174,35 @@ export type MedRound = {
 
 export type DoseResult = { adminId: string; ok: true } | { adminId: string; ok: false; code: string; error: string };
 
+
+/* What GET /people/{id} returns: a person's key facts. */
+export type PersonFacts = {
+  id: string;
+  name: string;
+  preferredName: string;
+  age: number | null;
+  pronouns: string;
+  home: string | null;
+  language: string;
+  communication: string;
+  mobility: string;
+  diet: string;
+  likes: string;
+  allergies: string;
+  diagnoses: string;
+  supportNotes: string;
+  contacts: { role: string; name: string; phone: string }[];
+  medications: { id: string; name: string; dose: string; route: string; instructions: string; controlled: boolean; when: string }[];
+  goals: { id: string; title: string; measurableStep: string }[];
+  appointments: { id: string; type: string; scheduledAt: string; clinic: string }[];
+};
+
+export type TaskSummary = { id: string; title: string; details: string; dueAt: string | null; priority: "low" | "normal" | "high"; status: "open" | "done"; completedAt: string | null; person: string | null; home: string | null };
+
+export type TaskDetail = Omit<TaskSummary, "person"> & {
+  completionNote: string;
+  category: string;
+  person: string | null;
+  personLast: string | null;
+  comments: { id: string; body: string; createdAt: string; by: string | null }[];
+};

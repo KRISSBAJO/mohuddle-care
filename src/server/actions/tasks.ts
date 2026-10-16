@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { canManage, type SessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { notify, recipients } from "@/server/notify";
+import { commentOnTaskFor, finishTaskFor } from "@/server/tasks";
 import type { FormState } from "./auth";
 
 const uuid = z.uuid();
@@ -83,19 +84,9 @@ export async function editTask(id: string, _previous: FormState, formData: FormD
 /* Marks a task done, with an optional note on what was done. Whoever made it is told. */
 export async function finishTask(id: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  if (!uuid.safeParse(id).success) return { error: "Unknown task." };
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  const [task] = await db
-    .update(schema.tasks)
-    .set({ status: "done", completedAt: new Date(), completedBy: user.id, completionNote: note })
-    .where(and(eq(schema.tasks.id, id), eq(schema.tasks.status, "open")))
-    .returning();
-  if (!task) return { error: "This task is already done." };
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "complete", entity: "task", entityId: id });
-  if (task.createdBy && task.createdBy !== user.id) {
-    await notify([task.createdBy], { kind: "task:done", title: `Done: ${task.title}`, body: note ? `${user.name}: ${note}` : `Finished by ${user.name}.`, href: `/app/tasks/${task.id}`, tone: "good", dedupeKey: `task:done:${task.id}:${task.completedAt?.getTime()}` });
-  }
-  refresh(task);
+  const result = await finishTaskFor(user, id, String(formData.get("note") ?? ""));
+  if (result.error) return { error: result.error };
+  if (result.task) refresh(result.task);
   return {};
 }
 
@@ -124,15 +115,8 @@ export async function removeTask(id: string): Promise<FormState> {
 /* Adds to the task's conversation and tells the others involved. */
 export async function commentOnTask(id: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
-  if (!uuid.safeParse(id).success) return { error: "Unknown task." };
-  const body = String(formData.get("body") ?? "").trim();
-  if (body.length < 2) return { error: "Write a comment first." };
-  const [task] = await db.select().from(schema.tasks).where(eq(schema.tasks.id, id)).limit(1);
-  if (!task) return { error: "This task was deleted." };
-  const [comment] = await db.insert(schema.taskComments).values({ taskId: id, userId: user.id, body: body.slice(0, 2000) }).returning();
-  const to = await recipients({ staffIds: [task.assignedTo], except: user.id });
-  if (task.createdBy && task.createdBy !== user.id) to.push(task.createdBy);
-  await notify([...new Set(to)], { kind: "task:comment", title: `${user.name} on ${task.title}`, body: body.slice(0, 200), href: `/app/tasks/${id}`, tone: "info", dedupeKey: `task:comment:${comment.id}` });
+  const result = await commentOnTaskFor(user, id, String(formData.get("body") ?? ""));
+  if (result.error) return { error: result.error };
   revalidatePath(`/app/tasks/${id}`);
   return {};
 }

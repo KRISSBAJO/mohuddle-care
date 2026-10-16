@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, ErrorText, Icon, T } from "@/components/ui";
@@ -62,6 +62,17 @@ export default function MoreScreen() {
       </SafeAreaView>
 
       <View style={{ padding: 20, gap: 12, paddingBottom: 120 }}>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/tasks")} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+          <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={styles.linkIcon}>
+              <Icon name="check-square" size={18} color={colors.sage} />
+            </View>
+            <T weight="semibold" style={{ flex: 1 }}>
+              My tasks
+            </T>
+            <Icon name="chevron-right" size={18} color={colors.dim} />
+          </Card>
+        </Pressable>
         <Card style={{ gap: 4 }}>
           <T size={13} color={colors.mute}>
             Signed in as
@@ -107,5 +118,6 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 8 },
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  linkIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.sageSoft, alignItems: "center", justifyContent: "center" },
   agency: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
 });
