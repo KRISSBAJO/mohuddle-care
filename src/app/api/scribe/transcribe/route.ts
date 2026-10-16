@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { assistantVocabulary } from "@/server/assistant";
-import { MAX_PCM_BYTES, ScribeError, transcribe } from "@/server/scribe";
+import { MAX_ENCODED_BYTES, MAX_PCM_BYTES, ScribeError, transcribe } from "@/server/scribe";
 import { getSettings } from "@/server/settings";
 
 export const runtime = "nodejs";
@@ -22,7 +22,8 @@ async function vocabulary(individualId: string | null) {
 }
 
 /*
- * Turns a recording into words. The body is 16 kHz mono 16-bit PCM, decoded in the browser.
+ * Turns a recording into words. The body is 16 kHz mono 16-bit PCM decoded in the browser, or with
+ * ?encoded=1 a recording file from the phone app (m4a), decoded by the speech engine.
  * The audio is only held in memory for this request; it is never saved.
  */
 export async function POST(request: Request) {
@@ -33,11 +34,12 @@ export async function POST(request: Request) {
   const forAssistant = params.get("mode") === "assistant";
   // Speaking to Ask Mohuddle needs only the speech engine; speaking a note needs the scribe switched on.
   if (forAssistant ? settings.assistant_enabled !== "on" : settings.scribe_enabled !== "on") return Response.json({ error: "Speaking is switched off in settings." }, { status: 403 });
+  const encoded = params.get("encoded") === "1";
   const length = Number(request.headers.get("content-length") ?? 0);
-  if (length > MAX_PCM_BYTES) return Response.json({ error: "Recordings can be up to ten minutes." }, { status: 413 });
+  if (length > (encoded ? MAX_ENCODED_BYTES : MAX_PCM_BYTES)) return Response.json({ error: "Recordings can be up to ten minutes." }, { status: 413 });
   const pcm = Buffer.from(await request.arrayBuffer());
   try {
-    const result = await transcribe(pcm, settings.scribe_speech, forAssistant ? await assistantVocabulary() : await vocabulary(params.get("person")));
+    const result = await transcribe(pcm, settings.scribe_speech, forAssistant ? await assistantVocabulary() : await vocabulary(params.get("person")), encoded);
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error instanceof ScribeError ? error.message : "Something went wrong turning speech into words." }, { status: 503 });

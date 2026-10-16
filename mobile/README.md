@@ -29,4 +29,7 @@ Medicines with no signal: regular scheduled doses can be recorded offline and ar
 - Sign-in, agency choice, PIN, lock and unlock, sign-out.
 - Today: the shift, doses due, notes owed, tasks, handovers and the people at the home.
 - Clock in and out (`/api/v1/clock`), with breaks. The rules live in `src/server/time-clock.ts` on the website, shared with the website's own clock: location check (no location never blocks; the office is told), tick statements, handovers to read, the clock-out handover and ticks, notes and doses left undone, leaving early or staying late, and signing with the full name. Punches need a signal for now; saving a punch on the phone with no signal comes later.
+- Notes: recent shifts and who still needs a note, and the shift note itself (`/api/v1/notes`, `/api/v1/notes/form`), laid out from what each person's note asks (sections, plan goals, the agency's own questions, the hourly timeline). Saving goes through `src/server/daily-notes.ts`, shared with the website.
+- Speak your note: the phone records an m4a, `/api/v1/scribe/transcribe?encoded=1` turns it into words (the speech worker decodes it) and `/api/v1/scribe/draft` fills the empty parts of the note. Recordings are not kept. Needs a real phone to test the microphone.
+- The lock covers the app instead of replacing it, so a half-written note survives the lock.
 - More: account, switching agency, sign-out.

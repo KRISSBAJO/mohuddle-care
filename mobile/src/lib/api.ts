@@ -95,3 +95,39 @@ export type ClockScreen =
       rules: { blocking: ("handover" | "checks" | "incident" | "notes" | "doses")[]; minChars: number; location: boolean; geofence: number };
     };
 
+/* What GET /notes returns: recent shifts and who still needs a note. */
+export type NotesOwed = {
+  shifts: { shiftId: string; home: string; pattern: string; startsAt: string; endsAt: string; state: "in_progress" | "due" | "overdue"; dueBy: string; people: { id: string; name: string; logId: string | null }[] }[];
+};
+
+export type NoteItem = { id: string; label: string; fieldType: "yes_no" | "number" | "choice" | "multi" | "text"; options: string[]; unit: string; help: string; required: boolean; followUpOn: "Yes" | "No" | ""; followUpPrompt: string; followUpDocs: string[] };
+export type SectionKey = "care" | "meals" | "sleep" | "continence" | "vitals" | "seizure" | "activities" | "behaviour" | "contacts" | "timeline";
+
+/* What GET /notes/form returns: what one person's shift note asks. */
+export type NoteForm = {
+  person: { id: string; name: string; first: string; allergies: string; supportNotes: string };
+  shift: { id: string; kind: string; name: string; home: string; startsAt: string; endsAt: string } | null;
+  defaults: { logDate: string; shift: string; timeIn: string; timeOut: string };
+  sections: { key: SectionKey; title: string; hint: string; on: boolean; required: boolean }[];
+  items: NoteItem[];
+  goals: { id: string; title: string; description: string; measurableStep: string; setupNotes: string; progress: string }[];
+  timeline: { hour: string; meds: string[] }[];
+  lists: {
+    requiredChecks: string[];
+    locations: string[];
+    adlItems: string[];
+    promptLevels: string[];
+    adlExtra: string[];
+    activityTypes: string[];
+    moods: string[];
+    meals: string[];
+    intake: string[];
+    sleepQuality: string[];
+    stoolTypes: string[];
+    goalOffered: Record<string, string>;
+    goalOutcome: Record<string, string>;
+  };
+  summaryMin: number;
+  scribe: boolean;
+};
+

@@ -44,6 +44,12 @@
         {
           "locationWhenInUsePermission": "Mohuddle checks you are at the home when you clock in and out. Your location is only read at those moments."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Mohuddle uses the microphone when you choose Speak your note. The recording is turned into words and not kept."
+        }
       ]
     ],
     "experiments": {

@@ -20,6 +20,8 @@ export type PinResult = { ok: true } | { ok: false; triesLeft: number } | { ok: 
 
 type Session = {
   status: Status;
+  /* For uploads that cannot go through call(), such as a recording. */
+  token: string | null;
   me: Me | null;
   email: string | null;
   rules: Rules;
@@ -265,6 +267,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       status,
+      token,
       me,
       email,
       rules,
@@ -281,7 +284,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       switchAgency,
       call,
     }),
-    [status, me, email, rules, notice, savedPinLength, canOfferBiometrics, biometricsChosen, signIn, choosePin, unlockWithPin, unlockWithBiometrics, unlockWithPassword, signOut, switchAgency, call],
+    [status, token, me, email, rules, notice, savedPinLength, canOfferBiometrics, biometricsChosen, signIn, choosePin, unlockWithPin, unlockWithBiometrics, unlockWithPassword, signOut, switchAgency, call],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

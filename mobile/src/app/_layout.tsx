@@ -3,7 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/LockScreen";
 import { SetPin } from "@/components/SetPin";
@@ -23,9 +23,20 @@ function Gate() {
       </View>
     );
   if (status === "signed_out") return <SignIn />;
-  if (status === "locked") return <LockScreen />;
   if (status === "set_pin") return <SetPin />;
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }} />;
+  // The lock covers the app rather than replacing it, so a half-written note is still there after unlocking.
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }} importantForAccessibility={status === "locked" ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={status === "locked"}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }} />
+      </View>
+      {status === "locked" ? (
+        <View style={StyleSheet.absoluteFill}>
+          <LockScreen />
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export default function RootLayout() {

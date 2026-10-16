@@ -9,7 +9,7 @@ import { duration, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
-type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string };
+type Row = { key: string; icon: IconName; tint: { bg: string; fg: string }; title: string; detail: string; late?: boolean; side?: string; href?: "/notes" };
 
 const TINTS = {
   dose: { bg: "#fdf0dc", fg: "#9a6212" },
@@ -112,6 +112,7 @@ export default function TodayScreen() {
       title: `${today.notes.missing} shift ${today.notes.missing === 1 ? "note" : "notes"} to write`,
       detail: today.notes.overdue ? `${today.notes.overdue} past the deadline` : "From your recent shifts",
       late: Boolean(today.notes.overdue),
+      href: "/notes",
     });
   }
   if (today?.handovers) {
@@ -307,7 +308,7 @@ export default function TodayScreen() {
             {rows.map((row, index) => (
               <Fragment key={row.key}>
                 {index > 0 ? <View style={styles.divider} /> : null}
-                <View style={styles.row}>
+                <Pressable disabled={!row.href} onPress={() => row.href && router.push(row.href)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
                   <View style={[styles.rowIcon, { backgroundColor: row.tint.bg }]}>
                     <Icon name={row.icon} size={17} color={row.tint.fg} />
                   </View>
@@ -333,7 +334,7 @@ export default function TodayScreen() {
                       </View>
                     ) : null}
                   </View>
-                </View>
+                </Pressable>
               </Fragment>
             ))}
           </View>

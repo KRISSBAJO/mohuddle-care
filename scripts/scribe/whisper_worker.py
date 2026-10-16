@@ -6,7 +6,8 @@ Usage: python whisper_worker.py <model directory>
 
 Protocol, one request at a time:
   in:  a JSON line {"id": 1, "bytes": 96000, "vocabulary": ["Aisha", ...]}, then exactly that many
-       bytes of 16 kHz mono 16-bit PCM
+       bytes of 16 kHz mono 16-bit PCM (the website), or with "encoded": true the bytes of a
+       recording file such as the phone app's m4a, which is decoded here
   out: a JSON line {"id": 1, "type": "done", "text": "...", "seconds": 3.0, "decodeMs": 1200}
        or {"id": 1, "type": "error", "message": "..."}
 On start it prints {"type": "ready"} once the model is loaded.
@@ -15,14 +16,16 @@ import os
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+import io
 import json
 import sys
 import time
 
 import numpy as np
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel, decode_audio
 
-MAX_BYTES = 16000 * 2 * 60 * 10  # ten minutes
+MAX_BYTES = 16000 * 2 * 60 * 10  # ten minutes of PCM
+MAX_ENCODED_BYTES = 25 * 1024 * 1024  # a compressed recording
 
 
 def emit(data):
@@ -56,12 +59,19 @@ def main():
             request = json.loads(header)
             request_id = request.get("id")
             size = int(request.get("bytes", 0))
-            if size <= 0 or size > MAX_BYTES or size % 2:
-                raise ValueError("Invalid PCM size")
-            pcm = read_exact(stdin, size)
-            if pcm is None:
+            encoded = bool(request.get("encoded"))
+            if size <= 0 or size > (MAX_ENCODED_BYTES if encoded else MAX_BYTES) or (not encoded and size % 2):
+                raise ValueError("Invalid recording size")
+            data = read_exact(stdin, size)
+            if data is None:
                 return
-            samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
+            if encoded:
+                # PyAV, which faster-whisper uses, reads m4a, aac, webm and wav; this gives 16 kHz mono floats.
+                samples = decode_audio(io.BytesIO(data), sampling_rate=16000)
+                if len(samples) > 16000 * 60 * 10:
+                    raise ValueError("Recording longer than ten minutes")
+            else:
+                samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32768
             vocabulary = request.get("vocabulary") or []
             start = time.perf_counter()
             segments, _info = model.transcribe(

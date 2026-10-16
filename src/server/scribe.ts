@@ -16,6 +16,8 @@ const OLLAMA = (process.env.OLLAMA_URL ?? "http://127.0.0.1:11434").replace(/\/$
 const WORKER = join(process.cwd(), "scripts", "scribe", "whisper_worker.py");
 
 export const MAX_PCM_BYTES = 16000 * 2 * 60 * 10;
+/* A compressed recording from the phone app, such as m4a. */
+export const MAX_ENCODED_BYTES = 25 * 1024 * 1024;
 
 export class ScribeError extends Error {}
 
@@ -176,9 +178,12 @@ export function warmSpeech(speech: string) {
   speechWorker(speech);
 }
 
-/* Words from a recording: 16 kHz mono 16-bit PCM. Names to listen for help Whisper spell them. */
-export function transcribe(pcm: Buffer, speech: string, vocabulary: string[]): Promise<{ text: string; seconds: number; decodeMs: number }> {
-  if (!pcm.length || pcm.length > MAX_PCM_BYTES || pcm.length % 2) return Promise.reject(new ScribeError("The recording is empty or longer than ten minutes."));
+/*
+ * Words from a recording: 16 kHz mono 16-bit PCM from the website, or (encoded) a recording file
+ * from the phone app, decoded by the worker. Names to listen for help Whisper spell them.
+ */
+export function transcribe(pcm: Buffer, speech: string, vocabulary: string[], encoded = false): Promise<{ text: string; seconds: number; decodeMs: number }> {
+  if (!pcm.length || pcm.length > (encoded ? MAX_ENCODED_BYTES : MAX_PCM_BYTES) || (!encoded && pcm.length % 2)) return Promise.reject(new ScribeError("The recording is empty or longer than ten minutes."));
   if (!PYTHON || !existsSync(PYTHON) || !existsSync(whisperDir(speech))) return Promise.reject(new ScribeError("The speech engine is not set up on this server."));
   return oneAtATime(async () => {
     const worker = speechWorker(speech);
@@ -193,7 +198,7 @@ export function transcribe(pcm: Buffer, speech: string, vocabulary: string[]): P
         if (holder.mohuddleSpeech === worker) stopWorker("The speech engine was restarted.");
       }, REQUEST_MS);
       worker.pending.set(id, { resolve, reject, timer });
-      worker.child.stdin.write(`${JSON.stringify({ id, bytes: pcm.length, vocabulary: vocabulary.slice(0, 120) })}\n`);
+      worker.child.stdin.write(`${JSON.stringify({ id, bytes: pcm.length, encoded, vocabulary: vocabulary.slice(0, 120) })}\n`);
       worker.child.stdin.write(pcm);
     });
   });

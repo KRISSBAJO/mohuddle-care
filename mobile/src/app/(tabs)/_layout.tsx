@@ -22,6 +22,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="today" options={tab("Today", "home")} />
+      <Tabs.Screen name="notes" options={tab("Notes", "edit-3")} />
       <Tabs.Screen name="more" options={tab("More", "more-horizontal")} />
     </Tabs>
   );

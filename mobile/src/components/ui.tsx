@@ -96,6 +96,32 @@ export function Choice<V extends string>({ value, options, onChange }: { value: 
   );
 }
 
+/* Pick one (or, with multi, any) from short options, as chips that wrap. Tapping the chosen one clears it. */
+export function Chips({ options, value, onChange, multi }: { options: (string | readonly [string, string])[]; value: string | string[]; onChange: (next: string | string[]) => void; multi?: boolean }) {
+  const chosen = Array.isArray(value) ? value : value ? [value] : [];
+  return (
+    <View style={styles.chips}>
+      {options.map(entry => {
+        const [option, words] = typeof entry === "string" ? [entry, entry] : entry;
+        const on = chosen.includes(option);
+        return (
+          <Pressable
+            key={option}
+            accessibilityRole={multi ? "checkbox" : "radio"}
+            accessibilityState={{ checked: on }}
+            onPress={() => (multi ? onChange(on ? chosen.filter(item => item !== option) : [...chosen, option]) : onChange(on ? "" : option))}
+            style={[styles.chip, on && { backgroundColor: colors.brand, borderColor: colors.brand }]}
+          >
+            <T weight={on ? "semibold" : "medium"} size={14} color={on ? "#ffffff" : colors.ink}>
+              {words}
+            </T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /* A titled block inside a long form. "must" marks something that stops the punch until done. */
 export function Section({ title, hint, tone, children }: { title: string; hint?: string; tone?: "must" | "warn" | "good"; children: React.ReactNode }) {
   const accent = tone === "must" ? colors.flag : tone === "warn" ? "#b7791f" : tone === "good" ? colors.sage : null;
@@ -126,6 +152,8 @@ export const styles = StyleSheet.create({
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
   area: { minHeight: 110, paddingTop: 12, textAlignVertical: "top" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.card },
   button: { minHeight: 50, borderRadius: 14, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1 },
   field: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   card: { backgroundColor: colors.card, borderRadius: 22, padding: 16, ...shadow.soft },
