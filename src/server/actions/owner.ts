@@ -14,6 +14,7 @@ import type { FormState } from "./auth";
 import { BILLING_STATUSES, PLAN_FEATURES, PLAN_UNITS, type BillingStatus, type PlanFeature, type PlanUnit } from "@/lib/billing";
 import { linkExpiry, money as formatMoney, parseMoney } from "@/lib/format";
 import { agencyBilling, recordPayment, saveBillingRules, saveDefaultPlan, savePlan, setAgencyBilling } from "@/server/billing";
+import { checkSignInLimits, saveSignInLimits } from "@/server/sign-in-guard";
 import { saveHandoverLibrary } from "@/server/handover-library";
 
 const uuid = z.uuid();
@@ -188,6 +189,19 @@ export async function saveBillingRulesAction(_previous: FormState, formData: For
   if (uuid.safeParse(defaultPlan).success) await saveDefaultPlan(defaultPlan);
   await recordOwnerEvent(owner, "billing:rules", null, `Trial ${rules.trialDays} days, grace ${rules.graceDays} days, warning ${rules.warnDays} days`);
   revalidatePath("/owner", "layout");
+  return {};
+}
+
+/* How many wrong passwords pause sign-in, and for how long, for every agency and the owner console. */
+export async function saveSignInLimitsAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const owner = await requireOwner();
+  const number = (key: string) => Number(formData.get(key));
+  const limits = { tries: number("tries"), minutes: number("minutes"), perPlace: number("perPlace") };
+  const problem = checkSignInLimits(limits);
+  if (problem) return { error: problem };
+  await saveSignInLimits(limits);
+  await recordOwnerEvent(owner, "security:sign_in_limits", null, `${limits.tries} wrong tries pause sign-in for ${limits.minutes} minutes; ${limits.perPlace} from one place`);
+  revalidatePath("/owner/security");
   return {};
 }
 

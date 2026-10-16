@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { checkCredentials, createDeviceSession, placesFor, placesInOrder } from "@/server/auth";
 import { problem, reply } from "@/server/mobile/api";
+import { ipFrom, signInFailed, signInPaused, signInSucceeded } from "@/server/sign-in-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,16 @@ export async function POST(request: Request) {
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return problem(400, "invalid", "Enter your email address and password.");
   const { email, password, agencyId, device } = parsed.data;
+  // Repeated wrong passwords pause sign-in for a while, before the password is even checked.
+  const ip = ipFrom(request.headers);
+  const paused = await signInPaused(email, ip);
+  if (paused) return problem(429, "too_many", paused);
   const login = await checkCredentials(email, password);
-  if (!login) return problem(401, "wrong_password", "That email and password do not match.");
+  if (!login) {
+    await signInFailed(email, ip);
+    return problem(401, "wrong_password", "That email and password do not match.");
+  }
+  await signInSucceeded(email, ip);
   const places = await placesInOrder(login.id);
   if (!places.length) return problem(403, "no_agency", "Your login is not active at any agency. Ask your office.");
   if (!agencyId && places.length > 1) {

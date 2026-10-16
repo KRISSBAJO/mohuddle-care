@@ -1,9 +1,11 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { checkCredentials, createSession, destroySession, getSessionUser, placesFor, placesInOrder, switchAgencyFor } from "@/server/auth";
 import { addressesOn, hostAgency, issueHandoff, requestHost } from "@/server/host";
+import { ipFrom, signInFailed, signInPaused, signInSucceeded } from "@/server/sign-in-guard";
 
 export type FormState = { error?: string };
 
@@ -18,9 +20,17 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   const parsed = credentials.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: "Enter your email address and password." };
   const { email, password, next, shared } = parsed.data;
+  // Repeated wrong passwords pause sign-in for a while, before the password is even checked.
+  const ip = ipFrom(await headers());
+  const paused = await signInPaused(email, ip);
+  if (paused) return { error: paused };
   // Before sign-in there is no agency yet, so the login is looked up across all of them.
   const login = await checkCredentials(email, password);
-  if (!login) return { error: "That email and password do not match." };
+  if (!login) {
+    await signInFailed(email, ip);
+    return { error: "That email and password do not match." };
+  }
+  await signInSucceeded(email, ip);
   const places = await placesInOrder(login.id);
   const host = await requestHost();
   let place: (typeof places)[number] | undefined = places[0];

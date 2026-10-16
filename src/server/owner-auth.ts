@@ -1,6 +1,6 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -8,6 +8,7 @@ import { checkCode, newSecret } from "@/lib/totp";
 import { verifyPassword } from "./auth";
 import { schema, systemDb } from "./db";
 import { env } from "./env";
+import { ipFrom, signInFailed, signInPaused, signInSucceeded } from "./sign-in-guard";
 
 /*
  * Signing in to the owner console: its own sign-in and session, apart from any agency's. A Mohuddle
@@ -69,19 +70,6 @@ export async function readPending(): Promise<Pending | null> {
   return { loginId, stage, until: Number(until) };
 }
 
-// Wrong passwords and codes: five in a row locks an email or a login out for 15 minutes.
-const failures = new Map<string, { count: number; until: number }>();
-const locked = (key: string) => (failures.get(key)?.until ?? 0) > Date.now();
-function fail(key: string) {
-  const entry = failures.get(key) ?? { count: 0, until: 0 };
-  entry.count += 1;
-  if (entry.count >= 5) {
-    entry.until = Date.now() + 15 * 60_000;
-    entry.count = 0;
-  }
-  failures.set(key, entry);
-}
-
 const DUMMY_HASH = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$Q8Jf9Hh1b7bJtS2pJqgaS9wYg4cGRQyfxg0n1xqkk3E";
 
 /*
@@ -90,13 +78,16 @@ const DUMMY_HASH = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$Q8Jf9H
  */
 export async function ownerPasswordStep(email: string, password: string): Promise<{ next: string } | { error: string }> {
   const address = email.trim().toLowerCase();
-  if (locked(`email:${address}`)) return { error: "Too many tries. Wait 15 minutes, then try again." };
+  const ip = ipFrom(await headers());
+  const paused = await signInPaused(address, ip);
+  if (paused) return { error: paused };
   const [login] = await systemDb.select().from(schema.logins).where(eq(schema.logins.email, address)).limit(1);
   const ok = login?.passwordHash ? await verifyPassword(login.passwordHash, password) : (await verifyPassword(DUMMY_HASH, password), false);
   if (!ok || !login?.isOwner) {
-    fail(`email:${address}`);
+    await signInFailed(address, ip);
     return { error: "That email and password do not match an owner." };
   }
+  await signInSucceeded(address, ip);
   if (login.totpEnabledAt) {
     await setPending(login.id, "code");
     return { next: "/owner/verify" };
@@ -109,29 +100,38 @@ export async function ownerPasswordStep(email: string, password: string): Promis
   return { next: "/owner" };
 }
 
-// The last code step each login used, so the same code cannot be used twice.
-const lastStep = new Map<string, number>();
-
 /* The code step: a code from the app, or one of the backup codes. */
 export async function ownerCodeStep(code: string): Promise<{ next: string } | { error: string }> {
   const pending = await readPending();
   if (!pending || pending.stage !== "code") return { error: "Start again with your email and password." };
-  if (locked(`login:${pending.loginId}`)) return { error: "Too many tries. Wait 15 minutes, then try again." };
+  // Wrong codes count like wrong passwords, against this login.
+  const ip = ipFrom(await headers());
+  const paused = await signInPaused(`code:${pending.loginId}`, ip);
+  if (paused) return { error: paused };
   const [login] = await systemDb.select().from(schema.logins).where(eq(schema.logins.id, pending.loginId)).limit(1);
   if (!login?.isOwner || !login.totpSecret || !login.totpEnabledAt) return { error: "Start again with your email and password." };
   const typed = code.trim();
   const step = checkCode(unseal(login.totpSecret), typed);
-  if (step !== null && step > (lastStep.get(login.id) ?? -1)) {
-    lastStep.set(login.id, step);
-  } else {
+  // A code works once: only a step later than the last one used, claimed in the database so two servers cannot both accept it.
+  const claimed =
+    step !== null &&
+    (
+      await systemDb
+        .update(schema.logins)
+        .set({ totpLastStep: step })
+        .where(and(eq(schema.logins.id, login.id), or(isNull(schema.logins.totpLastStep), lt(schema.logins.totpLastStep, step))))
+        .returning({ id: schema.logins.id })
+    ).length > 0;
+  if (!claimed) {
     // A backup code works once.
     const hashed = backupHash(typed);
     if (!login.backupCodes.includes(hashed)) {
-      fail(`login:${login.id}`);
+      await signInFailed(`code:${login.id}`, ip);
       return { error: "That code is not right. Check the time on your phone, and use the newest code." };
     }
     await systemDb.update(schema.logins).set({ backupCodes: login.backupCodes.filter(item => item !== hashed) }).where(eq(schema.logins.id, login.id));
   }
+  await signInSucceeded(`code:${login.id}`, ip);
   (await cookies()).delete(PENDING_COOKIE);
   await createOwnerSession(login.id);
   return { next: "/owner" };
@@ -157,20 +157,22 @@ const backupHash = (code: string) => createHash("sha256").update(`backup:${code.
 export async function finishSetup(code: string): Promise<{ backupCodes: string[] } | { error: string }> {
   const pending = await readPending();
   if (!pending || pending.stage !== "setup") return { error: "Start again with your email and password." };
-  if (locked(`login:${pending.loginId}`)) return { error: "Too many tries. Wait 15 minutes, then try again." };
+  const ip = ipFrom(await headers());
+  const paused = await signInPaused(`code:${pending.loginId}`, ip);
+  if (paused) return { error: paused };
   const [login] = await systemDb.select().from(schema.logins).where(eq(schema.logins.id, pending.loginId)).limit(1);
   if (!login?.isOwner || !login.totpSecret) return { error: "Start again with your email and password." };
   const step = checkCode(unseal(login.totpSecret), code);
   if (step === null) {
-    fail(`login:${login.id}`);
+    await signInFailed(`code:${login.id}`, ip);
     return { error: "That code is not right. Type the 6 digits the app shows for Mohuddle now." };
   }
-  lastStep.set(login.id, step);
+  await signInSucceeded(`code:${login.id}`, ip);
   const backupCodes = Array.from({ length: 8 }, () => {
     const raw = randomBytes(5).toString("hex");
     return `${raw.slice(0, 5)}-${raw.slice(5)}`;
   });
-  await systemDb.update(schema.logins).set({ totpEnabledAt: new Date(), backupCodes: backupCodes.map(backupHash) }).where(eq(schema.logins.id, login.id));
+  await systemDb.update(schema.logins).set({ totpEnabledAt: new Date(), totpLastStep: step, backupCodes: backupCodes.map(backupHash) }).where(eq(schema.logins.id, login.id));
   (await cookies()).delete(PENDING_COOKIE);
   await createOwnerSession(login.id);
   return { backupCodes };
@@ -274,8 +276,7 @@ export async function finishOwnSetup(loginId: string, code: string): Promise<{ b
   if (!login?.totpSecret || login.totpEnabledAt) return { error: "Reload the page and try again." };
   const step = checkCode(unseal(login.totpSecret), code);
   if (step === null) return { error: "That code is not right. Type the 6 digits the app shows for Mohuddle now." };
-  lastStep.set(login.id, step);
   const backupCodes = await newBackupCodes(login.id);
-  await systemDb.update(schema.logins).set({ totpEnabledAt: new Date() }).where(eq(schema.logins.id, login.id));
+  await systemDb.update(schema.logins).set({ totpEnabledAt: new Date(), totpLastStep: step }).where(eq(schema.logins.id, login.id));
   return { backupCodes };
 }

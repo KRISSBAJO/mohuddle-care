@@ -92,6 +92,8 @@ export const logins = pgTable("logins", {
   ownerName: text("owner_name").notNull().default(""),
   totpSecret: text("totp_secret"),
   totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+  // The time step of the last code used, so the same code cannot be used twice.
+  totpLastStep: integer("totp_last_step"),
   backupCodes: jsonb("backup_codes").$type<string[]>().notNull().default(emptyList()),
   createdAt: createdAt(),
 });
@@ -183,6 +185,22 @@ export const platformSettings = pgTable("platform_settings", {
   value: jsonb("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/*
+ * Wrong passwords at sign-in, for pausing repeated guessing (src/server/sign-in-guard.ts). Not
+ * tied to an agency: before sign-in there is none. Rows older than a day are removed.
+ */
+export const signInFailures = pgTable(
+  "sign_in_failures",
+  {
+    id: id(),
+    email: text("email").notNull(),
+    // Where the try came from, as the proxy reports it; empty when unknown.
+    ip: text("ip").notNull().default(""),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index("sign_in_failures_email").on(table.email, table.at), index("sign_in_failures_ip").on(table.ip, table.at)],
+);
 
 /*
  * A signed-in owner on the admin address: separate from any agency's session. Only a hash of the
