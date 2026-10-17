@@ -149,6 +149,10 @@ Remove-Item Env:RUN_API_TESTS
 ## Production build and deployment
 
 See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted test deployment.
+The test service is [mohuddle-care.onrender.com](https://mohuddle-care.onrender.com). The planned
+custom address is `care.mohuddle.com`; its Render domain registration and DNS verification must
+finish before agency addresses and setup links can be used there. Existing `mohuddle.com` and
+`www.mohuddle.com` records serve the original site.
 
 ```bash
 pnpm build
@@ -162,6 +166,9 @@ production smoke-test server on another port if the preview is already using 340
 Before deploying, configure the deployment's own database, session secret, HTTPS `APP_URL`,
 and trusted proxy client-IP header. Apply the migrations with `pnpm db:migrate` and arrange database
 and file backups with a tested restore procedure. Do not seed demo accounts into production.
+For a new database, `scripts/bootstrap-owner.ts` creates the first administrator and owner with
+a private, 24-hour password setup link. It refuses databases that already have logins. See the
+deployment guide for the command and follow-up authenticator setup.
 
 - **Files:** configure private S3-compatible storage, or explicitly manage persistent private disk
   and backups. The default `.storage` directory is local development storage.

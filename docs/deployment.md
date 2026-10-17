@@ -36,12 +36,20 @@ Use a new test database; do not copy the existing local database or its account 
 The development seed is not a production bootstrap. First-owner setup must use a private
 one-time password setup link, followed by the owner's authenticator enrollment.
 
+For an empty, migrated database, run `pnpm tsx scripts/bootstrap-owner.ts --env
+.env.deployment.local --email owner@example.com --name "Owner Name" --link-file
+output/owner-setup.private.txt` (keep this on one command line). The script refuses any database
+with existing logins, creates the first owner and Milestone administrator, initializes the agency's
+default forms and note requirements, and saves a 24-hour setup link to the private file without
+printing the token. It never chooses a password or imports demo care records. Keep the link file
+and deployment environment out of Git; the owner must set their own password and authenticator.
+
 ## Domains and verification
 
 Use `care.mohuddle.com` for this test deployment, with `app.care.mohuddle.com`,
 `admin.care.mohuddle.com` and `milestone.care.mohuddle.com` in the hosting service. Keep the
-existing root and www website records.
-then use its exact DNS instructions in GoDaddy. Mail DNS records come from RelyKit and are
+existing root and www website records, and follow Render's exact DNS instructions in GoDaddy.
+Mail DNS records come from RelyKit and are
 separate from website records. If the verified mail domain is `www.mohuddle.com`, DKIM hosts
 must end in `._domainkey.www` in GoDaddy's `mohuddle.com` zone, and the return path is
 `send.www`. Do not remove unrelated existing website or email records.
