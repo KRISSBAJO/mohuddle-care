@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/LockScreen";
+import { BrandMark } from "@/components/BrandMark";
+import { T } from "@/components/ui";
 import { PushListener } from "@/components/PushListener";
 import { SetPin } from "@/components/SetPin";
 import { SignIn } from "@/components/SignIn";
@@ -21,7 +23,9 @@ function Gate() {
   if (status === "loading")
     return (
       <View style={{ flex: 1, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.lime} />
+        <BrandMark size={160} />
+        <T weight="heavy" size={30} color="#f8f7ee" style={{ marginTop: 20, letterSpacing: -1 }}>Mohuddle</T>
+        <ActivityIndicator color={colors.lime} style={{ marginTop: 28 }} />
       </View>
     );
   if (status === "signed_out") return <SignIn />;

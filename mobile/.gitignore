@@ -9,3 +9,7 @@ web-build/
 *.jks
 *.p12
 *.mobileprovision
+
+# Native projects are generated from app.json by EAS.
+/android/
+/ios/

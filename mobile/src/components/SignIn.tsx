@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api";
 import { useSession, type AgencyChoice } from "@/lib/session";
 import { colors } from "@/lib/theme";
 import { Button, ErrorText, Field, Icon, T } from "./ui";
+import { BrandMark } from "./BrandMark";
 
 /* Email and password; then, for someone at several agencies, which one. */
 export function SignIn() {
@@ -33,11 +34,7 @@ export function SignIn() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
       <SafeAreaView edges={["top"]} style={styles.hero}>
-        <View style={styles.mark}>
-          <T weight="bold" size={22} color={colors.brand}>
-            M
-          </T>
-        </View>
+        <BrandMark size={64} />
         <T weight="heavy" size={30} color="#ffffff" style={{ marginTop: 18, letterSpacing: -1 }}>
           {choices ? "Which agency?" : "Welcome to Mohuddle"}
         </T>
@@ -84,7 +81,6 @@ export function SignIn() {
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.brand, paddingHorizontal: 24, paddingBottom: 28, paddingTop: 36, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  mark: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.lime, alignItems: "center", justifyContent: "center" },
   body: { padding: 24, paddingTop: 28 },
   choice: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.card, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, padding: 14 },
   choiceMark: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
