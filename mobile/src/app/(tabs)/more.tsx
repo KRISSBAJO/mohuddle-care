@@ -10,6 +10,7 @@ import { queuedDoses } from "@/lib/outbox";
 import { disablePush, enablePush, pushState, type PushState } from "@/lib/push";
 import { readValue, removeValue, writeValue } from "@/lib/storage";
 import { PUSH_OFF_KEY } from "@/components/PushListener";
+import { AppUpdates } from "@/components/AppUpdates";
 import { useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
 
@@ -182,6 +183,7 @@ export default function MoreScreen() {
           </T>
         </Card>
 
+        <AppUpdates unsent={unsent} />
         {unsent ? (
           <ErrorText>
             {unsent} {unsent === 1 ? "dose is" : "doses are"} saved on this phone and not sent yet. Stay signed in until you have a signal, or they will not reach the medication record.

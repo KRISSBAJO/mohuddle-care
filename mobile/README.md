@@ -1,5 +1,24 @@
 # Mohuddle phone app
 
+## Over-the-air updates
+
+EAS Update is configured for `@logaxp/mohuddle`, with separate preview and production channels
+and fingerprint-based native compatibility. Both EAS environments define the API URL as
+`https://mohuddle.com`. Updates download on launch and apply on the next launch. More also has
+Check for updates and an explicit Restart to update button; it never restarts during note entry.
+
+Publish JavaScript, style and bundled-image changes without building an APK:
+
+```sh
+npx eas-cli update --channel preview --environment preview --platform android --message "Describe the change"
+```
+
+Use the production channel/environment for released apps. Native dependencies, permissions,
+app icons and native splash settings still require a native build. The initial APK
+`f16810d8-7014-4392-9368-36f7bd89398d` predates the updater and cannot receive OTA updates.
+One planned native release containing expo-updates is needed to activate this configuration.
+Afterward, password-eye, text, layout and color changes use OTA updates.
+
 The Mohuddle app for care staff on shift. One app for every agency. Built with Expo (React Native), so the same code makes the iPhone and Android apps.
 
 ## Run it

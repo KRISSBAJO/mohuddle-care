@@ -89,6 +89,14 @@
       },
       "router": {}
     },
-    "icon": "./assets/mohuddle-icon-v2.png"
+    "icon": "./assets/mohuddle-icon-v2.png",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8ca39aa4-c32e-4f42-9f78-9fe66967ed40",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
