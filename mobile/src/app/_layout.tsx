@@ -11,6 +11,7 @@ import { T } from "@/components/ui";
 import { PushListener } from "@/components/PushListener";
 import { SetPin } from "@/components/SetPin";
 import { SignIn } from "@/components/SignIn";
+import { ChatLiveProvider } from "@/lib/chat";
 import { pushSupported } from "@/lib/push";
 import { SessionProvider, useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
@@ -34,7 +35,9 @@ function Gate() {
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flex: 1 }} importantForAccessibility={status === "locked" ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={status === "locked"}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }} />
+        <ChatLiveProvider>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }} />
+        </ChatLiveProvider>
       </View>
       {pushSupported ? <PushListener /> : null}
       {status === "locked" ? (

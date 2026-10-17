@@ -32,7 +32,7 @@ export type Rules = { lockMinutes: number; pinLength: "6" | "4" | "either"; biom
 
 /* What GET /me returns. */
 export type Me = {
-  user: { name: string; email: string; role: string; isStaff: boolean; canManage: boolean };
+  user: { id: string; name: string; email: string; role: string; isStaff: boolean; canManage: boolean };
   agency: { id: string; name: string; zone: string } | null;
   agencies: { agencyId: string; name: string }[];
   rules: Rules;

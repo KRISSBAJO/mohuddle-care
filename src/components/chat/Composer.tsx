@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Mic, Paperclip, Pencil, SendHorizontal, Smile, Trash2, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { durationText, EMOJIS, type ChatDetail, type Message } from "./client";
+import { durationText, EMOJIS, ROLE_NAMES, type ChatDetail, type Message } from "./client";
 
 export type Draft = { body: string; mentions: string[]; personId: string | null };
 
@@ -181,7 +181,7 @@ export function Composer({
           {mentionOptions.map(member => (
             <button key={member.id} type="button" onMouseDown={event => { event.preventDefault(); chooseMention(member); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-panel">
               <span className="font-semibold">{member.name}</span>
-              <span className="text-xs capitalize text-mute">{member.role}</span>
+              <span className="text-xs text-mute">{ROLE_NAMES[member.role] ?? member.role}</span>
             </button>
           ))}
         </div>

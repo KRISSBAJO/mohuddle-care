@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowLeft, BellOff, Check, ChevronDown, Download, Info, Loader2, LogOut, Megaphone, MessageSquarePlus, Pin, Search, Star, UserPlus, Users, Wifi, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt } from "@/lib/format";
-import { chatApi, colorFor, initialsOf, useLiveChat, type ChatDetail, type ChatItem, type LiveEvent, type Message, type Person } from "./client";
+import { chatApi, colorFor, initialsOf, ROLE_NAMES, useLiveChat, type ChatDetail, type ChatItem, type LiveEvent, type Message, type Person } from "./client";
 import { Composer, type Draft } from "./Composer";
 import { MessageBubble, type BubbleActions } from "./MessageBubble";
 
@@ -678,8 +678,8 @@ function PersonRow({ person, onClick, selected }: { person: Person; onClick: () 
       <Avatar chat={{ id: person.id, kind: "direct", title: person.name }} size={38} online={person.online} />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold">{person.name}</span>
-        <span className="block truncate text-xs capitalize text-mute">
-          {person.role}
+        <span className="block truncate text-xs text-mute">
+          {ROLE_NAMES[person.role] ?? person.role}
           {person.home ? ` · ${person.home}` : ""}
         </span>
       </span>

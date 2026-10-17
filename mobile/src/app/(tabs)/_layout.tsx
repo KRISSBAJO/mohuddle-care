@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { Icon, type IconName } from "@/components/ui";
+import { useChatLive } from "@/lib/chat";
 import { useSession } from "@/lib/session";
 import { colors, fonts, shadow } from "@/lib/theme";
 
@@ -8,9 +9,10 @@ const tab = (title: string, icon: IconName) => ({
   tabBarIcon: ({ color }: { color: unknown }) => <Icon name={icon} size={21} color={String(color)} />,
 });
 
-/* The bottom bar. Team shows only for coordinators and administrators. */
+/* The bottom bar. Team shows only for coordinators and administrators; Chat shows its unread count. Report is opened from Today and More. */
 export default function TabsLayout() {
   const { me } = useSession();
+  const { unread } = useChatLive();
   return (
     <Tabs
       screenOptions={{
@@ -26,7 +28,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="today" options={tab("Today", "home")} />
       <Tabs.Screen name="meds" options={tab("Meds", "droplet")} />
       <Tabs.Screen name="notes" options={tab("Notes", "edit-3")} />
-      <Tabs.Screen name="report" options={tab("Report", "alert-triangle")} />
+      <Tabs.Screen name="chat" options={{ ...tab("Chat", "message-circle"), tabBarBadge: unread ? (unread > 99 ? "99+" : unread) : undefined, tabBarBadgeStyle: { backgroundColor: colors.sage, fontFamily: fonts.bold, fontSize: 11 } }} />
+      <Tabs.Screen name="report" options={{ ...tab("Report", "alert-triangle"), href: null }} />
       <Tabs.Screen name="team" options={{ ...tab("Team", "users"), href: me?.user.canManage ? undefined : null }} />
       <Tabs.Screen name="more" options={tab("More", "more-horizontal")} />
     </Tabs>

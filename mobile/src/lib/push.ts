@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { activeChat } from "./chat";
 
 /*
  * Phone notifications. The phone asks once for permission; after that, each start sends the phone's
@@ -17,7 +18,12 @@ const supported = Platform.OS !== "web" && Device.isDevice;
 if (supported) {
   // An alert that arrives while the app is open still shows as a banner.
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
+    handleNotification: async notification => {
+      // A message in the chat already on screen arrives there; no banner on top of it.
+      const screen = String((notification.request.content.data as { screen?: string } | undefined)?.screen ?? "");
+      const here = Boolean(activeChat.id) && screen === `/conversation?id=${activeChat.id}`;
+      return { shouldShowBanner: !here, shouldShowList: !here, shouldPlaySound: !here, shouldSetBadge: true };
+    },
   });
 }
 

@@ -30,6 +30,10 @@ export function phoneScreenFor(href: string, manager: boolean): string | null {
       return "/documents";
     case "/app/time":
       return manager ? "/team" : null;
+    case "/app/chat": {
+      const chat = url.searchParams.get("c");
+      return chat && /^[0-9a-f-]{36}$/.test(chat) ? `/conversation?id=${chat}` : "/chat";
+    }
   }
   if (parts[1] === "tasks" && id) return `/task?id=${id}`;
   if (parts[1] === "incidents" && id) return manager ? `/incident?id=${id}` : null;

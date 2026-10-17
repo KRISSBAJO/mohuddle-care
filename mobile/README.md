@@ -62,6 +62,15 @@ Medicines with no signal: regular scheduled doses can be recorded offline and ar
 - Ask Mohuddle (`/api/v1/assistant`, from the Ask button on Today and from More): type, or tap the microphone and speak (`/api/v1/scribe/transcribe?mode=assistant`; it stops after a pause). The website's assistant answers (`src/server/assistant.ts`); `src/server/mobile/assistant.ts` turns its website links into app screens where the app has one, and marks the rest as website links. Breaks start and end from the answer with a tap; a clock-in opens the clock screen, which shows the handover and checks the location. Answers can be read aloud (expo-speech), switched on per phone. Shown only when the agency's plan includes it and Settings has it on.
 - More: account, Ask Mohuddle, My tasks, My documents, switching agency, sign-out.
 
+### Chat
+
+- The Chat tab (badge: unread count) lists every conversation: one-to-one chats, groups, a group for each home (kept in step with who works there) and Announcements (managers post). The round button starts a chat or a group (`/chat-new`); a conversation is `/conversation?id=`, its details `/chat-info?id=`.
+- Long press a message for reactions, reply, copy, forward, star, pin, message info, edit (within the agency's window) and delete (for everyone or for me). Send text, @mentions, a tagged person supported, photos (camera or library), files and voice notes (expo-audio). Files open through the phone's share sheet (expo-file-system and expo-sharing, downloaded with the sign-in).
+- Live: one WebSocket for the whole app (`src/lib/chat.tsx`, `ChatLiveProvider`) to the chat gateway (`src/realtime/gateway.ts` on the server, `pnpm chat:gateway`). It reconnects by itself, and when the app comes back to the front. Typing, presence, new messages and ticks arrive through it; messages are always sent through `/api/v1/chat/...`.
+- A notification for the chat already on screen shows no banner (`activeChat` in `src/lib/push.ts`). Tapping a chat notification opens the conversation.
+- Report moved off the tab bar to make room: it is the red Report button on Today, and the first row in More.
+- New native packages since the last build: expo-clipboard, expo-sharing, expo-haptics, expo-file-system. The fingerprint runtime changes, so phones need a new build before an over-the-air update can carry chat.
+
 ### Notifications
 
 - Every message the website's bell gets (`notify()` in `src/server/notify.ts`) also goes to the person's signed-in phones, through Expo's push service (`src/server/phone-push.ts`). Reminders from the background sweep, no-shows, approvals and so on all arrive this way; nothing else needs to call it.

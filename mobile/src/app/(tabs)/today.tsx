@@ -216,9 +216,17 @@ export default function TodayScreen() {
           <T weight="medium" size={13} color={colors.mute} style={{ marginTop: 22 }}>
             {fmt.dayLong(new Date(now), zone)}
           </T>
-          <T weight="bold" size={24} style={{ letterSpacing: -0.6, lineHeight: 30, marginTop: 2 }}>
-            Hey {first}
-          </T>
+          <View style={styles.greetRow}>
+            <T weight="bold" size={24} style={{ letterSpacing: -0.6, lineHeight: 30, marginTop: 2, flex: 1 }}>
+              Hey {first}
+            </T>
+            <Pressable accessibilityRole="button" accessibilityLabel="Report an incident" onPress={() => router.push("/report")} style={({ pressed }) => [styles.report, pressed && { opacity: 0.7 }]}>
+              <Icon name="alert-triangle" size={14} color={colors.flag} />
+              <T weight="semibold" size={13} color={colors.flag}>
+                Report
+              </T>
+            </Pressable>
+          </View>
         </SafeAreaView>
 
         {me?.user.isStaff && clock ? (
@@ -420,6 +428,8 @@ const styles = StyleSheet.create({
   agency: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
   agencyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.sage },
   ask: { flexDirection: "row", alignItems: "center", gap: 6, height: 42, borderRadius: 21, paddingHorizontal: 14, backgroundColor: colors.card },
+  greetRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  report: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.flagSoft, borderRadius: 999, paddingHorizontal: 12, height: 34 },
   bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
   bellBadge: { position: "absolute", top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.flag, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.ground },
   me: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },

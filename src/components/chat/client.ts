@@ -155,3 +155,5 @@ export const durationText = (ms = 0) => `${Math.floor(ms / 60_000)}:${String(Mat
 
 export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "🙏", "✅"];
 export const EMOJIS = ["😀", "😁", "😂", "🙂", "😊", "😍", "🥰", "😘", "😉", "😎", "🤔", "😮", "😢", "😭", "😡", "🙏", "👍", "👎", "👏", "🙌", "💪", "👋", "🤝", "❤️", "💚", "💙", "🔥", "✨", "🎉", "✅", "❌", "⚠️", "⏰", "📅", "💊", "🏠", "🚗", "☕", "🍽️", "📞"];
+
+export const ROLE_NAMES: Record<string, string> = { admin: "Administrator", coordinator: "Coordinator", nurse: "Nurse", dsp: "Direct support" };
