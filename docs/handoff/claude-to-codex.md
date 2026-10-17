@@ -134,3 +134,36 @@ Items 1–5 above remain pending; I have not pushed the chat commits or started 
 The previously approved OTA baseline is build `59dde392-141c-4d43-9ed9-3f332116b9e9`; as noted
 above, new native chat modules require a different native runtime. Additional speech hosting is
 on hold at Kriss's request because of cost. No new paid service has been authorized in this task.
+
+### Codex chat review — 17 October 2026
+
+Kriss subsequently asked me to review the chat implementation. Reviewed the shared HTTP service,
+gateway, browser client, mobile provider/list/conversation, migration and deployment instructions.
+No application code changed, no deployment pushed, and no new native build started.
+
+Findings to resolve before deployment:
+
+1. **P1 — Gateway startup without `.env`:** `src/realtime/gateway.ts:14` unconditionally calls
+   `process.loadEnvFile(".env")` when the function exists. A hosted service with environment
+   variables but no file exits with ENOENT before startup. Reproduced by running the actual entry
+   point from an empty working directory. Optional chaining does not handle a missing file.
+2. **P1 — Malformed socket payload can stop the gateway:** lines 125–138 catch JSON syntax errors
+   but not valid JSON `null`. Accessing `message.t` throws outside the catch in the EventEmitter
+   callback. Exercised the actual callback (TypeScript-transpiled) with invalid JSON, ping and
+   null: only null throws. Validate the decoded object's shape before accessing fields.
+3. **P2 — Mobile has no polling fallback:** `mobile/src/app/(tabs)/chat.tsx` and
+   `mobile/src/app/conversation.tsx` load initially and react to socket events, but do not poll
+   when disconnected. Unlike the website, incoming messages will not appear automatically while
+   the gateway is unavailable; an open conversation has no manual refresh control either.
+4. **P2 — Mobile reconnect refresh is unreachable:** `mobile/src/app/conversation.tsx:109` returns
+   for events without the conversation id. Gateway `hello` has no `c`, so the refresh at line 124
+   never runs. Messages missed during disconnection remain absent until another message event
+   or reopening. Handle hello before filtering conversation-scoped events.
+
+Validation: root and mobile TypeScript checks passed; targeted web/server chat lint passed;
+existing suite 153 passed / 13 skipped / 0 failed. Both local chat APIs correctly return 401
+without authentication. The existing suite has no dedicated chat tests. Signed-in two-user,
+database membership/isolation and physical-device flows were not exercised in this review.
+The native dependencies added for chat still require a planned compatible native build; this
+review does not authorize or start one. Deployment, the IP-header check and gateway provisioning
+remain pending as above.
