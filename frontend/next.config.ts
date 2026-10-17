@@ -7,17 +7,15 @@ if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !=
 
 const config: NextConfig = {
   poweredByHeader: false,
-  assetPrefix: "/marketing-assets",
   images: { unoptimized: true },
   turbopack: { root: path.resolve(import.meta.dirname) },
   outputFileTracingRoot: path.resolve(import.meta.dirname),
   async rewrites() {
     return {
       beforeFiles: [
-        { source: "/marketing-assets/_next/:path+", destination: "/_next/:path+" },
-        ...["/api", "/app", "/owner", "/setup-password", "/auth", "/docs", "/api/:path*", "/app/:path*", "/owner/:path*", "/login", "/forgot-password", "/setup-password/:path*", "/auth/:path*", "/docs/:path*"].map(source => ({ source, destination: `${backend}${source}` })),
+        ...["/portal-assets/:path+", "/api", "/app", "/owner", "/setup-password", "/auth", "/docs", "/api/:path*", "/app/:path*", "/owner/:path*", "/login", "/forgot-password", "/setup-password/:path*", "/auth/:path*", "/docs/:path*"].map(source => ({ source, destination: `${backend}${source}` })),
       ],
-      afterFiles: [{ source: "/_next/:path+", destination: `${backend}/_next/:path+` }],
+      afterFiles: [],
       fallback: [{ source: "/:path*", destination: `${backend}/:path*` }],
     };
   },

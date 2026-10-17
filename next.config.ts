@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   poweredByHeader: false,
+  // Give the Render portal its own assets when served through the Vercel frontend.
+  assetPrefix: "/portal-assets",
   experimental: {
     serverActions: {
       // The public frontend proxies portal actions to this Render service.

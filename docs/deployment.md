@@ -19,7 +19,8 @@ the root directory so the build can copy the shared public components. Use Node 
 and `npm run build`. The build generates `frontend/src` and `frontend/public` from the shared
 source; edit the originals in the repository's `src` and `public` directories.
 Set `BACKEND_ORIGIN=https://mohuddle-care.onrender.com`. No other app secrets belong in Vercel.
-The marketing assets use `/marketing-assets` to keep the two Next.js builds separate. Links
+The Render portal assets use `/portal-assets` to keep the two Next.js builds separate.
+Vercel serves the public frontend assets at its standard `/_next` paths. Links
 from the public frontend to sign-in use full navigation across deployments.
 
 In Render:
