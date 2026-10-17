@@ -16,11 +16,24 @@ npx eas-cli update --channel preview --environment preview --platform android --
 Use the production channel/environment for released apps. Native dependencies, permissions,
 app icons and native splash settings still require a native build. The initial APK
 `f16810d8-7014-4392-9368-36f7bd89398d` predates the updater and cannot receive OTA updates.
-Install the [OTA-enabled Android baseline](https://expo.dev/accounts/logaxp/projects/mohuddle/builds/59dde392-141c-4d43-9ed9-3f332116b9e9)
-once to activate updates. This build passed on October 16, 2026 and includes the password eye.
-Afterward, compatible text, layout, behavior and color changes use OTA updates. The preview update
-endpoint was checked against the build's runtime fingerprint, including refusing an incompatible
-runtime. Delivery and restart on an installed physical device still need a device check.
+Install the [Android chat preview](https://expo.dev/accounts/logaxp/projects/mohuddle/builds/8ff1c6ad-c3ca-44b4-99a4-a0a3a1548175)
+for the current native modules. The earlier October 16 updater baseline supports OTA but predates
+chat's native dependencies. Compatible changes after the chat baseline use OTA; delivery and
+restart still need to be checked on the installed physical phones.
+
+### iPhone testing
+
+The current app is **Mohuddle Care**, App Store Connect ID `6824033598`, bundle `com.mohuddle.app`.
+The older **MoHuddle** record (`6787498053`, `com.mohuddle.mobile`) is a different app.
+iOS production build `2d1c9771-44e5-4c0e-bd58-2db9ab660559` is version `0.1.0 (2)` and was
+uploaded successfully to TestFlight on October 17, 2026. The internal group **Mohuddle phone testing**
+contains this build; the requested tester was invited. It can be tested without an additional ad hoc build.
+
+For a later finished build, submit its exact build ID with `npx eas-cli submit --platform ios --id BUILD_ID`.
+Choose the existing Mohuddle Care app and existing Apple upload credentials. No rebuild is required
+to submit an existing artifact. Keep the App Store Connect record ID here rather than adding a
+submission-only edit to `eas.json`: Expo fingerprints that file, and changing it also changes the
+OTA runtime. Always compare an update's runtime with the intended installed build before release.
 
 The Mohuddle app for care staff on shift. One app for every agency. Built with Expo (React Native), so the same code makes the iPhone and Android apps.
 
