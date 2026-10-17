@@ -118,12 +118,12 @@ All four are documented in `.env.example`.
 *Write below this line. Tick what you have done, answer the questions, and add anything I should
 know: areas you're working on, decisions, problems with my changes. Then commit this file on its own.*
 
-- [ ] 1. Chat commits pushed (or: Claude should push)
-- [ ] 2. Gateway service on Render, and `CHAT_SOCKET_URL` set (or: Claude should edit `render.yaml`)
-- [ ] 3. Visitor IP header checked, and `CLIENT_IP_HEADER` set to:
-- [ ] 4. New preview and production phone builds made
+- [x] 1. Chat commits pushed to root main and the mobile subtree repository.
+- [x] 2. Gateway shares the existing Render backend; `CHAT_SOCKET_URL=wss://mohuddle-care.onrender.com/chat`.
+- [x] 3. Visitor IP header checked; `CLIENT_IP_HEADER=x-mohuddle-client-ip`, with a signed Vercel proof.
+- [x] 4. Android preview and production and iOS production builds finished; iOS testing uses TestFlight.
 - [ ] 5. Real-phone chat checks done (results):
-- [ ] 6. Areas Codex is working on next:
+- [ ] 6. Areas Codex is working on next: physical Android/iPhone checks with Kriss, OTA launch/restart on devices.
 
 Anything else:
 
@@ -188,3 +188,53 @@ once the chat builds exist.
 Note: the demo staff logins (jamal.carter@, priya.n@) no longer accept the seed password in Kriss's
 local database, so `tests/phone-api.e2e.test.ts` "care staff are refused…" fails locally (165/166
 pass). I did not change those passwords. If you reset them, please say so here.
+
+### Codex deployment follow-through — 17 October 2026
+
+Rechecked `936b3ec`: all four findings are fixed. Startup without `.env`, malformed socket
+payloads, offline polling and reconnect handling passed the review checks. Root/mobile TypeScript,
+targeted lint and both production builds passed. Unit suite: 157 passed, 13 skipped, 0 failed.
+The optional phone API suite passes all five tests with `API_TEST_STAFF_EMAIL=priya.n@milestonecare.net`.
+
+**Passwords:** I did not reset either demo staff password during the server-start/chat-review work.
+Read-only checks show Priya still matches the configured seed password and signs in through the
+phone API. Jamal does not match; the audit records `login:password:reset` at
+`2026-10-17T14:50:14.564Z` (9:50 AM CDT). It identifies the account, not who opened the reset link.
+The API test now accepts `API_TEST_STAFF_EMAIL` / `API_TEST_STAFF_PASSWORD` rather than requiring a reset.
+No database seed was run.
+
+**Hosting:** Kriss declined the extra $7 gateway. `scripts/start-hosted.mjs` runs Next on private
+loopback and our gateway on the existing public Render port. Normal HTTP streams to Next;
+`/chat` handles WebSockets. Both inherit the existing database/session settings; no separate paid
+service was created. Render start command is `pnpm start:hosted`; total approved hosting stays $7.25/month.
+Migrations 0050/0051 ran successfully. `/api/health` and gateway `/health` return 200.
+
+**Visitor IPs:** live tests proved ordinary forwarded headers can be forged through rewrites.
+Vercel now signs its platform ingress IP using the approved dedicated `FRONTEND_PROXY_SECRET`;
+Render verifies it. Direct Render requests use its overwritten Cloudflare edge header. Six
+baseline/spoof cases passed through each host: canonical requests verified the actual client and
+never the forged IP; direct requests retained the actual edge IP. The temporary authenticated,
+hashed diagnostic route was removed after these checks.
+
+**Live chat:** production tests used isolated TEST agencies/accounts. Two-user message delivery,
+typing, edits, reactions, read receipts and group polls/votes passed. Non-members and other agencies
+could neither read nor receive the direct conversation. Null/list/invalid JSON did not stop the
+shared service. Initial disposable fixtures were deleted. A fresh TEST fixture remains only for
+Kriss's physical-phone test; credentials and exact cleanup IDs are in ignored private output files.
+Remove it after the physical test; do not seed or change real users.
+
+**Phones:** Android preview `8ff1c6ad-c3ca-44b4-99a4-a0a3a1548175` and production
+`9bbed21a-2aec-46c8-8061-7ac7d9f8b3a1` finished. iOS production
+`2d1c9771-44e5-4c0e-bd58-2db9ab660559` finished, version 0.1.0 (2), and submission
+`6a1dee37-8da4-4b61-8095-d588aaf80f18` succeeded. New App Store Connect record is **Mohuddle Care**,
+ID `6824033598`, bundle `com.mohuddle.app`. Old MoHuddle has `com.mohuddle.mobile`; it was preserved.
+Internal group **Mohuddle phone testing** contains build 2; `krissbajo@hotmail.com` was invited
+at Kriss's explicit request. No public App Store review/release was submitted. Apple account
+Agreements confirms the October 13 program agreement was accepted October 17, despite a stale ASC banner.
+
+**OTA:** installed native runtime is Android `94af2e014853e598fa4230ed396d803329b5c45a`,
+iOS `4d3d04e83766b9ab0fa099d3a24ad4079884936b`. Submission-only edits and CRLF in `eas.json`
+changed Expo's raw fingerprint; restored its original bytes, with no native rebuild. Keep its LF
+format. App Store ID is documented in the phone README instead. Preview updates now match both
+installed runtimes. Physical download/apply/restart and the two-phone UI flow are still pending;
+server-side tests are not a claim that physical devices passed. Speech hosting remains on hold.
