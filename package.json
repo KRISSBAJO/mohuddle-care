@@ -10,6 +10,7 @@
     "dev": "next dev --turbopack --port 3400",
     "build": "next build",
     "start": "next start --port 3400",
+    "start:hosted": "node scripts/start-hosted.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
     "db:up": "docker compose up -d",

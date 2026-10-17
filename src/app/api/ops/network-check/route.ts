@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifiedClientIp } from "@/lib/client-ip-proof";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     return new Response(null, { status: 404 });
   }
   const digest = (value: string) => createHmac("sha256", key).update(value.trim()).digest("hex").slice(0, 24);
-  const names = ["x-forwarded-for", "x-real-ip", "true-client-ip", "cf-connecting-ip", "x-vercel-forwarded-for"];
+  const names = ["x-forwarded-for", "x-real-ip", "true-client-ip", "cf-connecting-ip", "x-vercel-forwarded-for", "x-mohuddle-client-ip"];
   const headers = Object.fromEntries(names.map(name => [name, request.headers.get(name)?.split(",").map(digest) ?? []]));
-  return Response.json({ headers }, { headers: { "Cache-Control": "private, no-store" } });
+  return Response.json({ headers, verified: verifiedClientIp(request.headers, process.env.FRONTEND_PROXY_SECRET) ? digest(verifiedClientIp(request.headers, process.env.FRONTEND_PROXY_SECRET)!) : null }, { headers: { "Cache-Control": "private, no-store" } });
 }

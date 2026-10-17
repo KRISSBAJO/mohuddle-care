@@ -101,7 +101,25 @@ the moment something changes: new messages, edits, reactions, read ticks, "typin
 status. Postgres carries the news between them (`pg_notify` on `mohuddle_chat`), so several gateways
 can run side by side. Without a gateway, chat still works; pages check for news every few seconds.
 
-**On Render**, add a second web service from the same repository:
+**On the existing Render service**, use `pnpm start:hosted` as the start command. It runs the normal
+Next production server on a private loopback port and the chat gateway on Render's public `PORT`.
+HTTP requests stream through to Next; WebSocket upgrades at `/chat` stay with the gateway.
+The processes inherit the same `DATABASE_URL` and `SESSION_SECRET`, so no separate service or
+extra hosting charge is required. If either process exits, the supervisor stops both for Render
+to restart. The existing 1 GB documents disk stays attached to the same service.
+
+Set `CHAT_SOCKET_URL=wss://mohuddle-care.onrender.com/chat` on `mohuddle-care`. Phones and browsers
+connect there directly because Vercel rewrites do not carry WebSockets. Keep `/api/health` as the
+Render health check; `/health` reports the gateway status. Monitor combined memory on this plan.
+
+For visitor addresses, set `CLIENT_IP_HEADER=x-mohuddle-client-ip` on Render and save the same
+dedicated `FRONTEND_PROXY_SECRET` on Vercel and Render. Vercel's proxy removes incoming proof
+headers and signs its platform-provided `x-real-ip`. Render verifies the signature and freshness;
+direct Render requests fall back to Render's overwritten `cf-connecting-ip`. Plain forwarded
+headers must not be trusted: deployment probes showed they can be forged through external rewrites.
+This key is only for IP verification; database, session and mail secrets remain off Vercel.
+
+**Optional dedicated gateway**, only when separately approved for capacity/isolation:
 
 ```yaml
   - type: web

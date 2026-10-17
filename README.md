@@ -146,6 +146,9 @@ pnpm test
 Remove-Item Env:RUN_API_TESTS
 ```
 
+If a demo staff member has changed their password, set `API_TEST_STAFF_EMAIL` and
+`API_TEST_STAFF_PASSWORD` to a valid care-staff test account. Tests do not reset staff passwords.
+
 ## Production build and deployment
 
 See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted test deployment.
@@ -185,9 +188,9 @@ deployment guide for the command and follow-up authenticator setup.
   Compatible code and layout changes use OTA updates; see the phone README for publishing.
 - **Push:** configure browser VAPID keys and native Expo/FCM/APNs credentials. Real phone push needs
   a development/store build, not Expo Go; see the mobile README.
-- **Chat:** messages are saved by the website, but live delivery needs the WebSocket gateway as a
-  second service (`pnpm chat:gateway`). It must share the website's `DATABASE_URL` and the same
-  `SESSION_SECRET`, and `CHAT_SOCKET_URL` on the website must be the gateway's public `wss://` address
+- **Chat:** `pnpm start:hosted` runs the website and its WebSocket gateway in the existing Render
+  service, sharing its `DATABASE_URL` and `SESSION_SECRET` without another paid service.
+  `CHAT_SOCKET_URL` on the website must be the gateway's public `wss://` address
   ending in `/chat`. Vercel rewrites cannot carry WebSockets, so apps connect to the gateway directly.
   Without it chat still works, checking for news every few seconds. See [docs/deployment.md](docs/deployment.md#chat-live-connection).
   In groups: reply privately to a message (it opens the one-to-one chat, quoting it), tap a name to

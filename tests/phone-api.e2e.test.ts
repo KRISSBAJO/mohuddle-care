@@ -51,8 +51,8 @@ async function call(path: string, options: { method?: string; token?: string; bo
   return { status: response.status, json, headers: response.headers };
 }
 
-async function signIn(email: string) {
-  const result = await call("/auth/sign-in", { body: { email, password: process.env.SEED_ADMIN_PASSWORD, device: "API test" } });
+async function signIn(email: string, password = process.env.SEED_ADMIN_PASSWORD) {
+  const result = await call("/auth/sign-in", { body: { email, password, device: "API test" } });
   return typeof result.json.token === "string" ? result.json.token : null;
 }
 
@@ -87,8 +87,8 @@ test("the browser preview may call the API with a token, and nothing else is all
 });
 
 test("care staff are refused the manager screens and decisions", { skip, timeout: 300_000 }, async () => {
-  const staff = await signIn("jamal.carter@milestonecare.net");
-  if (!staff) return assert.fail("The demo staff login did not sign in. Is the demo data there, with the demo password?");
+  const staff = await signIn(process.env.API_TEST_STAFF_EMAIL ?? "jamal.carter@milestonecare.net", process.env.API_TEST_STAFF_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD);
+  if (!staff) return assert.fail("The test staff login did not sign in. Set API_TEST_STAFF_EMAIL and API_TEST_STAFF_PASSWORD to a valid care-staff account; do not reset a person's password for the test.");
   try {
     const me = await call("/me", { token: staff });
     assert.equal(me.status, 200);

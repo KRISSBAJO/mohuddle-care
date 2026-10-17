@@ -7,7 +7,7 @@ services:
     branch: main
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     preDeployCommand: pnpm db:migrate
-    startCommand: pnpm exec next start --hostname 0.0.0.0 --port $PORT
+    startCommand: pnpm start:hosted
     healthCheckPath: /api/health
     disk:
       name: mohuddle-private-files

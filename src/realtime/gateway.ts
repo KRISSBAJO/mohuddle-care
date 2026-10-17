@@ -11,6 +11,7 @@
  */
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
+import { localUpstream, proxyHttp } from "./http-proxy";
 
 // Locally the settings come from .env; a host such as Render passes them in the environment instead.
 if (existsSync(".env")) process.loadEnvFile?.(".env");
@@ -19,6 +20,7 @@ type Event = { a: string; t: string; c?: string; m?: string; u?: string; n?: str
 type Client = { userId: string; agencyId: string; name: string; chats: Set<string>; alive: boolean; typedAt: number };
 
 async function main() {
+  const upstream = localUpstream(process.env.CHAT_HTTP_UPSTREAM);
   const { WebSocketServer, WebSocket } = await import("ws");
   const pg = await import("pg");
   const { env } = await import("@/server/env");
@@ -63,7 +65,7 @@ async function main() {
       listener = new pg.default.Client({ connectionString: env.DATABASE_URL });
       listener.on("notification", message => {
         try {
-          void deliver(JSON.parse(message.payload ?? "{}") as Event);
+          void deliver(JSON.parse(message.payload ?? "{}") as Event).catch(error => console.error("Chat delivery failed", (error as Error).message));
         } catch {
           // A malformed announcement is ignored.
         }
@@ -99,11 +101,14 @@ async function main() {
       response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ ok: true, connections: clients.size, postgres: Boolean(listener) }));
       return;
     }
-    response.writeHead(404).end();
+    if (upstream) proxyHttp(request, response, upstream);
+    else response.writeHead(404).end();
   });
   const sockets = new WebSocketServer({ server, path: "/chat", maxPayload: 4096 });
 
   sockets.on("connection", async (socket, request) => {
+    socket.on("error", () => socket.terminate());
+    try {
     const ticket = new URL(request.url ?? "", "http://gateway").searchParams.get("ticket") ?? "";
     const who = readChatTicket(ticket);
     if (!who) {
@@ -148,6 +153,10 @@ async function main() {
       void seen([client.userId]);
       if (!onlineHere(client.userId)) void notify({ a: client.agencyId, t: "presence", u: client.userId, online: false });
     });
+    } catch {
+      clients.delete(socket);
+      socket.close(1011, "Chat is reconnecting");
+    }
   });
 
   // Drops connections that stopped answering, and keeps "last seen" fresh for the ones that answer.

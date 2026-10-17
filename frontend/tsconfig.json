@@ -29,6 +29,7 @@
     "allowJs": true
   },
   "include": [
+    "proxy.ts",
     "next-env.d.ts",
     "app/**/*.tsx",
     ".next/types/**/*.ts",
