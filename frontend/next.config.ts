@@ -13,8 +13,11 @@ const config: NextConfig = {
   outputFileTracingRoot: path.resolve(import.meta.dirname),
   async rewrites() {
     return {
-      beforeFiles: ["/api", "/app", "/owner", "/setup-password", "/auth", "/docs", "/_next", "/api/:path*", "/app/:path*", "/owner/:path*", "/login", "/forgot-password", "/setup-password/:path*", "/auth/:path*", "/docs/:path*", "/_next/:path*"].map(source => ({ source, destination: `${backend}${source}` })),
-      afterFiles: [],
+      beforeFiles: [
+        { source: "/marketing-assets/_next/:path+", destination: "/_next/:path+" },
+        ...["/api", "/app", "/owner", "/setup-password", "/auth", "/docs", "/api/:path*", "/app/:path*", "/owner/:path*", "/login", "/forgot-password", "/setup-password/:path*", "/auth/:path*", "/docs/:path*"].map(source => ({ source, destination: `${backend}${source}` })),
+      ],
+      afterFiles: [{ source: "/_next/:path+", destination: `${backend}/_next/:path+` }],
       fallback: [{ source: "/:path*", destination: `${backend}/:path*` }],
     };
   },
