@@ -4,11 +4,11 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://mohuddle.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://care.mohuddle.com" }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_URL": "https://mohuddle.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://care.mohuddle.com" }
     }
   }
 }

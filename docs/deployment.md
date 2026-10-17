@@ -15,7 +15,7 @@ Private S3-compatible storage can replace the disk later.
 - `DATABASE_URL`: Renviq's direct, TLS-enabled connection string, stored only as a secret.
 - `SESSION_SECRET`: a new deployment-specific random secret; keep it stable across redeploys.
 - `CRON_SECRET`: a separate random secret for the reminder endpoint.
-- `APP_URL=https://mohuddle.com`, `PUBLIC_SITE=mohuddle`, `AGENCY_ADDRESSES=on`.
+- `APP_URL=https://care.mohuddle.com`, `PUBLIC_SITE=mohuddle`, `AGENCY_ADDRESSES=on`.
 - `OWNER_TWO_FACTOR=required`, `STORAGE_DIR=/var/data/uploads`.
 - For email: `EMAIL_PROVIDER=relykit`, a scoped `RELYKIT_API_KEY`, and `EMAIL_FROM` on the
   exact RelyKit-verified domain. Console mode deliberately sends nothing.
@@ -38,7 +38,9 @@ one-time password setup link, followed by the owner's authenticator enrollment.
 
 ## Domains and verification
 
-Add the main domain, `www`, `app`, `admin` and the first agency address in the hosting service,
+Use `care.mohuddle.com` for this test deployment, with `app.care.mohuddle.com`,
+`admin.care.mohuddle.com` and `milestone.care.mohuddle.com` in the hosting service. Keep the
+existing root and www website records.
 then use its exact DNS instructions in GoDaddy. Mail DNS records come from RelyKit and are
 separate from website records. If the verified mail domain is `www.mohuddle.com`, DKIM hosts
 must end in `._domainkey.www` in GoDaddy's `mohuddle.com` zone, and the return path is
@@ -56,6 +58,7 @@ The web repository retains the `mobile/` source for paired development. Publish 
 to the phone repository with `git subtree split --prefix=mobile`, then push the resulting
 commit to the phone repository's `main` branch. No dependencies or build outputs are included.
 
-The mobile repository has the Expo app at its root. Run `npm ci`, set `EXPO_PUBLIC_API_URL`,
+The mobile repository has the Expo app at its root. Run 
+pm ci`, set `EXPO_PUBLIC_API_URL`,
 and use its `eas.json` preview profile for an Android APK/internal iOS build. iOS signing needs
 the existing Apple/Expo account setup. No signing credentials belong in Git.
