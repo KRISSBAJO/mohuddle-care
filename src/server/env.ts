@@ -20,6 +20,9 @@ const schema = z.object({
   S3_PREFIX: z.string().default("milestone/"),
   STORAGE_DIR: z.string().default(".storage"),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(20),
+  // Chat's live connection: where apps connect (behind a proxy, the public wss:// address), and the port the gateway listens on.
+  CHAT_SOCKET_URL: z.string().default("ws://localhost:3401/chat"),
+  CHAT_SOCKET_PORT: z.coerce.number().int().min(1).max(65535).default(3401),
   // Email. Nothing is sent unless EMAIL_PROVIDER is relykit with a key; otherwise it is only logged.
   EMAIL_PROVIDER: z.enum(["console", "relykit"]).default("console"),
   RELYKIT_API_KEY: z.string().optional(),

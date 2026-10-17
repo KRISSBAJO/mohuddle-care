@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Palmtree, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, MessagesSquare, FolderOpen, UsersRound, ClipboardList, KeyRound, Pill, Settings2, ShieldAlert, Palmtree, Stethoscope, Timer, Wallet, type LucideIcon } from "lucide-react";
 import { ChoicePicker, LibraryPicker, ListEditor, RolePicker, SettingsGroupForm } from "@/components/app/SettingsForms";
 import { Select } from "@/components/app/Select";
 import { SettingsNav } from "@/components/app/SettingsNav";
@@ -188,6 +188,20 @@ const GROUPS: Group[] = [
       { key: "digest_hour", title: "Morning summary at", help: "A short summary to managers: notes not written, doses missed, no-shows, Tier 1 incidents, open shifts, appointments and reviews waiting. -1 turns it off.", unit: `:00 ${zoneLabel().replace(" time", "")}`, min: -1, max: 23 },
       { key: "digest_roles", title: "Who gets the morning summary", help: "It goes to the bell and, when switched on, their phone.", roles: true },
       { key: "notify_roles_weight", title: "Weight", help: "A weight outside the person's suggested range, or a fast change (set under Medication and health).", roles: true },
+    ],
+  },
+  {
+    id: "chat",
+    title: "Chat",
+    icon: MessagesSquare,
+    intro: "Messages between staff on the website and the phone app. Every home gets a group, and managers post in Announcements. Deleted messages are hidden from everyone but kept for audits.",
+    items: [
+      { key: "chat_enabled", title: "Chat", help: "Turns chat on or off for the whole agency, on the website and the phone app.", options: [["on", "On"], ["off", "Off"]] },
+      { key: "chat_direct", title: "One-to-one chats", help: "Who may start a private chat with one other person. Home groups and Announcements are always there.", options: [["anyone", "Anyone"], ["managers", "Coordinators and administrators only"]] },
+      { key: "chat_groups", title: "New groups", help: "Who may create a group and choose its members.", options: [["anyone", "Anyone"], ["managers", "Coordinators and administrators only"]] },
+      { key: "chat_attachments", title: "Photos, files and voice notes", help: "Whether people can send them in chat. Each file can be up to the agency upload limit.", options: [["on", "Allowed"], ["off", "Text only"]] },
+      { key: "chat_edit_minutes", title: "Editing a sent message", help: "How long after sending the writer can still change it. It then shows as edited.", unit: "minutes", min: 0, max: 1440 },
+      { key: "chat_delete_hours", title: "Deleting for everyone", help: "How long after sending the writer can delete a message for everyone. Managers can always remove a message. A copy is kept for audits.", unit: "hours", min: 0, max: 168 },
     ],
   },
   {

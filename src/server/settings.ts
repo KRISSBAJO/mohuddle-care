@@ -21,6 +21,42 @@ export const settingDefs = {
     schema: z.coerce.number().int().min(0).max(23),
     fallback: 22,
   },
+  chat_enabled: {
+    label: "Chat between staff (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
+  chat_direct: {
+    label: "Who may start a one-to-one chat (anyone or managers)",
+    kind: "text",
+    schema: z.enum(["anyone", "managers"]),
+    fallback: "anyone",
+  },
+  chat_groups: {
+    label: "Who may create a group chat (anyone or managers)",
+    kind: "text",
+    schema: z.enum(["anyone", "managers"]),
+    fallback: "anyone",
+  },
+  chat_attachments: {
+    label: "Photos, files and voice notes in chat (on or off)",
+    kind: "text",
+    schema: z.enum(["on", "off"]),
+    fallback: "on",
+  },
+  chat_edit_minutes: {
+    label: "Minutes after sending that a chat message can be edited (0 to 1440)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(1440),
+    fallback: 15,
+  },
+  chat_delete_hours: {
+    label: "Hours after sending that a chat message can be deleted for everyone (0 to 168)",
+    kind: "number",
+    schema: z.coerce.number().int().min(0).max(168),
+    fallback: 48,
+  },
   med_record_scope: {
     label: "Who may record medicines (at_home: direct support staff only at a home they are working at; anyone)",
     kind: "text",

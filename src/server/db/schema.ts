@@ -314,6 +314,8 @@ export const users = pgTable(
     // no notifications and is not anyone's staff record. Null for everyone else.
     supportUntil: timestamp("support_until", { withTimezone: true }),
     reason: text("support_reason").notNull().default(""),
+    // Last moment the chat had this person connected, for "online" and "last seen".
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   table => [uniqueIndex("users_agency_email").on(table.agencyId, table.email), uniqueIndex("users_agency_login").on(table.agencyId, table.loginId)],
@@ -1609,4 +1611,123 @@ export const leaveLedger = pgTable(
     createdAt: createdAt(),
   },
   table => [index("leave_ledger_staff").on(table.staffId)],
+);
+
+/* ---------- Chat ---------- */
+
+/*
+ * A conversation inside one agency: two people (direct), a group anyone may start, a group for each
+ * home kept in step with who works there, or the agency's announcements channel, where managers post.
+ */
+export const chats = pgTable(
+  "chats",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    kind: text("kind").$type<"direct" | "group" | "home" | "announcements">().notNull(),
+    title: text("title").notNull().default(""),
+    about: text("about").notNull().default(""),
+    homeId: uuid("home_id").references(() => homes.id, { onDelete: "cascade" }),
+    // For a direct chat: the two user ids, sorted and joined, so the pair only ever has one chat.
+    directKey: text("direct_key"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  table => [
+    uniqueIndex("chats_direct_once").on(table.agencyId, table.directKey).where(sql`direct_key is not null`),
+    uniqueIndex("chats_home_once").on(table.agencyId, table.homeId).where(sql`kind = 'home'`),
+    uniqueIndex("chats_announcements_once").on(table.agencyId).where(sql`kind = 'announcements'`),
+    index("chats_recent").on(table.agencyId, table.lastMessageAt),
+  ],
+);
+
+/* Who is in a chat, and their own view of it: read up to when, muted, archived, pinned to the top. */
+export const chatMembers = pgTable(
+  "chat_members",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    chatId: uuid("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").$type<"admin" | "member">().notNull().default("member"),
+    // Added by Mohuddle (home groups, announcements), and removed by it when they stop working there.
+    auto: boolean("auto").notNull().default(false),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    lastDeliveredAt: timestamp("last_delivered_at", { withTimezone: true }),
+    mutedUntil: timestamp("muted_until", { withTimezone: true }),
+    archived: boolean("archived").notNull().default(false),
+    pinned: boolean("pinned").notNull().default(false),
+    joinedAt: createdAt(),
+  },
+  table => [uniqueIndex("chat_member_once").on(table.chatId, table.userId), index("chat_members_user").on(table.userId)],
+);
+
+export type ChatAttachment = { key: string; contentType: string; size: number; name: string; durationMs?: number; width?: number; height?: number };
+
+/* One message. Text, a photo, a file, a voice note, or a line Mohuddle writes (someone joined). */
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    chatId: uuid("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id").references(() => users.id, { onDelete: "set null" }),
+    kind: text("kind").$type<"text" | "image" | "file" | "voice" | "system">().notNull().default("text"),
+    body: text("body").notNull().default(""),
+    replyToId: uuid("reply_to_id").references((): AnyPgColumn => chatMessages.id, { onDelete: "set null" }),
+    forwarded: boolean("forwarded").notNull().default(false),
+    mentions: jsonb("mentions").$type<string[]>().notNull().default(emptyList()),
+    // A person supported the message is about. Shown as a link to their record.
+    personId: uuid("person_id").references(() => individuals.id, { onDelete: "set null" }),
+    attachment: jsonb("attachment").$type<ChatAttachment | null>(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    pinnedBy: uuid("pinned_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  table => [index("chat_messages_chat_time").on(table.chatId, table.createdAt), index("chat_messages_sender").on(table.senderId)],
+);
+
+/* One reaction per person per message, as on WhatsApp: a new one replaces the old. */
+export const chatReactions = pgTable(
+  "chat_reactions",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("chat_reaction_once").on(table.messageId, table.userId)],
+);
+
+/* Starred messages, and messages someone deleted for themselves only. */
+export const chatMessageMarks = pgTable(
+  "chat_message_marks",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mark: text("mark").$type<"starred" | "hidden">().notNull(),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("chat_mark_once").on(table.messageId, table.userId, table.mark), index("chat_marks_user").on(table.userId, table.mark)],
 );

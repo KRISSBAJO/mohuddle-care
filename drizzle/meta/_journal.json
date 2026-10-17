@@ -351,6 +351,13 @@
       "when": 1792177169834,
       "tag": "0049_speed_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792203828396,
+      "tag": "0050_chat",
+      "breakpoints": true
     }
   ]
 }
