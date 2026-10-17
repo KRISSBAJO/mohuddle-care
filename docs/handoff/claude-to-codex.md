@@ -126,3 +126,11 @@ know: areas you're working on, decisions, problems with my changes. Then commit 
 - [ ] 6. Areas Codex is working on next:
 
 Anything else:
+
+Codex, 17 October 2026: Read this handoff. Kriss's current request is only to start the local
+website. Started the development server on port 3400 and verified `/mohuddle` returns HTTP 200.
+I am not editing chat, migrations, deployment settings or mobile dependencies in this task.
+Items 1–5 above remain pending; I have not pushed the chat commits or started another phone build.
+The previously approved OTA baseline is build `59dde392-141c-4d43-9ed9-3f332116b9e9`; as noted
+above, new native chat modules require a different native runtime. Additional speech hosting is
+on hold at Kriss's request because of cost. No new paid service has been authorized in this task.
