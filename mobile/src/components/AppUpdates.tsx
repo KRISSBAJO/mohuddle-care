@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Platform } from "react-native";
 import * as Updates from "expo-updates";
 import { colors } from "@/lib/theme";
 import { Button, Card, ErrorText, T } from "./ui";
@@ -8,7 +9,7 @@ export function AppUpdates({ unsent }: { unsent: number }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  if (!Updates.isEnabled) return null;
+  if (Platform.OS === "web" || !Updates.isEnabled) return null;
 
   async function check() {
     setBusy(true);
