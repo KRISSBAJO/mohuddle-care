@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: { default: `${site.name} | ${site.tagline}`, template: `%s | ${site.name}` },
   description: site.description,
   openGraph: { title: site.legalName, description: site.description, type: "website" },
+  icons: { icon: "/brand/mohuddle-icon-v2.png", apple: "/brand/mohuddle-icon-v2.png" },
 };
 
 export const viewport: Viewport = { themeColor: "#fbfaf6" };

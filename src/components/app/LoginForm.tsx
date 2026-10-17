@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { signIn, type FormState } from "@/server/actions/auth";
+import { PasswordInput } from "./PasswordInput";
 
 export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(signIn, {});
@@ -14,7 +15,7 @@ export function LoginForm({ next }: { next?: string }) {
       </div>
       <div>
         <label htmlFor="password" className="label">Password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required className="field" />
+        <PasswordInput id="password" name="password" autoComplete="current-password" required />
       </div>
       <label className="flex items-start gap-2.5 text-sm text-mute">
         <input type="checkbox" name="shared" className="mt-0.5 h-4 w-4 accent-brand" />

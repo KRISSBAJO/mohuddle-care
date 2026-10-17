@@ -166,7 +166,7 @@
 .contact-phone { display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 500; margin: 30px 0 10px; }
 
 /* Operations workspace: persistent navigation, clear priority, compact readable data. */
-.hub-shell { background: #f7f8f5; }
+.hub-shell { background: #f7f8f5; width: 100%; min-width: 0; }
 /* Parts the note scribe filled in, until staff edit them. */
 .field.scribe-filled { background: #fffbeb; box-shadow: inset 3px 0 0 #e7b008; }
 /* The dashboard uses Inter for everything, including menus and dialogs placed outside the shell. */
@@ -184,7 +184,7 @@ body:has(.hub-shell) {
 .hub-topbar-title { font-size: 12px; color: #667c70; }
 .hub-topbar-account { display: flex; align-items: center; gap: 12px; }
 .hub-topbar-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #e5edda; color: #173e35; font-size: 12px; font-weight: 700; }
-.hub-main { max-width: 1600px; margin: auto; }
+.hub-main { width: 100%; min-width: 0; max-width: 1600px; margin: auto; }
 .hub-page-header { margin-bottom: 30px; }
 .hub-page-header h1 { font-size: clamp(26px, 2.8vw, 36px); letter-spacing: -.035em; }
 .hub-stat { position: relative; border-radius: 14px; box-shadow: 0 2px 3px #173e3503; overflow: hidden; }
@@ -236,6 +236,12 @@ body:has(.hub-shell) {
   .careers-banner-copy { padding: 30px; }
 }
 @media (max-width: 639px) {
+  /* Keep Safari from zooming the whole workspace after a small sign-in field is focused. */
+  input, select, textarea { font-size: 16px; }
+  .field { min-height: 44px; }
+  .hub-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 14px 16px; }
+  .hub-topbar-title { line-height: 1.5; }
+  .hub-topbar-account { gap: 6px; }
   .care-hero { padding: 28px 0 40px; }
   .hero-copy .eyebrow { letter-spacing: .08em; font-size: 10px; }
   .hero-description { font-size: 17px; }

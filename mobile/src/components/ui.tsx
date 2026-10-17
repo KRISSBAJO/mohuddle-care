@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type PressableProps, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle } from "react-native";
 import { colors, fonts, shadow } from "@/lib/theme";
 
@@ -39,13 +39,17 @@ export function Button({ label, tone = "brand", icon, busy, style, ...props }: P
   );
 }
 
-export const Field = forwardRef<TextInput, TextInputProps & { label: string }>(function Field({ label, style, ...props }, ref) {
+export const Field = forwardRef<TextInput, TextInputProps & { label: string }>(function Field({ label, style, secureTextEntry, ...props }, ref) {
+  const [visible, setVisible] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       <T weight="medium" size={14}>
         {label}
       </T>
-      <TextInput ref={ref} placeholderTextColor={colors.dim} {...props} style={[styles.field, style]} />
+      <View style={{ position: "relative" }}>
+        <TextInput ref={ref} placeholderTextColor={colors.dim} {...props} secureTextEntry={secureTextEntry && !visible} style={[styles.field, secureTextEntry && { paddingRight: 52 }, style]} />
+        {secureTextEntry && <Pressable accessibilityRole="button" accessibilityLabel={visible ? "Hide password" : "Show password"} accessibilityState={{ selected: visible }} onPress={() => setVisible(value => !value)} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 48, alignItems: "center", justifyContent: "center" }}><Icon name={visible ? "eye-off" : "eye"} color={colors.mute} size={20} /></Pressable>}
+      </View>
     </View>
   );
 });

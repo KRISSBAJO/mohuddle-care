@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, KeyRound, Smartphone } from "lucide-react";
 import { finishOwnSetupAction, finishSetupAction, newBackupCodesAction, ownerCodeAction, ownerSignInAction, type OwnerSignInState, type SetupState } from "@/server/actions/owner-auth";
+import { PasswordInput } from "@/components/app/PasswordInput";
 
 const FormError = ({ text }: { text?: string }) => (text ? <p className="rounded-xl bg-flag-soft px-3.5 py-2.5 text-sm font-medium text-flag" role="alert">{text}</p> : null);
 
@@ -13,7 +14,7 @@ export function OwnerPasswordForm() {
   return (
     <form action={action} className="mt-6 grid gap-4">
       <label className="grid gap-1.5 text-sm font-medium">Email<input name="email" type="email" required autoComplete="username" className="field" /></label>
-      <label className="grid gap-1.5 text-sm font-medium">Password<input name="password" type="password" required autoComplete="current-password" className="field" /></label>
+      <div className="grid gap-1.5 text-sm font-medium"><label htmlFor="owner-password">Password</label><PasswordInput id="owner-password" name="password" required autoComplete="current-password" /></div>
       <FormError text={state.error} />
       <button type="submit" disabled={pending} className="btn-brand justify-center disabled:opacity-60">{pending ? "Checking…" : "Continue"}</button>
     </form>

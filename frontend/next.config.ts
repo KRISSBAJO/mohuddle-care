@@ -7,7 +7,6 @@ if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !=
 
 const config: NextConfig = {
   poweredByHeader: false,
-  images: { unoptimized: true },
   turbopack: { root: path.resolve(import.meta.dirname) },
   outputFileTracingRoot: path.resolve(import.meta.dirname),
   async rewrites() {

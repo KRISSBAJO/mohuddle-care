@@ -158,7 +158,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             {urgent ? <span className="font-semibold text-flag">{urgent} {urgent === 1 ? "thing needs" : "things need"} doing now</span> : <span className="font-semibold text-sage">nothing urgent right now</span>}
           </p>
         </div>
-        <nav className="flex flex-wrap gap-2" aria-label="Quick actions">
+        <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Quick actions">
           <Link href="/app/daily-logs/new" className="btn-brand btn-sm"><ClipboardList className="h-4 w-4" /> Write a note</Link>
           <Link href="/app/medications" className="btn-ghost btn-sm"><Pill className="h-4 w-4" /> Med rounds</Link>
           <Link href="/app/appointments/new" className="btn-ghost btn-sm"><Stethoscope className="h-4 w-4" /> Book visit</Link>
@@ -176,14 +176,14 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             key={item.label}
             href={item.href}
             className={cn(
-              "flex items-center gap-3 rounded-2xl border bg-white px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]",
+              "flex min-w-0 items-center gap-2 rounded-2xl border bg-white px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)] sm:gap-3 sm:px-4",
               item.tone === "bad" ? "border-flag/30" : item.tone === "warn" ? "border-accent/40" : "border-line",
             )}
           >
             <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", item.tone === "bad" ? "bg-flag-soft text-flag" : item.tone === "warn" ? "bg-accent-soft text-[#8a5a10]" : "bg-sage-soft text-sage")}>
               {item.value === 0 ? <CheckCircle2 className="h-4 w-4" /> : <item.icon className="h-4 w-4" />}
             </span>
-            <span>
+            <span className="min-w-0">
               <span className={cn("block font-display text-xl font-bold leading-tight", item.tone === "bad" && "text-flag")}>{item.value}</span>
               <span className="block text-xs text-mute">{item.label}</span>
             </span>
@@ -191,7 +191,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         ))}
       </div>
 
-      <nav className="mb-6 flex flex-wrap gap-1 rounded-xl bg-panel p-1 lg:flex-nowrap lg:overflow-x-auto" aria-label="Today sections">
+      <nav className="mb-6 flex max-w-full gap-1 overflow-x-auto rounded-xl bg-panel p-1" aria-label="Today sections">
         {TABS.map(([value, text, Icon]) => (
           <Link
             key={value}
