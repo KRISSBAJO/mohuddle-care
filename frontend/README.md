@@ -11,3 +11,5 @@ Cookies stay on the public frontend host. Render's `APP_URL` must match that pub
 In Vercel, choose root directory `frontend`, allow source files outside that root, use Node 22,
 install with `npm ci` and build with `npm run build`. See `../docs/deployment.md` for the backend
 configuration and initial-owner setup.
+
+Production uses `https://mohuddle.com`; `www.mohuddle.com` redirects to that address.

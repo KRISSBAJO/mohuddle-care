@@ -18,7 +18,17 @@
       "package": "com.mohuddle.app",
       "adaptiveIcon": {
         "backgroundColor": "#173e35"
-      }
+      },
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -68,11 +78,12 @@
     "experiments": {
       "typedRoutes": false
     },
-    "owner": "krissbajo",
+    "owner": "logaxp",
     "extra": {
       "eas": {
-        "projectId": "910067b6-454c-434f-ad53-6a514041e7fc"
-      }
+        "projectId": "8ca39aa4-c32e-4f42-9f78-9fe66967ed40"
+      },
+      "router": {}
     }
   }
 }

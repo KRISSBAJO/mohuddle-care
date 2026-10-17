@@ -27,9 +27,9 @@ In Render:
 - `DATABASE_URL`: Renviq's direct, TLS-enabled connection string, stored only as a secret.
 - `SESSION_SECRET`: a new deployment-specific random secret; keep it stable across redeploys.
 - `CRON_SECRET`: a separate random secret for the reminder endpoint.
-- Set `APP_URL` to the public Vercel production origin, `PUBLIC_SITE=mohuddle`,
-  and `AGENCY_ADDRESSES=off`. Server Actions explicitly allow that public host. After custom-domain verification, switch
-  `APP_URL=https://care.mohuddle.com` and `AGENCY_ADDRESSES=on` together.
+- Set `APP_URL=https://mohuddle.com`, `PUBLIC_SITE=mohuddle`,
+  and `AGENCY_ADDRESSES=off`. Server Actions explicitly allow that public host. Keep agency
+  subdomain routing off until its separate DNS and Vercel domains are configured.
 - `OWNER_TWO_FACTOR=required`, `STORAGE_DIR=/var/data/uploads`.
 - For email: `EMAIL_PROVIDER=relykit`, a dedicated `RELYKIT_API_KEY`, and `EMAIL_FROM` on the
   exact RelyKit-verified domain. Console mode deliberately sends nothing.
@@ -62,9 +62,9 @@ and deployment environment out of Git; the owner must set their own password and
 
 ## Domains and verification
 
-Use `care.mohuddle.com` for this test deployment, with `app.care.mohuddle.com`,
-`admin.care.mohuddle.com` and `milestone.care.mohuddle.com` registered in Vercel. Keep the
-existing root and www website records, and follow Vercel's exact DNS instructions in GoDaddy.
+Use `https://mohuddle.com` as the canonical address in Vercel, with `www.mohuddle.com`
+redirecting to it. Replace the previous root and www website records with Vercel's exact DNS
+instructions in GoDaddy. Keep the unrelated `turn` host and mail records.
 Mail DNS records come from RelyKit and are
 separate from website records. If the verified mail domain is `www.mohuddle.com`, DKIM hosts
 must end in `._domainkey.www` in GoDaddy's `mohuddle.com` zone, and the return path is
@@ -82,6 +82,8 @@ The web repository retains the `mobile/` source for paired development. Publish 
 to the phone repository with `git subtree split --prefix=mobile`, then push the resulting
 commit to the phone repository's `main` branch. No dependencies or build outputs are included.
 
-The mobile repository has the Expo app at its root. Run `npm ci`, set `EXPO_PUBLIC_API_URL`,
+The mobile repository has the Expo app at its root. Its Expo project is `@logaxp/mohuddle`
+(project ID `8ca39aa4-c32e-4f42-9f78-9fe66967ed40`), and both build profiles use
+`EXPO_PUBLIC_API_URL=https://mohuddle.com`. Run `npm ci`, set `EXPO_PUBLIC_API_URL`,
 and use its `eas.json` preview profile for an Android APK/internal iOS build. iOS signing needs
 the existing Apple/Expo account setup. No signing credentials belong in Git.

@@ -47,7 +47,7 @@ Medicines with no signal: regular scheduled doses can be recorded offline and ar
 - The phone's push address is stored on its sign-in session (`sessions.push_token`, migration 0044), so signing out, or an admin signing out a lost phone, stops its notifications. Expo reporting a phone as gone clears the address.
 - The phone asks once, after the first sign-in (`src/components/PushListener.tsx`); it can be turned off or on in More. Tapping a notification opens the matching screen (`src/lib/phone-screens.ts`, shared with Ask Mohuddle), or Alerts.
 - Alerts (`/api/v1/notifications`, the bell on Today): the same list as the website's bell, with the details.
-- The Expo project is `@krissbajo/mohuddle` (id in `app.json`, `extra.eas.projectId`). To receive notifications on a real phone, the app must be a development or store build, not Expo Go:
+- The Expo project is `@logaxp/mohuddle` (id in `app.json`, `extra.eas.projectId`). To receive notifications on a real phone, the app must be a development or store build, not Expo Go:
   - Sign in to Expo on this computer: `npx eas-cli login`, then `npx eas-cli build --profile preview --platform android`. The committed `eas.json` creates an internal APK; its API URL must point to the deployed test server.
   - Android: create a free Firebase project, add an Android app `com.mohuddle.app`, and upload its FCM V1 service account key in the Expo project's Credentials page.
   - iPhone: needs the Apple Developer Program; EAS creates the push key during the first iOS build.

@@ -152,8 +152,8 @@ See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted te
 The public frontend deploys to Vercel from `frontend/`. The Render backend is
 [mohuddle-care.onrender.com](https://mohuddle-care.onrender.com); Vercel forwards sign-in, portal,
 API and private-file requests there. Set Render's `APP_URL` to the public Vercel origin and keep
-`AGENCY_ADDRESSES=off` until agency DNS is ready. The planned custom address is `care.mohuddle.com`,
-registered in Vercel. Existing `mohuddle.com` and `www.mohuddle.com` records serve the original site.
+`AGENCY_ADDRESSES=off` until agency DNS is ready. The public address is `https://mohuddle.com`, registered in Vercel; `www.mohuddle.com`
+redirects there. Website DNS now points to this deployment.
 
 ```bash
 pnpm build
