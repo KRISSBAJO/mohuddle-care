@@ -1,8 +1,9 @@
-# Milestone
+# Mohuddle / Milestone
 
 Public website and staff operations app ("Mohuddle") for Milestone Home Healthcare Service, a
 Nashville provider of person-centered support for adults and children with intellectual and
-developmental disabilities.
+developmental disabilities. Mohuddle now supports multiple agencies, with Milestone as the first
+agency. The code includes a web app, an Expo phone app, and a separate platform-owner console.
 
 ## What is here
 
@@ -19,6 +20,22 @@ developmental disabilities.
   - Tasks, homes, staff and credentials, website messages.
   - Settings: the business rules (warning windows, due hours, required checks, credential
     types) live in the database and drive every screen. They are never fixed in code.
+  - Care plans, goal progress, health and weight records, care-team contacts and appointments.
+  - Detailed daily and community notes, supervisor review, returns for correction and edit history.
+  - Scheduled, controlled and as-needed medicines, with dose limits and effectiveness follow-up.
+  - Clock-in/out, location checks, breaks, handovers, punch corrections, time off and approvals.
+  - Signed timesheets, locked pay periods, pay rates, differentials, leave balances and payroll exports.
+  - EVV visit CSV exports for handoff to a vendor; there is no direct vendor submission integration.
+  - Private document uploads, requests, templates, PDF signing and credential expiry reminders.
+  - Browser and phone notifications, timed reminders and a morning digest.
+  - **Speak your note:** self-hosted speech transcription and note drafting. Staff review and sign.
+  - **Ask Mohuddle:** operational questions, navigation and confirmed clock actions.
+- **Product website** at `/mohuddle`: platform features, privacy explanation and demo enquiries.
+- **Owner console** at `/owner` (the `admin` address when agency addresses are enabled): agencies,
+  plans, subscription standing, manually recorded payments, support visits, activity and health.
+- **Phone app** in `mobile/`: Expo / React Native for iPhone and Android, with staff workflows,
+  manager approvals, secure sessions, PIN/biometric lock, push and offline regular-dose recording.
+  See [mobile/README.md](mobile/README.md) for setup and device limitations.
 
 Roles: `admin` and `coordinator` manage everything; `nurse` and `dsp` write logs, record
 medications, report incidents and confirm their own shifts.
@@ -35,7 +52,13 @@ Coordinators manage direct support and nurse logins. Only administrators grant o
 coordinator and administrator access. Nobody can turn off or change their own login. Everyone
 can change their own password under **My account**.
 
-Email delivery is not built yet, which is why links are copied by hand.
+Email delivery through RelyKit is implemented. Set `EMAIL_PROVIDER=relykit`, `RELYKIT_API_KEY`
+and a verified `EMAIL_FROM` to send; the default `console` provider only logs messages.
+Agency settings control emailed setup/reset and document-request links. Links remain available
+to copy privately. Password recovery uses a neutral response and rate limits.
+
+Owners have a separate sign-in and session, with authenticator-based two-factor authentication
+required by default. Owner access is granted by `scripts/make-owner.ts`, never through the app.
 
 ## Editing and history
 
@@ -50,7 +73,13 @@ Email delivery is not built yet, which is why links are copied by hand.
 ## Stack
 
 Next.js 16 (App Router, server actions), React 19, Tailwind 4, Drizzle ORM on PostgreSQL 16,
-argon2 password hashing with database-backed sessions. Times are Central (America/Chicago).
+argon2 password hashing with database-backed sessions. Each agency has its own time zone
+(Central / America/Chicago by default). PostgreSQL row-level security and agency-aware foreign
+keys isolate agency records. See [docs/multi-tenancy.md](docs/multi-tenancy.md).
+
+The phone app uses Expo / React Native. Speech runs through faster-whisper and note drafting
+through Ollama; see [docs/note-scribe.md](docs/note-scribe.md) and
+[docs/ask-mohuddle.md](docs/ask-mohuddle.md). Uploads support private local or S3-compatible storage.
 
 ## Run it
 
@@ -63,7 +92,19 @@ pnpm db:seed                # demo data and a sign-in (see .env.example)
 pnpm dev                    # http://localhost:3400
 ```
 
-`pnpm test` runs the unit tests, `pnpm typecheck` and `pnpm lint` check the code.
+Use Node.js 22 and pnpm 10.29.3. On PowerShell, use `Copy-Item .env.example .env`
+instead of the first command. Keep secrets out of version control. Seeding is for a local demo,
+not a production database.
+
+With `AGENCY_ADDRESSES=on`, Milestone uses `milestone.localhost:3400`, shared sign-in uses
+`app.localhost:3400`, and the owner console uses `admin.localhost:3400`.
+
+The phone app has its own npm lockfile: `cd mobile`, `npm ci`, then `npm run web`.
+A real phone needs `EXPO_PUBLIC_API_URL` pointing to a reachable server, not phone-local localhost.
+
+`pnpm test` runs the default suite with the `react-server` condition already supplied by the
+script. `pnpm typecheck` and `pnpm lint` check the web project; the phone app is checked separately
+with `npm run typecheck` and `npm run lint` from `mobile/`.
 
 ## Preview and regression checks
 
@@ -76,28 +117,78 @@ with the installed runtime if the system's package-manager launcher stalls.
 The public site uses original illustrative care imagery, documented with the generation
 prompts in `public/images/README.md`. The Hub includes daily priorities, progress, quick
 actions, and a searchable people directory. Forms retain drafts when validation fails.
+The Mohuddle trust section uses original generated care-review artwork; its prompt and provenance
+are in `public/illustrations/README.md`.
 
 `pnpm check:preview` checks all seeded screens against the running local server and verifies
 that anonymous visitors are redirected to sign in. It uses a temporary local session and
-removes it afterward.
+removes it afterward. Each request has a 90-second timeout, with the failing route named rather
+than waiting indefinitely. This is a page-render smoke check, not a complete browser interaction test.
 
-To run the PostgreSQL medication regression test from PowerShell:
+To include the PostgreSQL integration tests from PowerShell:
 
 ```powershell
 $env:RUN_DB_TESTS='1'
-$env:NODE_OPTIONS='--conditions=react-server'
 pnpm test
-Remove-Item Env:RUN_DB_TESTS, Env:NODE_OPTIONS
+Remove-Item Env:RUN_DB_TESTS
 ```
 
-That test creates its own fictional fixture, checks dashboard dose generation, idempotency,
-and uncapped late counts, then removes the fixture. Regular unit tests also cover shift
-ownership, final-state protection, and daylight-saving transition boundaries.
+These include agency isolation and foreign-key guards, medications, owner access, email,
+signature rendering and sign-in protection. Tests use temporary fixtures; run against a development
+database. Regular tests also cover scheduling, payroll, note review, signing, assistant requests,
+shift ownership and daylight-saving boundaries.
 
-## Not built yet
+To test phone API access against the running local server and seeded accounts:
 
-Email notifications, billing and claims, family portal, mobile app, and the real DIDD reporting
-integration. Multi-agency is in progress: see docs/multi-tenancy.md. The seed data is fictional.
+```powershell
+$env:RUN_API_TESTS='1'
+pnpm test
+Remove-Item Env:RUN_API_TESTS
+```
+
+## Production build and deployment
+
+See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted test deployment.
+
+```bash
+pnpm build
+pnpm start                 # production server on port 3400
+```
+
+Next.js keeps development output in `.next/dev`, separate from the production build. Start a
+production smoke-test server on another port if the preview is already using 3400:
+`pnpm exec next start --port 3401`. A successful build does not verify external service delivery.
+
+Before deploying, configure the deployment's own database, session secret, HTTPS `APP_URL`,
+and trusted proxy client-IP header. Apply the migrations with `pnpm db:migrate` and arrange database
+and file backups with a tested restore procedure. Do not seed demo accounts into production.
+
+- **Files:** configure private S3-compatible storage, or explicitly manage persistent private disk
+  and backups. The default `.storage` directory is local development storage.
+- **Email:** console mode sends nothing. Configure RelyKit and verify actual delivery.
+- **Agency addresses:** wildcard DNS and TLS must cover agency, shared sign-in and admin addresses.
+- **Reminders:** set `CRON_SECRET`. A long-lived server runs the built-in tick; a hosted scheduler
+  can instead call `POST /api/cron/sweep` with the bearer secret. Verify reminder delivery.
+- **AI:** provision the self-hosted speech and Ollama runtimes/models; local paths on this computer
+  are not portable deployment configuration. Verify capacity and latency on the target host.
+- **Push:** configure browser VAPID keys and native Expo/FCM/APNs credentials. Real phone push needs
+  a development/store build, not Expo Go; see the mobile README.
+- **Operations:** verify owner two-factor setup, agency isolation, file access, service health and
+  recovery on the target deployment before using real care records.
+
+## Remaining scope and verification
+
+Multi-agency, email integration, subscription plans and a phone app are implemented. Subscription
+payments are recorded manually: there is no automated card charging. Healthcare claims, a family
+portal, direct state-reporting submission and direct EVV-vendor submission are not implemented.
+
+Phone punches require connectivity. Regular scheduled doses can queue offline; controlled and
+as-needed medicines require a connection. PDF templates with placed signing fields use the website.
+Microphone, camera, biometrics and native push still require physical-device release testing.
+
+The seed data is fictional. Passing unit/integration checks does not establish production readiness,
+load capacity or a full security/compliance assessment. Run the production build and smoke checks,
+then validate the target deployment and device workflows.
 
 ## Original-site content audit — 12 October 2026
 

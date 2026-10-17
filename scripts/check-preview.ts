@@ -6,6 +6,13 @@ import { Pool } from "pg";
 import { SESSION_COOKIE } from "../src/lib/session-cookie";
 import { agencyDb } from "./agency-db";
 
+// Bound each request so a stalled compilation reports its route and still cleans up sessions.
+const REQUEST_TIMEOUT_MS = 90_000;
+const previewFetch = (input: URL, options: RequestInit = {}) =>
+  fetch(input, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }).catch(error => {
+    throw new Error(`Preview request failed at ${input.pathname}${input.search}: ${error.message}`, { cause: error });
+  });
+
 /* A GET naming another address in its Host header, which fetch does not allow. */
 function getWithHost(url: URL, host: string, cookie: string): Promise<{ status: number; text: () => Promise<string> }> {
   return new Promise((done, failed) => {
@@ -15,6 +22,7 @@ function getWithHost(url: URL, host: string, cookie: string): Promise<{ status: 
       response.on("data", chunk => (body += chunk));
       response.on("end", () => done({ status: response.statusCode ?? 0, text: async () => body }));
     });
+    request.setTimeout(REQUEST_TIMEOUT_MS, () => request.destroy(new Error(`Preview request timed out at ${url.pathname}${url.search}`)));
     request.on("error", failed);
     request.end();
   });
@@ -36,7 +44,7 @@ async function main() {
     const { rows: users } = await pool.query("select id from users where active and role='admin' limit 1");
     assert.ok(users[0], "Seed the local demo first.");
     await pool.query("insert into sessions(token_hash,user_id,expires_at) values($1,$2,$3)", [tokenHash, users[0].id, new Date(Date.now() + 600_000)]);
-    const unauthenticated = await fetch(new URL("/app", url), { redirect: "manual" });
+    const unauthenticated = await previewFetch(new URL("/app", url), { redirect: "manual" });
     assert.equal(unauthenticated.status, 307);
     assert.ok(unauthenticated.headers.get("location")?.includes("/login"));
     // The owner console, when this admin is a Mohuddle owner (scripts/make-owner.ts).
@@ -106,7 +114,7 @@ async function main() {
     }
     if (homes[0]) routes.push(...["", "?tab=medications", "?tab=medications&day=2026-01-01", "?tab=expenses", "?tab=expenses&month=2025-12", "?tab=issues", "?tab=issues&show=all", "?tab=details", "?tab=bogus"].map(q => `/app/homes/${homes[0].id}${q}`));
     if (meds[0]) routes.push(`/app/individuals/${meds[0].individual_id}/medications/${meds[0].id}`);
-    const deadLink = await fetch(new URL("/setup-password/not-a-real-link-token-000000", url));
+    const deadLink = await previewFetch(new URL("/setup-password/not-a-real-link-token-000000", url));
     assert.equal(deadLink.status, 200);
     assert.ok((await deadLink.text()).includes("This link no longer works"), "An unknown setup link must be refused");
     console.log("PASS unknown setup link is refused");
@@ -115,7 +123,7 @@ async function main() {
       // name up on every system, so the request goes here and names the address in its Host header.
       const onAdmin = route.startsWith("/owner") && process.env.AGENCY_ADDRESSES === "on";
       const cookie = `${SESSION_COOKIE}=${token}; ms_owner=${ownerToken}`;
-      const response = onAdmin ? await getWithHost(new URL(route, url), `admin.${url.host}`, cookie) : await fetch(new URL(route, url), { headers: { Cookie: cookie }, redirect: "manual" });
+      const response = onAdmin ? await getWithHost(new URL(route, url), `admin.${url.host}`, cookie) : await previewFetch(new URL(route, url), { headers: { Cookie: cookie }, redirect: "manual" });
       const html = await response.text();
       assert.equal(response.status, 200, `${route} must return 200`);
       assert.ok(!html.includes('id="__next_error__"'), `${route} must render without a server error`);
@@ -125,7 +133,7 @@ async function main() {
     for (const form of ["MHHS_Job_Application_Digital.pdf", "Foster-Home-Application-for-Parenting.pdf"]) {
       const { readFile } = await import("node:fs/promises");
       const { resolve } = await import("node:path");
-      const response = await fetch(new URL(`/forms/${form}`, url));
+      const response = await previewFetch(new URL(`/forms/${form}`, url));
       assert.equal(response.status, 200, `${form} must download successfully`);
       assert.ok(response.headers.get("content-type")?.includes("application/pdf"));
       const served = Buffer.from(await response.arrayBuffer());

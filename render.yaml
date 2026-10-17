@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: mohuddle-care
+    runtime: node
+    region: ohio
+    plan: starter
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    preDeployCommand: pnpm db:migrate
+    startCommand: pnpm exec next start --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    disk:
+      name: mohuddle-private-files
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.23.3
+      - key: APP_URL
+        sync: false
+      - key: PUBLIC_SITE
+        value: mohuddle
+      - key: AGENCY_ADDRESSES
+        value: "on"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: OWNER_TWO_FACTOR
+        value: required
+      - key: STORAGE_DIR
+        value: /var/data/uploads
+      - key: EMAIL_PROVIDER
+        value: console

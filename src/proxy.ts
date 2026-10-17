@@ -17,7 +17,14 @@ export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const addresses = process.env.AGENCY_ADDRESSES === "on";
 
-  if (path === "/" && host.kind !== "main") return NextResponse.redirect(new URL(host.kind === "agency" ? "/app" : host.kind === "admin" ? "/owner" : "/login", request.url));
+  if (path === "/") {
+    if (host.kind === "main") {
+      return process.env.PUBLIC_SITE === "mohuddle"
+        ? NextResponse.rewrite(new URL("/mohuddle", request.url))
+        : NextResponse.next();
+    }
+    return NextResponse.redirect(new URL(host.kind === "agency" ? "/app" : host.kind === "admin" ? "/owner" : "/login", request.url));
+  }
 
   if (path === "/owner" || path.startsWith("/owner/")) {
     // With agency addresses, the console opens only on the admin address.

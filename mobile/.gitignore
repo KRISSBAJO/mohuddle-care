@@ -2,3 +2,10 @@ node_modules/
 .expo/
 dist/
 web-build/
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p12
+*.mobileprovision

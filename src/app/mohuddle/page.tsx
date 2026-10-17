@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Clock, HeartPulse, Lock, Mic, ShieldCheck, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Clock, HeartPulse, History, Lock, Mic, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Logo } from "@/components/marketing/Logo";
 import { DemoForm } from "@/components/mohuddle/DemoForm";
 import { Motion } from "@/components/mohuddle/Motion";
@@ -44,17 +45,17 @@ export default function MohuddleHome() {
     <>
       <Motion />
       <header className="mh-header sticky top-0 z-40 border-b border-transparent bg-[#f7f7ef]/80 text-[#173e35] backdrop-blur transition">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3.5 sm:px-6">
-          <Link href="/mohuddle" className="flex items-center gap-2.5">
-            <Logo className="h-8 w-8" />
-            <span className="text-lg font-bold tracking-tight">{product.name}</span>
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3.5 sm:gap-6 sm:px-6">
+          <Link href="/mohuddle" className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+            <Logo className="h-7 w-7 sm:h-8 sm:w-8" />
+            <span className="text-base font-bold tracking-tight sm:text-lg">{product.name}</span>
           </Link>
-          <nav className="hidden flex-1 items-center gap-6 text-sm text-[#5b6b62] md:flex" aria-label="Mohuddle">
+          <nav className="hidden flex-1 items-center gap-6 text-sm text-[#5b6b62] lg:flex" aria-label="Mohuddle">
             {NAV.map(([href, text]) => <a key={href} href={href} className="mh-link hover:text-[#173e35]">{text}</a>)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link href={product.signInHref} className="whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-[#173e35]/80 hover:text-[#173e35] sm:px-4">Sign in</Link>
-            <a href="#demo" className="mh-shine whitespace-nowrap rounded-full bg-[#173e35] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#0f2c25] sm:px-4">Book a demo</a>
+            <Link href={product.signInHref} className="whitespace-nowrap rounded-full px-2 py-2 text-xs font-semibold text-[#173e35]/80 hover:text-[#173e35] sm:px-4 sm:text-sm">Sign in</Link>
+            <a href="#demo" className="mh-shine whitespace-nowrap rounded-full bg-[#173e35] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0f2c25] sm:px-4 sm:text-sm">Book a demo</a>
           </div>
         </div>
       </header>
@@ -198,19 +199,29 @@ export default function MohuddleHome() {
 
         <section id="trust" className="scroll-mt-20 bg-[#eef3e6] py-20 text-[#173e35] sm:py-28">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <h2 data-reveal className="mh-reveal max-w-3xl font-display text-4xl font-bold tracking-[-0.03em] sm:text-5xl">Ready for the reviewer, the auditor and the state.</h2>
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
-              {[
-                ["Every change has a name", "Notes are signed electronically. Edits after signing keep the before and after, who made them and why."],
-                ["Deadlines watch themselves", "Tier 1 incidents count down to the DIDD deadline. Late doses, overdue notes and no-shows reach the right people."],
-                ["Your rules, not ours", "Clock-in allowances, required checks, note sections, review flags and who is told: all settings an admin changes."],
-              ].map(([title, text], index) => (
-                <div key={title} data-reveal style={delay(index, 140)} className="mh-reveal mh-card rounded-3xl bg-white p-7 ring-1 ring-[#dde6d3]">
-                  <span className="mh-pop grid h-11 w-11 place-items-center rounded-2xl bg-[#dcef98]"><ShieldCheck className="h-5 w-5 text-[#173e35]" /></span>
-                  <h3 className="mt-4 text-lg font-bold">{title}</h3>
-                  <p className="mt-2 leading-relaxed text-[#5b6b62]">{text}</p>
+            <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-14">
+              <div>
+                <p data-reveal className="mh-reveal text-xs font-bold uppercase tracking-[0.18em] text-[#377658]">Care you can account for</p>
+                <h2 data-reveal className="mh-reveal mt-4 max-w-xl font-display text-4xl font-bold tracking-[-0.03em] sm:text-5xl">Ready for the reviewer, the auditor and the state.</h2>
+                <div className="mt-8 space-y-6">
+                  {[
+                    { title: "Every change has a name", text: "Notes are signed electronically. Edits after signing keep the before and after, who made them and why.", Icon: History },
+                    { title: "Deadlines watch themselves", text: "Tier 1 incidents count down to the DIDD deadline. Late doses, overdue notes and no-shows reach the right people.", Icon: Clock },
+                    { title: "Your rules, not ours", text: "Clock-in allowances, required checks, note sections, review flags and who is told: all settings an admin changes.", Icon: SlidersHorizontal },
+                  ].map(({ title, text, Icon }, index) => (
+                    <div key={title} data-reveal style={delay(index, 140)} className="mh-reveal flex gap-4">
+                      <span aria-hidden="true" className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#dcef98]"><Icon className="h-5 w-5" /></span>
+                      <div>
+                        <h3 className="text-lg font-bold">{title}</h3>
+                        <p className="mt-1.5 leading-relaxed text-[#5b6b62]">{text}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div data-reveal className="mh-reveal overflow-hidden rounded-[32px] bg-[#e6eadd] ring-1 ring-[#173e35]/10">
+                <Image src="/illustrations/care-review-v1.webp" alt="Illustration of a care coordinator and nurse reviewing shift notes together in a welcoming office." width={1536} height={1024} sizes="(min-width: 1024px) 550px, (min-width: 640px) 90vw, 100vw" className="h-auto w-full" />
+              </div>
             </div>
           </div>
         </section>
