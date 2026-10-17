@@ -190,6 +190,16 @@ export async function chatPeople(user: SessionUser) {
   return rows.filter(row => row.id !== user.id).map(row => ({ ...row, online: Boolean(row.lastSeenAt) && now - row.lastSeenAt!.getTime() < ONLINE_MS }));
 }
 
+/* People supported, to tag in a message. Everyone in the agency can see who is supported, as on the People page. */
+export async function chatPersons() {
+  return db
+    .select({ id: schema.individuals.id, name: sql<string>`${schema.individuals.firstName} || ' ' || ${schema.individuals.lastName}`, home: schema.homes.name })
+    .from(schema.individuals)
+    .leftJoin(schema.homes, eq(schema.homes.id, schema.individuals.homeId))
+    .where(eq(schema.individuals.active, true))
+    .orderBy(asc(schema.individuals.firstName));
+}
+
 /* ---------- Starting chats ---------- */
 
 export async function startDirect(user: SessionUser, otherId: string): Promise<Result<{ chatId: string }>> {

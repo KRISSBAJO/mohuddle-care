@@ -33,6 +33,7 @@ export async function handleChat(user: SessionUser, request: Request, path: stri
   if (!post && area === "chats" && !target) return json({ chats: await chat.listChats(user) });
   if (!post && area === "unread") return json({ unread: await chat.unreadTotal(user) });
   if (!post && area === "people") return json({ people: await chat.chatPeople(user) });
+  if (!post && area === "persons") return json({ persons: await chat.chatPersons() });
   if (!post && area === "search") return json({ results: await chat.searchMessages(user, url.searchParams.get("q") ?? "") });
   if (!post && area === "starred") return json({ messages: await chat.starredMessages(user) });
   if (!post && area === "ticket") return json({ ticket: chatTicket(user.id, user.agencyId), url: env.CHAT_SOCKET_URL });

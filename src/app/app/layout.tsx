@@ -8,6 +8,7 @@ import { NotificationBell } from "@/components/app/NotificationBell";
 import { requestTime } from "@/server/clock";
 import { bellFor, sweepNotifications } from "@/server/notification-sweep";
 import { Sidebar } from "@/components/app/Sidebar";
+import { unreadTotal } from "@/server/chat/service";
 import { dateKey, fmt, zone, zoneLabel } from "@/lib/format";
 import { signOut, switchAgency } from "@/server/actions/auth";
 import { requireAgency } from "@/server/agency";
@@ -27,10 +28,11 @@ export default async function HubLayout({ children }: { children: React.ReactNod
   const [bell, now, settings, agency, places, owner, billing] = await Promise.all([bellFor(user.id), requestTime(), getSettings(), requireAgency(), placesFor(user.loginId), isOwner(user.loginId), currentBilling()]);
   // Time-based reminders are worked out after the page is sent, so pages never wait for them.
   after(() => sweepNotifications().catch(error => console.error("Notification sweep failed", error)));
+  const chatUnread = settings.chat_enabled === "on" ? await unreadTotal(user).catch(() => 0) : null;
   return (
     <div className="hub-shell flex min-h-screen flex-col lg:flex-row" data-readonly={billing?.state.mode === "read_only" && !user.supportUntil ? "" : undefined}>
       <ZoneSync zone={zone()} />
-      <Sidebar user={{ name: user.name, role: user.role }} manager={canManage(user)} signOut={signOut} />
+      <Sidebar user={{ name: user.name, role: user.role }} manager={canManage(user)} signOut={signOut} chatUnread={chatUnread} />
       <div className="min-w-0 flex-1">
         {billing && billing.state.mode !== "ok" && (billing.state.mode === "read_only" || canManage(user)) && !user.supportUntil && (
           <div className={`px-5 py-2.5 text-sm sm:px-8 ${billing.state.mode === "ending" ? "bg-[#fdf3d8] text-[#6b4f05]" : "bg-flag-soft text-flag"}`} role="status">

@@ -22,16 +22,23 @@ import {
   Timer,
   UserRound,
   Users,
+  MessagesSquare,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/marketing/Logo";
 
-type Item = { href: string; label: string; icon: typeof Home; exact?: boolean; manager?: boolean };
+type Item = { href: string; label: string; icon: typeof Home; exact?: boolean; manager?: boolean; chat?: boolean };
 
 /* The menu in groups, so 17 links read as five short lists. */
 const groups: { title: string; items: Item[] }[] = [
-  { title: "", items: [{ href: "/app", label: "Today", icon: LayoutDashboard, exact: true }] },
+  {
+    title: "",
+    items: [
+      { href: "/app", label: "Today", icon: LayoutDashboard, exact: true },
+      { href: "/app/chat", label: "Chat", icon: MessagesSquare, chat: true },
+    ],
+  },
   {
     title: "Care",
     items: [
@@ -69,10 +76,10 @@ const groups: { title: string; items: Item[] }[] = [
   },
 ];
 
-export function Sidebar({ user, manager, signOut }: { user: { name: string; role: string }; manager: boolean; signOut: () => Promise<void> }) {
+export function Sidebar({ user, manager, signOut, chatUnread }: { user: { name: string; role: string }; manager: boolean; signOut: () => Promise<void>; chatUnread: number | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const visible = groups.map(group => ({ ...group, items: group.items.filter(item => !item.manager || manager) })).filter(group => group.items.length);
+  const visible = groups.map(group => ({ ...group, items: group.items.filter(item => (!item.manager || manager) && (!item.chat || chatUnread !== null)) })).filter(group => group.items.length);
 
   // The phone menu is a drawer over the page: Escape closes it and the page behind does not scroll.
   useEffect(() => {
@@ -109,6 +116,7 @@ export function Sidebar({ user, manager, signOut }: { user: { name: string; role
                     <span className={cn("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition", active ? "bg-accent" : "bg-transparent")} aria-hidden="true" />
                     <item.icon className={cn("h-[17px] w-[17px] shrink-0", active ? "text-accent" : "text-white/45 group-hover:text-white/80")} aria-hidden="true" />
                     {item.label}
+                    {item.chat && chatUnread ? <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-ink">{chatUnread > 99 ? "99+" : chatUnread}</span> : null}
                   </Link>
                 </li>
               );
