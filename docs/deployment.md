@@ -17,7 +17,8 @@ Private S3-compatible storage can replace the disk later.
 In Vercel, import the web repository, choose root directory `frontend`, and include files outside
 the root directory so the build can copy the shared public components. Use Node 22, `npm ci`,
 and `npm run build`. The build generates `frontend/src` and `frontend/public` from the shared
-source; edit the originals in the repository's `src` and `public` directories.
+source; edit the originals in the repository's `src` and `public` directories. The preparation
+step explicitly registers generated source with Tailwind so Git-ignored files still receive utility styles.
 Set `BACKEND_ORIGIN=https://mohuddle-care.onrender.com`. No other app secrets belong in Vercel.
 The Render portal assets use `/portal-assets` to keep the two Next.js builds separate.
 Vercel serves the public frontend assets at its standard `/_next` paths. Links
@@ -38,7 +39,9 @@ In Render:
   from other apps. Prefer a send-only domain restriction if the provider adds that option.
 
 The web service uses Node 22, installs with the frozen pnpm lockfile, builds with `pnpm build`,
-migrates with `pnpm db:migrate`, and starts on Render's `$PORT`. `/api/health` returns 200 only
+migrates with `pnpm db:migrate`, and starts on Render's `$PORT`. Render build filters ignore
+`mobile/**`, `frontend/**`, `docs/**` and `README.md`, so phone and public-frontend changes do not
+restart the backend. Shared `src` or `public` changes still deploy the backend. `/api/health` returns 200 only
 when the database and migration table are reachable; failures return a generic 503.
 
 ## Database privileges
