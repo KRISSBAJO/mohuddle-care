@@ -15,10 +15,14 @@ Private S3-compatible storage can replace the disk later.
 - `DATABASE_URL`: Renviq's direct, TLS-enabled connection string, stored only as a secret.
 - `SESSION_SECRET`: a new deployment-specific random secret; keep it stable across redeploys.
 - `CRON_SECRET`: a separate random secret for the reminder endpoint.
-- `APP_URL=https://care.mohuddle.com`, `PUBLIC_SITE=mohuddle`, `AGENCY_ADDRESSES=on`.
+- For the initial working test: `APP_URL=https://mohuddle-care.onrender.com`,
+  `PUBLIC_SITE=mohuddle`, `AGENCY_ADDRESSES=off`. After custom-domain verification, switch
+  `APP_URL=https://care.mohuddle.com` and `AGENCY_ADDRESSES=on` together.
 - `OWNER_TWO_FACTOR=required`, `STORAGE_DIR=/var/data/uploads`.
-- For email: `EMAIL_PROVIDER=relykit`, a scoped `RELYKIT_API_KEY`, and `EMAIL_FROM` on the
+- For email: `EMAIL_PROVIDER=relykit`, a dedicated `RELYKIT_API_KEY`, and `EMAIL_FROM` on the
   exact RelyKit-verified domain. Console mode deliberately sends nothing.
+  The current RelyKit key form grants full workspace access; keep the key private and separate
+  from other apps. Prefer a send-only domain restriction if the provider adds that option.
 
 The web service uses Node 22, installs with the frozen pnpm lockfile, builds with `pnpm build`,
 migrates with `pnpm db:migrate`, and starts on Render's `$PORT`. `/api/health` returns 200 only
@@ -66,7 +70,6 @@ The web repository retains the `mobile/` source for paired development. Publish 
 to the phone repository with `git subtree split --prefix=mobile`, then push the resulting
 commit to the phone repository's `main` branch. No dependencies or build outputs are included.
 
-The mobile repository has the Expo app at its root. Run 
-pm ci`, set `EXPO_PUBLIC_API_URL`,
+The mobile repository has the Expo app at its root. Run `npm ci`, set `EXPO_PUBLIC_API_URL`,
 and use its `eas.json` preview profile for an Android APK/internal iOS build. iOS signing needs
 the existing Apple/Expo account setup. No signing credentials belong in Git.

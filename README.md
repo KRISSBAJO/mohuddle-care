@@ -151,7 +151,8 @@ Remove-Item Env:RUN_API_TESTS
 See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted test deployment.
 The test service is [mohuddle-care.onrender.com](https://mohuddle-care.onrender.com). The planned
 custom address is `care.mohuddle.com`; its Render domain registration and DNS verification must
-finish before agency addresses and setup links can be used there. Existing `mohuddle.com` and
+finish before agency subdomains can be used there. Until then, `APP_URL` uses the Render address
+and `AGENCY_ADDRESSES=off`, so login and setup links work on the same host. Existing `mohuddle.com` and
 `www.mohuddle.com` records serve the original site.
 
 ```bash

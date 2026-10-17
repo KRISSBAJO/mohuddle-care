@@ -4,7 +4,7 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://care.mohuddle.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://mohuddle-care.onrender.com" }
     },
     "production": {
       "autoIncrement": true,
