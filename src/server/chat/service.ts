@@ -108,6 +108,8 @@ async function membership(user: SessionUser, chatId: string) {
 
 const mayPost = (user: SessionUser, kind: ChatKind) => kind !== "announcements" || canManage(user);
 const mayManageMembers = (user: SessionUser, kind: ChatKind, role: string) => kind === "group" ? role === "admin" || canManage(user) : kind === "home" && canManage(user);
+// @everyone and polls follow the agency's settings: anyone in the group, its admins and managers, or no one.
+const groupRule = (rule: "anyone" | "admins" | "off", user: SessionUser, kind: ChatKind, role: string) => kind !== "direct" && mayPost(user, kind) && (rule === "anyone" || (rule === "admins" && (role === "admin" || canManage(user))));
 
 /* ---------- The chat list ---------- */
 
@@ -237,9 +239,11 @@ export async function chatDetail(user: SessionUser, chatId: string) {
   const found = await membership(user, chatId);
   if (!found) return null;
   const members = await db
-    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, chatRole: schema.chatMembers.role, auto: schema.chatMembers.auto, lastSeenAt: schema.users.lastSeenAt, lastReadAt: schema.chatMembers.lastReadAt })
+    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, home: schema.homes.name, chatRole: schema.chatMembers.role, auto: schema.chatMembers.auto, lastSeenAt: schema.users.lastSeenAt, lastReadAt: schema.chatMembers.lastReadAt })
     .from(schema.chatMembers)
     .innerJoin(schema.users, eq(schema.users.id, schema.chatMembers.userId))
+    .leftJoin(schema.staff, eq(schema.staff.id, schema.users.staffId))
+    .leftJoin(schema.homes, eq(schema.homes.id, schema.staff.homeId))
     .where(eq(schema.chatMembers.chatId, chatId))
     .orderBy(asc(schema.users.name));
   const pinned = await db
@@ -258,9 +262,10 @@ export async function chatDetail(user: SessionUser, chatId: string) {
     title: chat.kind === "direct" ? (other?.name ?? "Former colleague") : chat.title,
     about: chat.about,
     homeId: chat.homeId,
-    members: members.map(item => ({ id: item.id, name: item.name, role: item.role, admin: item.chatRole === "admin", auto: item.auto, online: Boolean(item.lastSeenAt) && now - item.lastSeenAt!.getTime() < ONLINE_MS, lastSeenAt: item.lastSeenAt })),
+    members: members.map(item => ({ id: item.id, name: item.name, role: item.role, home: item.home, admin: item.chatRole === "admin", auto: item.auto, online: Boolean(item.lastSeenAt) && now - item.lastSeenAt!.getTime() < ONLINE_MS, lastSeenAt: item.lastSeenAt })),
     pinned,
-    me: { muted: Boolean(member.mutedUntil) && member.mutedUntil!.getTime() > now, mutedUntil: member.mutedUntil, archived: member.archived, pinned: member.pinned, admin: member.role === "admin" },
+    // readUpTo: messages after it are new to this person, for the "unread messages" line.
+    me: { muted: Boolean(member.mutedUntil) && member.mutedUntil!.getTime() > now, mutedUntil: member.mutedUntil, archived: member.archived, pinned: member.pinned, admin: member.role === "admin", readUpTo: member.lastReadAt ?? member.joinedAt },
     can: {
       post: mayPost(user, chat.kind),
       manageMembers: mayManageMembers(user, chat.kind, member.role),
@@ -269,6 +274,8 @@ export async function chatDetail(user: SessionUser, chatId: string) {
       export: user.role === "admin",
       attach: settings.chat_attachments === "on",
       moderate: canManage(user),
+      mentionAll: groupRule(settings.chat_mention_all, user, chat.kind, member.role),
+      poll: groupRule(settings.chat_polls, user, chat.kind, member.role),
     },
     rules: { editMinutes: settings.chat_edit_minutes, deleteHours: settings.chat_delete_hours },
   };
@@ -291,10 +298,13 @@ export type ChatMessageView = {
   mentions: string[];
   person: { id: string; name: string } | null;
   attachment: { name: string; contentType: string; size: number; durationMs?: number; width?: number; height?: number } | null;
-  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean } | null;
+  // chat is set when the quoted message is in another chat: a group message answered privately.
+  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean; chat: { id: string; title: string } | null } | null;
   reactions: { emoji: string; count: number; mine: boolean; names: string[] }[];
   status: "sent" | "delivered" | "read" | null;
+  poll: PollView | null;
 };
+export type PollView = { options: { id: string; text: string; votes: number; mine: boolean; voters: string[] }[]; multiple: boolean; closed: boolean; voters: number };
 
 export async function listMessages(user: SessionUser, chatId: string, options: { before?: string; after?: string; around?: string; limit?: number }) {
   const found = await membership(user, chatId);
@@ -303,6 +313,7 @@ export async function listMessages(user: SessionUser, chatId: string, options: {
   const m = schema.chatMessages;
   const reply = alias(schema.chatMessages, "reply");
   const replySender = alias(schema.users, "reply_sender");
+  const replyChat = alias(schema.chats, "reply_chat");
   const sender = alias(schema.users, "sender");
   const at = (value?: string) => (value && !Number.isNaN(Date.parse(value)) ? new Date(value) : null);
   const before = at(options.before);
@@ -312,13 +323,14 @@ export async function listMessages(user: SessionUser, chatId: string, options: {
       message: m,
       senderName: sender.name,
       person: sql<string | null>`${schema.individuals.firstName} || ' ' || ${schema.individuals.lastName}`,
-      reply: { id: reply.id, kind: reply.kind, body: reply.body, deletedAt: reply.deletedAt, senderName: replySender.name },
+      reply: { id: reply.id, chatId: reply.chatId, chatTitle: replyChat.title, kind: reply.kind, body: reply.body, deletedAt: reply.deletedAt, senderName: replySender.name },
     })
     .from(m)
     .leftJoin(sender, eq(sender.id, m.senderId))
     .leftJoin(schema.individuals, eq(schema.individuals.id, m.personId))
     .leftJoin(reply, eq(reply.id, m.replyToId))
     .leftJoin(replySender, eq(replySender.id, reply.senderId))
+    .leftJoin(replyChat, eq(replyChat.id, reply.chatId))
     .where(
       and(
         eq(m.chatId, chatId),
@@ -336,15 +348,19 @@ export async function listMessages(user: SessionUser, chatId: string, options: {
 async function present(
   user: SessionUser,
   chatId: string,
-  rows: { message: typeof schema.chatMessages.$inferSelect; senderName: string | null; person: string | null; reply: { id: string | null; kind: string | null; body: string | null; deletedAt: Date | null; senderName: string | null } | null }[],
+  rows: { message: typeof schema.chatMessages.$inferSelect; senderName: string | null; person: string | null; reply: { id: string | null; chatId: string | null; chatTitle: string | null; kind: string | null; body: string | null; deletedAt: Date | null; senderName: string | null } | null }[],
 ): Promise<ChatMessageView[]> {
   const ids = rows.map(row => row.message.id);
-  const [reactions, marks, others] = await Promise.all([
+  const pollIds = rows.filter(row => row.message.kind === "poll").map(row => row.message.id);
+  const [reactions, marks, others, votes] = await Promise.all([
     ids.length
       ? db.select({ messageId: schema.chatReactions.messageId, emoji: schema.chatReactions.emoji, userId: schema.chatReactions.userId, name: schema.users.name }).from(schema.chatReactions).innerJoin(schema.users, eq(schema.users.id, schema.chatReactions.userId)).where(inArray(schema.chatReactions.messageId, ids))
       : [],
     ids.length ? db.select({ messageId: schema.chatMessageMarks.messageId }).from(schema.chatMessageMarks).where(and(inArray(schema.chatMessageMarks.messageId, ids), eq(schema.chatMessageMarks.userId, user.id), eq(schema.chatMessageMarks.mark, "starred"))) : [],
     db.select({ read: schema.chatMembers.lastReadAt, delivered: schema.chatMembers.lastDeliveredAt }).from(schema.chatMembers).where(and(eq(schema.chatMembers.chatId, chatId), sql`${schema.chatMembers.userId} <> ${user.id}`)),
+    pollIds.length
+      ? db.select({ messageId: schema.chatPollVotes.messageId, optionId: schema.chatPollVotes.optionId, userId: schema.chatPollVotes.userId, name: schema.users.name }).from(schema.chatPollVotes).innerJoin(schema.users, eq(schema.users.id, schema.chatPollVotes.userId)).where(inArray(schema.chatPollVotes.messageId, pollIds)).orderBy(asc(schema.chatPollVotes.createdAt))
+      : [],
   ]);
   const starred = new Set(marks.map(mark => mark.messageId));
   // Ticks: read once everyone else has read up to it, delivered once it reached every other phone or browser.
@@ -372,11 +388,26 @@ async function present(
       mentions: message.mentions,
       person: message.personId && person && !deleted ? { id: message.personId, name: person } : null,
       attachment: message.attachment && !deleted ? { name: message.attachment.name, contentType: message.attachment.contentType, size: message.attachment.size, durationMs: message.attachment.durationMs, width: message.attachment.width, height: message.attachment.height } : null,
-      replyTo: reply?.id ? { id: reply.id, kind: reply.kind ?? "text", body: reply.deletedAt ? "" : (reply.body ?? ""), senderName: reply.senderName, deleted: Boolean(reply.deletedAt) } : null,
+      replyTo: reply?.id
+        ? { id: reply.id, kind: reply.kind ?? "text", body: reply.deletedAt ? "" : (reply.body ?? ""), senderName: reply.senderName, deleted: Boolean(reply.deletedAt), chat: reply.chatId && reply.chatId !== message.chatId ? { id: reply.chatId, title: reply.chatTitle ?? "" } : null }
+        : null,
       reactions: deleted ? [] : grouped,
       status: own ? (everyone(message.createdAt, row => row.read) ? "read" : everyone(message.createdAt, row => row.delivered) ? "delivered" : "sent") : null,
+      poll: message.poll && !deleted ? pollView(message.poll, votes.filter(vote => vote.messageId === message.id), user.id) : null,
     };
   });
+}
+
+function pollView(poll: NonNullable<typeof schema.chatMessages.$inferSelect.poll>, votes: { optionId: string; userId: string; name: string }[], userId: string): PollView {
+  return {
+    options: poll.options.map(option => {
+      const chose = votes.filter(vote => vote.optionId === option.id);
+      return { id: option.id, text: option.text, votes: chose.length, mine: chose.some(vote => vote.userId === userId), voters: chose.map(vote => vote.name) };
+    }),
+    multiple: poll.multiple,
+    closed: Boolean(poll.closedAt),
+    voters: new Set(votes.map(vote => vote.userId)).size,
+  };
 }
 
 async function oneMessage(user: SessionUser, messageId: string) {
@@ -387,32 +418,43 @@ async function oneMessage(user: SessionUser, messageId: string) {
   return found ? { message, ...found } : null;
 }
 
-export type SendInput = { body?: string; replyToId?: string | null; mentions?: string[]; personId?: string | null; forwardOf?: string | null };
+export type SendInput = { body?: string; replyToId?: string | null; mentions?: string[]; mentionAll?: boolean; personId?: string | null; forwardOf?: string | null };
 
-export async function sendMessage(user: SessionUser, chatId: string, input: SendInput, attachment?: { kind: "image" | "file" | "voice"; data: schema_ChatAttachment }): Promise<Result<{ message: ChatMessageView }>> {
+export async function sendMessage(user: SessionUser, chatId: string, input: SendInput, attachment?: { kind: "image" | "file" | "voice"; data: schema_ChatAttachment }, poll?: NonNullable<typeof schema.chatMessages.$inferSelect.poll>): Promise<Result<{ message: ChatMessageView }>> {
   const found = await membership(user, chatId);
   if (!found) return fail(404, "That chat is not yours.");
   if (!mayPost(user, found.chat.kind)) return fail(403, "Only coordinators and administrators post in Announcements.");
   let body = (input.body ?? "").trim().slice(0, 4000);
-  let kind: "text" | "image" | "file" | "voice" = attachment?.kind ?? "text";
+  let kind: "text" | "image" | "file" | "voice" | "poll" = poll ? "poll" : (attachment?.kind ?? "text");
   let stored = attachment?.data ?? null;
   let forwarded = false;
   if (input.forwardOf) {
     const original = await oneMessage(user, input.forwardOf);
     if (!original || original.message.deletedAt) return fail(404, "That message can no longer be forwarded.");
+    if (original.message.kind === "poll") return fail(400, "Polls can't be forwarded. Start a new poll instead.");
     body = original.message.body;
     kind = original.message.kind === "system" ? "text" : original.message.kind;
     stored = original.message.attachment;
     forwarded = true;
   }
   if (!body && !stored) return fail(400, "Write a message first.");
+  const memberIds = (await db.select({ userId: schema.chatMembers.userId }).from(schema.chatMembers).where(eq(schema.chatMembers.chatId, chatId))).map(row => row.userId);
   const replyTo = input.replyToId && /^[0-9a-f-]{36}$/.test(input.replyToId) ? input.replyToId : null;
   if (replyTo) {
-    const [target] = await db.select({ chatId: schema.chatMessages.chatId }).from(schema.chatMessages).where(eq(schema.chatMessages.id, replyTo)).limit(1);
-    if (target?.chatId !== chatId) return fail(400, "You can only reply to a message in this chat.");
+    const [target] = await db.select({ chatId: schema.chatMessages.chatId, senderId: schema.chatMessages.senderId, kind: schema.chatMessages.kind, deletedAt: schema.chatMessages.deletedAt }).from(schema.chatMessages).where(eq(schema.chatMessages.id, replyTo)).limit(1);
+    if (!target) return fail(400, "That message is no longer there.");
+    if (target.chatId !== chatId) {
+      // Replying privately: a group message answered in the one-to-one chat with the person who wrote it,
+      // by someone who is in that group. Nothing else crosses from one chat to another.
+      const privately = found.chat.kind === "direct" && target.senderId !== null && target.senderId !== user.id && memberIds.includes(target.senderId) && target.kind !== "system" && !target.deletedAt && Boolean(await membership(user, target.chatId));
+      if (!privately) return fail(400, "You can only reply to a message in this chat.");
+    }
   }
-  const memberIds = (await db.select({ userId: schema.chatMembers.userId }).from(schema.chatMembers).where(eq(schema.chatMembers.chatId, chatId))).map(row => row.userId);
-  const mentions = [...new Set((input.mentions ?? []).filter(id => memberIds.includes(id) && id !== user.id))];
+  let mentions = [...new Set((input.mentions ?? []).filter(id => memberIds.includes(id) && id !== user.id))];
+  if (input.mentionAll) {
+    if (!groupRule((await getSettings()).chat_mention_all, user, found.chat.kind, found.member.role)) return fail(403, "You can't mention everyone in this chat.");
+    mentions = memberIds.filter(id => id !== user.id);
+  }
   let personId: string | null = null;
   if (input.personId && /^[0-9a-f-]{36}$/.test(input.personId)) {
     const [person] = await db.select({ id: schema.individuals.id }).from(schema.individuals).where(eq(schema.individuals.id, input.personId)).limit(1);
@@ -421,7 +463,7 @@ export async function sendMessage(user: SessionUser, chatId: string, input: Send
   const now = new Date();
   const [message] = await db
     .insert(schema.chatMessages)
-    .values({ chatId, senderId: user.id, kind, body, replyToId: replyTo, forwarded, mentions, personId, attachment: stored, createdAt: now })
+    .values({ chatId, senderId: user.id, kind, body, replyToId: replyTo, forwarded, mentions, personId, attachment: stored, poll: poll ?? null, createdAt: now })
     .returning();
   await db.update(schema.chats).set({ lastMessageAt: now }).where(eq(schema.chats.id, chatId));
   await db.update(schema.chatMembers).set({ lastReadAt: now, lastDeliveredAt: now }).where(and(eq(schema.chatMembers.chatId, chatId), eq(schema.chatMembers.userId, user.id)));
@@ -444,7 +486,7 @@ async function tellMembers(user: SessionUser, chat: typeof schema.chats.$inferSe
   const told = members.filter(member => !member.mutedUntil || member.mutedUntil < now || mentions.includes(member.userId)).map(member => member.userId);
   if (!told.length) return;
   const where = chat.kind === "direct" ? user.name : `${user.name} in ${chat.title}`;
-  const what = message.kind === "image" ? "Sent a photo" : message.kind === "voice" ? "Sent a voice note" : message.kind === "file" ? "Sent a file" : message.body.slice(0, 140);
+  const what = message.kind === "image" ? "Sent a photo" : message.kind === "voice" ? "Sent a voice note" : message.kind === "file" ? "Sent a file" : message.kind === "poll" ? `📊 Poll: ${message.body.slice(0, 130)}` : message.body.slice(0, 140);
   const push = { title: where, body: what, href: `/app/chat?c=${chat.id}`, tone: "info", tag: `chat:${chat.id}` };
   await Promise.all([pushTo(told, push), pushToPhones(told, push)]);
 }
@@ -459,7 +501,7 @@ async function systemLine(user: SessionUser, chatId: string, body: string) {
 export async function editMessage(user: SessionUser, messageId: string, rawBody: string): Promise<Result> {
   const found = await oneMessage(user, messageId);
   if (!found || found.message.senderId !== user.id) return fail(404, "You can only edit your own messages.");
-  if (found.message.deletedAt || found.message.kind === "system") return fail(400, "This message cannot be edited.");
+  if (found.message.deletedAt || found.message.kind === "system" || found.message.kind === "poll") return fail(400, "This message cannot be edited.");
   const minutes = (await getSettings()).chat_edit_minutes;
   if (Date.now() - found.message.createdAt.getTime() > minutes * 60_000) return fail(400, minutes ? `Messages can be edited for ${minutes} minutes after sending.` : "Messages cannot be edited here.");
   const body = rawBody.trim().slice(0, 4000);
@@ -641,6 +683,47 @@ export async function changeMembers(user: SessionUser, chatId: string, input: { 
   return { ok: true };
 }
 
+/* ---------- Polls ---------- */
+
+/* A question with 2 to 12 choices, in a group. The agency decides who may start one. */
+export async function createPoll(user: SessionUser, chatId: string, input: { question: string; options: string[]; multiple: boolean }): Promise<Result<{ message: ChatMessageView }>> {
+  const found = await membership(user, chatId);
+  if (!found) return fail(404, "That chat is not yours.");
+  if (!groupRule((await getSettings()).chat_polls, user, found.chat.kind, found.member.role)) return fail(403, found.chat.kind === "direct" ? "Polls are for groups." : "You can't start a poll in this chat.");
+  const question = input.question.trim().slice(0, 300);
+  if (!question) return fail(400, "Write the question.");
+  const texts = [...new Set(input.options.map(option => option.trim().slice(0, 100)).filter(Boolean))];
+  if (texts.length < 2) return fail(400, "Give at least two different choices.");
+  if (texts.length > 12) return fail(400, "A poll can have up to 12 choices.");
+  return sendMessage(user, chatId, { body: question }, undefined, { options: texts.map((text, index) => ({ id: `o${index + 1}`, text })), multiple: input.multiple });
+}
+
+/* Your choices in a poll replace any you made before. No choices takes your vote back. */
+export async function votePoll(user: SessionUser, messageId: string, optionIds: string[]): Promise<Result> {
+  const found = await oneMessage(user, messageId);
+  const poll = found?.message.poll;
+  if (!found || !poll || found.message.deletedAt) return fail(404, "That poll is not in your chats.");
+  if (poll.closedAt) return fail(400, "This poll is closed.");
+  const chosen = [...new Set(optionIds)].filter(option => poll.options.some(item => item.id === option)).slice(0, poll.multiple ? poll.options.length : 1);
+  await db.delete(schema.chatPollVotes).where(and(eq(schema.chatPollVotes.messageId, messageId), eq(schema.chatPollVotes.userId, user.id)));
+  if (chosen.length) await db.insert(schema.chatPollVotes).values(chosen.map(optionId => ({ messageId, userId: user.id, optionId }))).onConflictDoNothing();
+  await announce(user.agencyId, { t: "update", c: found.message.chatId, m: messageId });
+  return { ok: true };
+}
+
+/* The person who started the poll, or a manager, closes it; the results stay. */
+export async function closePoll(user: SessionUser, messageId: string): Promise<Result> {
+  const found = await oneMessage(user, messageId);
+  const poll = found?.message.poll;
+  if (!found || !poll || found.message.deletedAt) return fail(404, "That poll is not in your chats.");
+  if (found.message.senderId !== user.id && !canManage(user)) return fail(403, "The person who started the poll closes it.");
+  if (!poll.closedAt) {
+    await db.update(schema.chatMessages).set({ poll: { ...poll, closedAt: new Date().toISOString(), closedBy: user.id } }).where(eq(schema.chatMessages.id, messageId));
+    await announce(user.agencyId, { t: "update", c: found.message.chatId, m: messageId });
+  }
+  return { ok: true };
+}
+
 /* ---------- Photos, files and voice notes ---------- */
 
 export async function sendAttachment(user: SessionUser, chatId: string, body: Buffer, contentType: string, meta: { name?: string; durationMs?: number; caption?: string; replyToId?: string | null; voice?: boolean }): Promise<Result<{ message: ChatMessageView }>> {
@@ -711,6 +794,17 @@ export async function exportChat(user: SessionUser, chatId: string): Promise<Res
     .leftJoin(schema.users, eq(schema.users.id, schema.chatMessages.senderId))
     .where(eq(schema.chatMessages.chatId, chatId))
     .orderBy(asc(schema.chatMessages.createdAt));
+  const pollIds = messages.filter(row => row.message.kind === "poll").map(row => row.message.id);
+  const votes = pollIds.length ? await db.select({ messageId: schema.chatPollVotes.messageId, optionId: schema.chatPollVotes.optionId, name: schema.users.name }).from(schema.chatPollVotes).innerJoin(schema.users, eq(schema.users.id, schema.chatPollVotes.userId)).where(inArray(schema.chatPollVotes.messageId, pollIds)) : [];
+  // A poll's line ends with each choice, its votes and who chose it.
+  const results = (message: typeof schema.chatMessages.$inferSelect) => {
+    if (!message.poll) return "";
+    const lines = message.poll.options.map(option => {
+      const who = votes.filter(vote => vote.messageId === message.id && vote.optionId === option.id).map(vote => vote.name);
+      return `${option.text}: ${who.length}${who.length ? ` (${who.join(", ")})` : ""}`;
+    });
+    return ` | ${lines.join("; ")}${message.poll.closedAt ? " [closed]" : ""}`;
+  };
   const title = chat.kind === "direct" ? members.map(member => member.name).join(" and ") : chat.title;
   const lines = [
     `Chat: ${title}`,
@@ -719,7 +813,7 @@ export async function exportChat(user: SessionUser, chatId: string): Promise<Res
     "",
     ...messages.map(({ message, sender }) => {
       const when = message.createdAt.toISOString().replace("T", " ").slice(0, 19);
-      const what = [message.attachment ? `[${message.kind}: ${message.attachment.name}]` : "", message.body].filter(Boolean).join(" ");
+      const what = [message.attachment ? `[${message.kind}: ${message.attachment.name}]` : "", message.kind === "poll" ? "[poll]" : "", message.body].filter(Boolean).join(" ") + results(message);
       const notes = [message.forwarded ? "forwarded" : "", message.editedAt ? `edited ${message.editedAt.toISOString().slice(0, 19)}` : "", message.deletedAt ? `deleted ${message.deletedAt.toISOString().slice(0, 19)}` : ""].filter(Boolean);
       return `[${when}] ${message.kind === "system" ? "*" : (sender ?? "Former colleague")}: ${what}${notes.length ? ` (${notes.join(", ")})` : ""}`;
     }),

@@ -167,3 +167,24 @@ database membership/isolation and physical-device flows were not exercised in th
 The native dependencies added for chat still require a planned compatible native build; this
 review does not authorize or start one. Deployment, the IP-header check and gateway provisioning
 remain pending as above.
+
+### Claude reply — 17 October 2026
+
+Thank you for the review. All four findings are fixed in the commit that follows this note:
+
+1. **Gateway without `.env`:** it now loads `.env` only when the file exists (`src/realtime/gateway.ts`).
+2. **`null` socket payload:** the gateway ignores anything that is not an object with a text `t`.
+3. **No mobile fallback:** the Chats tab and an open conversation now check for news every 6 seconds
+   while the live connection is down.
+4. **Unreachable reconnect refresh:** `hello` is handled before the conversation filter, and reloads
+   the messages and the chat details.
+
+Also in that commit, at Kriss's request: reply privately, profiles from a group, @everyone, polls,
+an unread line, a new chat list design, and a full-screen chat on phone-sized browsers. It adds
+migration `0051_chat_extras` (table `chat_poll_votes`, column `chat_messages.poll`) and two agency
+settings (`chat_mention_all`, `chat_polls`). No new native modules, so this part can go over the air
+once the chat builds exist.
+
+Note: the demo staff logins (jamal.carter@, priya.n@) no longer accept the seed password in Kriss's
+local database, so `tests/phone-api.e2e.test.ts` "care staff are refused…" fails locally (165/166
+pass). I did not change those passwords. If you reset them, please say so here.

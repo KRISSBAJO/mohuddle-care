@@ -12,6 +12,7 @@ import { useSession } from "@/lib/session";
 import { colors, fonts, shadow } from "@/lib/theme";
 
 type Filter = "all" | "unread" | "groups" | "archived";
+type Line = ChatItem | { label: string };
 
 /*
  * The Chats tab: every conversation, newest first, with unread counts and live "typing…". Home groups
@@ -55,6 +56,12 @@ export default function ChatsScreen() {
       void load();
     }, [load]),
   );
+  // Without the live connection, check for news every few seconds instead.
+  useEffect(() => {
+    if (live) return;
+    const timer = setInterval(() => void load(), 6000);
+    return () => clearInterval(timer);
+  }, [live, load]);
   useChatEvents(event => {
     if (event.t === "typing" && event.c && event.n) {
       const chatId = event.c;
@@ -78,6 +85,11 @@ export default function ChatsScreen() {
     });
   }, [chats, filter, query]);
   const typingIn = (chatId: string) => typing[chatId] ?? "";
+  // Pinned chats first under their own heading, then the rest.
+  const pinned = !query.trim() && filter !== "archived" ? listed.filter(item => item.pinned) : [];
+  const lines: Line[] = pinned.length ? [{ label: "PINNED" }, ...pinned, ...(listed.length > pinned.length ? [{ label: "RECENT" }] : []), ...listed.filter(item => !item.pinned)] : listed;
+  const totalUnread = (chats ?? []).filter(item => !item.archived && !item.muted).reduce((sum, item) => sum + item.unread, 0);
+  const unreadChats = (chats ?? []).filter(item => !item.archived && item.unread).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
@@ -85,12 +97,24 @@ export default function ChatsScreen() {
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.titleRow}>
           <View>
-            <T weight="bold" size={28} style={{ letterSpacing: -0.8 }}>
-              Chats
-            </T>
-            <T size={12} weight="semibold" color={live ? colors.sage : colors.dim}>
-              {live ? "● Live" : "Connecting…"}
-            </T>
+            <View style={styles.titleLine}>
+              <T weight="bold" size={30} style={{ letterSpacing: -0.9 }}>
+                Chats
+              </T>
+              {totalUnread ? (
+                <View style={styles.countPill}>
+                  <T size={12} weight="bold" color="#ffffff">
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </T>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.liveLine}>
+              <View style={[styles.liveDot, { backgroundColor: live ? "#22b26b" : "#e0a43a" }]} />
+              <T size={12} weight="semibold" color={colors.mute}>
+                {live ? "Live" : "Reconnecting…"}
+              </T>
+            </View>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Starred messages" onPress={() => router.push("/chat-starred")} style={styles.headerButton}>
             <Icon name="star" size={19} color={colors.ink} />
@@ -110,17 +134,17 @@ export default function ChatsScreen() {
             accessibilityLabel="Search chats and messages"
           />
         </View>
-        <View style={styles.filters}>
+        <View style={styles.segment}>
           {(
             [
               ["all", "All"],
-              ["unread", "Unread"],
+              ["unread", unreadChats ? `Unread ${unreadChats}` : "Unread"],
               ["groups", "Groups"],
               ["archived", "Archived"],
             ] as const
           ).map(([value, label]) => (
-            <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={[styles.filter, filter === value && styles.filterOn]}>
-              <T size={13} weight="semibold" color={filter === value ? colors.brand : colors.mute}>
+            <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={[styles.segmentItem, filter === value && [styles.segmentOn, shadow.soft]]}>
+              <T size={13} weight="semibold" color={filter === value ? colors.ink : colors.mute} numberOfLines={1}>
                 {label}
               </T>
             </Pressable>
@@ -130,9 +154,9 @@ export default function ChatsScreen() {
       <View style={{ paddingHorizontal: 20 }}>
         <ErrorText>{error}</ErrorText>
       </View>
-      <FlatList
-        data={listed}
-        keyExtractor={item => item.id}
+      <FlatList<Line>
+        data={lines}
+        keyExtractor={item => ("label" in item ? item.label : item.id)}
         contentContainerStyle={{ paddingBottom: 140, paddingHorizontal: 12 }}
         refreshControl={
           <RefreshControl
@@ -178,6 +202,12 @@ export default function ChatsScreen() {
           ) : null
         }
         renderItem={({ item }) => {
+          if ("label" in item)
+            return (
+              <T size={11} weight="bold" color={colors.dim} style={styles.section}>
+                {item.label}
+              </T>
+            );
           const typer = typingIn(item.id);
           const last = item.lastMessage;
           const preview = typer
@@ -192,11 +222,11 @@ export default function ChatsScreen() {
                 ? "This message was deleted"
                 : `${last.senderId === me?.user.id ? "You: " : item.kind !== "direct" && last.senderName ? `${last.senderName.split(" ")[0]}: ` : ""}${previewOf(last.kind, last.body)}`;
           return (
-            <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}${item.unread ? `, ${item.unread} unread` : ""}`} onPress={() => router.push(`/conversation?id=${item.id}`)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: "#eef1e8" }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}${item.unread ? `, ${item.unread} unread` : ""}`} onPress={() => router.push(`/conversation?id=${item.id}`)} style={({ pressed }) => [styles.row, pressed && [styles.rowPressed, shadow.soft]]}>
               <ChatAvatar chat={item} online={item.other?.online} />
               <View style={{ flex: 1, gap: 3 }}>
                 <View style={styles.between}>
-                  <T weight="semibold" size={16} numberOfLines={1} style={{ flex: 1 }}>
+                  <T weight={item.unread ? "bold" : "semibold"} size={16} numberOfLines={1} style={{ flex: 1, letterSpacing: -0.2 }}>
                     {item.title}
                   </T>
                   <T size={12} weight={item.unread ? "bold" : "regular"} color={item.unread ? colors.sage : colors.dim}>
@@ -204,7 +234,7 @@ export default function ChatsScreen() {
                   </T>
                 </View>
                 <View style={styles.between}>
-                  <T size={14} numberOfLines={1} color={typer ? colors.sage : colors.mute} weight={typer ? "semibold" : "regular"} style={{ flex: 1 }}>
+                  <T size={14} numberOfLines={1} color={typer ? colors.sage : item.unread ? colors.ink : colors.mute} weight={typer ? "semibold" : "regular"} style={{ flex: 1, opacity: item.unread && !typer ? 0.8 : 1 }}>
                     {preview}
                   </T>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -241,12 +271,18 @@ export default function ChatsScreen() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 14, marginTop: 14, height: 42 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, paddingHorizontal: 14, marginTop: 14, height: 44 },
   searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 15, color: colors.ink },
-  filters: { flexDirection: "row", gap: 6, marginTop: 12 },
-  filter: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: "#eceee8" },
-  filterOn: { backgroundColor: colors.wash },
+  titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  countPill: { backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  liveLine: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  segment: { flexDirection: "row", gap: 4, marginTop: 12, backgroundColor: "#e9ede4", borderRadius: 14, padding: 4 },
+  segmentItem: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 10 },
+  segmentOn: { backgroundColor: colors.card },
+  section: { letterSpacing: 1.4, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, paddingVertical: 11, borderRadius: 18 },
+  rowPressed: { backgroundColor: colors.card },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   result: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 14, gap: 2 },
   headerButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },

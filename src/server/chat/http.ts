@@ -69,10 +69,14 @@ export async function handleChat(user: SessionUser, request: Request, path: stri
           body: typeof body.body === "string" ? body.body : "",
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
           mentions: Array.isArray(body.mentions) ? body.mentions.map(String) : [],
+          mentionAll: body.mentionAll === true,
           personId: typeof body.personId === "string" ? body.personId : null,
           forwardOf: typeof body.forwardOf === "string" ? body.forwardOf : null,
         }),
       );
+    }
+    if (post && action === "polls") {
+      return done(await chat.createPoll(user, chatId, { question: String(body.question ?? ""), options: Array.isArray(body.options) ? body.options.map(String) : [], multiple: body.multiple === true }));
     }
     if (post && action === "attachments") {
       const limit = env.MAX_UPLOAD_MB * 1024 * 1024 + 1024;
@@ -121,6 +125,8 @@ export async function handleChat(user: SessionUser, request: Request, path: stri
     if (post && action === "react") return done(await chat.reactTo(user, messageId, typeof body.emoji === "string" && body.emoji ? body.emoji : null));
     if (post && action === "pin") return done(await chat.pinMessage(user, messageId, body.pinned !== false));
     if (post && action === "star") return done(await chat.starMessage(user, messageId, body.starred !== false));
+    if (post && action === "vote") return done(await chat.votePoll(user, messageId, Array.isArray(body.options) ? body.options.map(String) : []));
+    if (post && action === "close") return done(await chat.closePoll(user, messageId));
   }
 
   return problem(404, "Unknown chat request.");

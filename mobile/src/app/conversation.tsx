@@ -15,26 +15,27 @@ import { ChatAvatar } from "@/components/ChatAvatar";
 import { ChatBubble, chatFileUrl } from "@/components/ChatBubble";
 import { Icon, T, type IconName } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
-import { activeChat, durationText, previewOf, QUICK_REACTIONS, useChatEvents, useChatLive, type ChatDetail, type ChatItem, type Message } from "@/lib/chat";
+import { activeChat, carriedReply, durationText, previewOf, QUICK_REACTIONS, ROLE_NAMES, useChatEvents, useChatLive, type ChatDetail, type ChatItem, type Message } from "@/lib/chat";
 import { fmt } from "@/lib/format";
 import { goBack } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { colors, fonts, shadow } from "@/lib/theme";
 
-type Row = { key: string; day?: string; message?: Message };
-type SheetName = "" | "actions" | "forward" | "info" | "delete" | "attach" | "person";
+type Row = { key: string; day?: string; message?: Message; unread?: number };
+type SheetName = "" | "actions" | "forward" | "info" | "delete" | "attach" | "person" | "poll" | "profile";
 
 const dayOf = (iso: string, zone?: string) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 
 /*
- * One conversation on the phone: messages arrive live, ticks turn to read, and "typing…" shows. Long
- * press a message to react, reply, copy, forward, star, pin, see who read it, edit or delete. Send
- * text, photos (camera or library), files and voice notes.
+ * One conversation on the phone: messages arrive live, ticks turn to read, and "typing…" shows. It
+ * opens at your first unread message. Long press a message to react, reply (here or privately),
+ * copy, forward, star, pin, see who read it, edit or delete. Send text, photos (camera or library),
+ * files, voice notes and polls; tap a name in a group to see who it is and message them.
  */
 export default function ConversationScreen() {
   const { id, m: target } = useLocalSearchParams<{ id: string; m?: string }>();
   const { call, me, token } = useSession();
-  const { typing: sendTyping } = useChatLive();
+  const { typing: sendTyping, live } = useChatLive();
   const zone = me?.agency?.zone;
   const myId = me?.user.id;
   const [detail, setDetail] = useState<ChatDetail | null>(null);
@@ -42,11 +43,16 @@ export default function ConversationScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
-  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  // A group message answered privately arrives here already quoted.
+  const [replyTo, setReplyTo] = useState<Message | null>(() => (carriedReply.chatId === id ? carriedReply.message : null));
   const [editing, setEditing] = useState<Message | null>(null);
   const [person, setPerson] = useState<{ id: string; name: string } | null>(null);
   const [persons, setPersons] = useState<{ id: string; name: string; home: string | null }[]>([]);
   const [mentions, setMentions] = useState<string[]>([]);
+  const [mentionAll, setMentionAll] = useState(false);
+  // Where your unread messages started when you opened the chat, for the "unread messages" line.
+  const [unreadMark, setUnreadMark] = useState<{ messageId: string; count: number } | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetName>("");
   const [focus, setFocus] = useState<Message | null>(null);
   const [viewing, setViewing] = useState<Message | null>(null);
@@ -57,7 +63,8 @@ export default function ConversationScreen() {
   // When the message menu opened, for the edit and delete time limits.
   const [openedAt, setOpenedAt] = useState(0);
   // A message to scroll to once it is on screen, from search or starred messages.
-  const [pendingJump, setPendingJump] = useState<string | null>(target ?? null);
+  // flash: highlight it when it arrives (not for the unread line).
+  const [pendingJump, setPendingJump] = useState<{ id: string; flash: boolean } | null>(target ? { id: target, flash: true } : null);
   const [recording, setRecording] = useState(false);
   const [recordStart, setRecordStart] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -84,12 +91,54 @@ export default function ConversationScreen() {
   const markRead = useCallback(() => call(`/chat/chats/${id}/read`, {}).catch(() => undefined), [call, id]);
 
   useEffect(() => {
-    Promise.all([loadDetail(), refresh()]).finally(() => {
-      setLoading(false);
-      void markRead();
-    });
+    if (carriedReply.chatId === id) {
+      carriedReply.chatId = null;
+      carriedReply.message = null;
+    }
+  }, [id]);
+
+  // Opening the chat loads back far enough to show where your unread messages start, and goes there.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const data = await call<ChatDetail>(`/chat/chats/${id}`);
+      let page = await call<{ messages: Message[]; hasMore: boolean }>(`/chat/chats/${id}/messages?limit=40`);
+      let list = page.messages;
+      let more = page.hasMore;
+      const isNew = (message: Message) => message.at > data.me.readUpTo && message.sender?.id !== myId && message.kind !== "system";
+      for (let pages = 0; more && list.length && isNew(list[0]) && pages < 5; pages++) {
+        page = await call<{ messages: Message[]; hasMore: boolean }>(`/chat/chats/${id}/messages?limit=40&before=${encodeURIComponent(list[0].at)}`);
+        list = [...page.messages, ...list];
+        more = page.hasMore;
+      }
+      if (cancelled) return;
+      setDetail(data);
+      setMessages(list);
+      setHasMore(more);
+      const first = list.find(isNew);
+      if (first) {
+        setUnreadMark({ messageId: first.id, count: list.filter(isNew).length });
+        setPendingJump(current => current ?? { id: first.id, flash: false });
+      }
+    })()
+      .catch(fail)
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        void markRead();
+      });
     call<{ persons: typeof persons }>("/chat/persons").then(data => setPersons(data.persons), () => undefined);
-  }, [loadDetail, refresh, markRead, call]);
+    return () => {
+      cancelled = true;
+    };
+  }, [call, id, myId, fail, markRead]);
+
+  // Without the live connection, check for news every few seconds instead.
+  useEffect(() => {
+    if (live) return;
+    const timer = setInterval(() => void refresh().then(() => markRead()), 6000);
+    return () => clearInterval(timer);
+  }, [live, refresh, markRead]);
 
   // While this chat is open, its notifications are not shown on top of it.
   useFocusEffect(
@@ -104,6 +153,12 @@ export default function ConversationScreen() {
   useChatEvents(event => {
     if (event.t === "presence" && event.u) {
       setDetail(current => (current ? { ...current, members: current.members.map(member => (member.id === event.u ? { ...member, online: Boolean(event.online), lastSeenAt: new Date().toISOString() } : member)) } : current));
+      return;
+    }
+    // Reconnected: fetch what arrived while the connection was down.
+    if (event.t === "hello") {
+      void refresh();
+      void loadDetail();
       return;
     }
     if (event.c !== id) return;
@@ -121,7 +176,6 @@ export default function ConversationScreen() {
       void loadDetail();
       void refresh();
     }
-    if (event.t === "hello") void refresh();
   });
 
   useEffect(() => {
@@ -132,11 +186,11 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     if (!pendingJump || loading) return;
-    if (messages.some(item => item.id === pendingJump)) {
+    if (messages.some(item => item.id === pendingJump.id)) {
       const wanted = pendingJump;
       const timer = setTimeout(() => {
         setPendingJump(null);
-        jump(wanted);
+        jump(wanted.id, wanted.flash);
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -165,13 +219,15 @@ export default function ConversationScreen() {
         await call(`/chat/messages/${editing.id}/edit`, { body });
         setEditing(null);
       } else {
-        const result = await call<{ message: Message }>(`/chat/chats/${id}/messages`, { body, replyToId: replyTo?.id ?? null, personId: person?.id ?? null, mentions: mentions.filter(member => detail?.members.some(item => item.id === member && body.includes(`@${item.name.split(" ")[0]}`))) });
+        const result = await call<{ message: Message }>(`/chat/chats/${id}/messages`, { body, replyToId: replyTo?.id ?? null, personId: person?.id ?? null, mentions: mentions.filter(member => detail?.members.some(item => item.id === member && body.includes(`@${item.name.split(" ")[0]}`))), mentionAll: mentionAll && body.includes("@everyone") });
         setMessages(current => (current.some(item => item.id === result.message.id) ? current : [...current, result.message]));
+        setUnreadMark(null);
       }
       setText("");
       setReplyTo(null);
       setPerson(null);
       setMentions([]);
+      setMentionAll(false);
       void refresh();
     } catch (problem) {
       fail(problem);
@@ -245,13 +301,28 @@ export default function ConversationScreen() {
       fail(problem);
     }
   };
-  const jump = (messageId: string) => {
+  const jump = (messageId: string, flash = true) => {
     const index = rows.findIndex(row => row.message?.id === messageId);
     if (index < 0) return;
-    list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: flash });
+    if (!flash) return;
     setHighlight(messageId);
     setTimeout(() => setHighlight(null), 1600);
   };
+  /* Opens the one-to-one chat with someone; with a message, answers it there privately. */
+  async function messagePerson(userId: string, quote?: Message) {
+    setSheet("");
+    try {
+      const result = await call<{ chatId: string }>("/chat/chats", { kind: "direct", userId });
+      if (quote) {
+        carriedReply.chatId = result.chatId;
+        carriedReply.message = quote;
+      }
+      router.push(`/conversation?id=${result.chatId}`);
+    } catch (problem) {
+      fail(problem);
+    }
+  }
   async function openFile(message: Message) {
     try {
       if (Platform.OS === "web") {
@@ -275,6 +346,7 @@ export default function ConversationScreen() {
   messages.forEach((message, index) => {
     const previous = messages[index - 1];
     if (!previous || dayOf(previous.at, zone) !== dayOf(message.at, zone)) rows.push({ key: `day-${message.at}`, day: message.at });
+    if (unreadMark?.messageId === message.id) rows.push({ key: "unread", unread: unreadMark.count });
     rows.push({ key: message.id, message });
   });
   rows.reverse();
@@ -283,9 +355,11 @@ export default function ConversationScreen() {
   const subtitle = typer ? `${group ? `${typer} is ` : ""}typing…` : other ? (other.online ? "online" : other.lastSeenAt ? `last seen ${fmt.time(other.lastSeenAt, zone)}` : "") : detail ? `${detail.members.length} members` : "";
   const mentionMatch = /(^|\s)@([\p{L}]*)$/u.exec(text);
   const mentionOptions = mentionMatch && detail ? detail.members.filter(member => member.id !== myId && member.name.toLowerCase().includes(mentionMatch[2].toLowerCase())).slice(0, 5) : [];
+  const offerEveryone = Boolean(mentionMatch && detail?.can.mentionAll && "everyone".startsWith(mentionMatch[2].toLowerCase()));
+  const profile = detail?.members.find(member => member.id === profileId) ?? null;
   const ownFocus = focus?.sender?.id === myId;
   const age = focus ? openedAt - new Date(focus.at).getTime() : 0;
-  const canEdit = Boolean(focus && ownFocus && focus.kind !== "system" && detail && age <= detail.rules.editMinutes * 60_000);
+  const canEdit = Boolean(focus && ownFocus && focus.kind !== "system" && focus.kind !== "poll" && detail && age <= detail.rules.editMinutes * 60_000);
   const canDeleteAll = Boolean(focus && detail && ((ownFocus && age <= detail.rules.deleteHours * 3_600_000) || detail.can.moderate));
   const canPin = Boolean(detail && (detail.kind === "direct" || detail.me.admin || detail.can.moderate));
 
@@ -340,6 +414,16 @@ export default function ConversationScreen() {
               ) : null
             }
             renderItem={({ item, index }) => {
+              if (item.unread !== undefined)
+                return (
+                  <View style={styles.unreadRow}>
+                    <View style={styles.unreadPill}>
+                      <T size={12} weight="bold" color={colors.sage}>
+                        {item.unread === 1 ? "1 unread message" : `${item.unread} unread messages`}
+                      </T>
+                    </View>
+                  </View>
+                );
               if (item.day)
                 return (
                   <View style={styles.dayRow}>
@@ -365,6 +449,14 @@ export default function ConversationScreen() {
                   onOpenImage={setViewing}
                   onOpenFile={message => void openFile(message)}
                   onReact={(message, emoji) => void act(`/chat/messages/${message.id}/react`, { emoji })}
+                  onSender={userId => {
+                    setProfileId(userId);
+                    setSheet("profile");
+                  }}
+                  onOpenQuoted={(chatId, messageId) => router.push(`/conversation?id=${chatId}&m=${messageId}`)}
+                  onVote={(message, options) => void act(`/chat/messages/${message.id}/vote`, { options })}
+                  onClosePoll={message => void act(`/chat/messages/${message.id}/close`, {})}
+                  canClosePoll={message.sender?.id === myId || Boolean(detail?.can.moderate)}
                   onLongPress={message => {
                     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setFocus(message);
@@ -397,7 +489,7 @@ export default function ConversationScreen() {
               <View style={styles.replyBar}>
                 <View style={{ flex: 1 }}>
                   <T size={12.5} weight="bold" color={colors.sage}>
-                    {editing ? "Editing message" : `Replying to ${replyTo?.sender?.name ?? "message"}`}
+                    {editing ? "Editing message" : replyTo && replyTo.chatId !== id ? `Replying privately to ${replyTo.sender?.name ?? "message"}` : `Replying to ${replyTo?.sender?.name ?? "message"}`}
                   </T>
                   <T size={13} color={colors.mute} numberOfLines={1}>
                     {previewOf((editing ?? replyTo)!.kind, (editing ?? replyTo)!.body)}
@@ -416,8 +508,23 @@ export default function ConversationScreen() {
                 </T>
               </Pressable>
             ) : null}
-            {mentionOptions.length ? (
+            {mentionOptions.length || offerEveryone ? (
               <View style={[styles.mentions, shadow.soft]}>
+                {offerEveryone ? (
+                  <Pressable
+                    onPress={() => {
+                      setText(current => current.replace(/@[\p{L}]*$/u, "@everyone "));
+                      setMentionAll(true);
+                    }}
+                    style={[styles.mention, { flexDirection: "row", alignItems: "center", gap: 8 }]}
+                  >
+                    <Icon name="volume-2" size={16} color={colors.sage} />
+                    <T weight="semibold">everyone</T>
+                    <T size={12} color={colors.mute}>
+                      all {detail?.members.length} members
+                    </T>
+                  </Pressable>
+                ) : null}
                 {mentionOptions.map(member => (
                   <Pressable
                     key={member.id}
@@ -448,8 +555,8 @@ export default function ConversationScreen() {
             ) : (
               <View style={styles.composer}>
                 <View style={styles.inputBox}>
-                  {!editing && detail?.can.attach ? (
-                    <Pressable accessibilityLabel="Attach" onPress={() => setSheet("attach")} style={styles.inputIcon}>
+                  {!editing && (detail?.can.attach || detail?.can.poll) ? (
+                    <Pressable accessibilityLabel="Attach or start a poll" onPress={() => setSheet("attach")} style={styles.inputIcon}>
                       <Icon name="plus" size={22} color={colors.mute} />
                     </Pressable>
                   ) : null}
@@ -502,8 +609,10 @@ export default function ConversationScreen() {
               ))}
             </View>
             <Action icon="corner-up-left" label="Reply" onPress={() => { setSheet(""); setEditing(null); setReplyTo(focus); }} />
+            {group && !ownFocus && focus.sender ? <Action icon="message-circle" label="Reply privately" onPress={() => void messagePerson(focus.sender!.id, focus)} /> : null}
+            {group && !ownFocus && focus.sender ? <Action icon="user" label={`Message ${focus.sender.name.split(" ")[0]}`} onPress={() => void messagePerson(focus.sender!.id)} /> : null}
             {focus.body ? <Action icon="copy" label="Copy" onPress={() => { setSheet(""); void Clipboard.setStringAsync(focus.body); }} /> : null}
-            <Action icon="corner-up-right" label="Forward" onPress={() => setSheet("forward")} />
+            {!focus.poll ? <Action icon="corner-up-right" label="Forward" onPress={() => setSheet("forward")} /> : null}
             <Action icon="star" label={focus.starred ? "Unstar" : "Star"} onPress={() => void act(`/chat/messages/${focus.id}/star`, { starred: !focus.starred })} />
             {canPin ? <Action icon="bookmark" label={focus.pinned ? "Unpin" : "Pin"} onPress={() => void act(`/chat/messages/${focus.id}/pin`, { pinned: !focus.pinned }).then(() => loadDetail())} /> : null}
             {ownFocus ? <Action icon="info" label="Message info" onPress={() => setSheet("info")} /> : null}
@@ -522,9 +631,55 @@ export default function ConversationScreen() {
       </Sheet>
 
       <Sheet visible={sheet === "attach"} onClose={() => setSheet("")} title="Send">
-        {Platform.OS !== "web" ? <Action icon="camera" label="Camera" onPress={() => void pickPhoto(true)} /> : null}
-        <Action icon="image" label="Photo from your library" onPress={() => void pickPhoto(false)} />
-        <Action icon="file" label="File (PDF, Word, Excel…)" onPress={() => void pickFile()} />
+        {detail?.can.attach && Platform.OS !== "web" ? <Action icon="camera" label="Camera" onPress={() => void pickPhoto(true)} /> : null}
+        {detail?.can.attach ? <Action icon="image" label="Photo from your library" onPress={() => void pickPhoto(false)} /> : null}
+        {detail?.can.attach ? <Action icon="file" label="File (PDF, Word, Excel…)" onPress={() => void pickFile()} /> : null}
+        {detail?.can.poll ? <Action icon="bar-chart-2" label="Poll" onPress={() => setSheet("poll")} /> : null}
+      </Sheet>
+
+      {sheet === "poll" ? (
+        <PollSheet
+          onClose={() => setSheet("")}
+          onSend={async poll => {
+            try {
+              const result = await call<{ message: Message }>(`/chat/chats/${id}/polls`, poll);
+              setMessages(current => (current.some(item => item.id === result.message.id) ? current : [...current, result.message]));
+              setSheet("");
+            } catch (problem) {
+              fail(problem);
+            }
+          }}
+        />
+      ) : null}
+
+      <Sheet visible={sheet === "profile"} onClose={() => setSheet("")}>
+        {profile ? (
+          <View style={{ alignItems: "center", gap: 4, paddingBottom: 6 }}>
+            <ChatAvatar chat={{ id: profile.id, kind: "direct", title: profile.name }} size={80} online={profile.online} />
+            <T weight="bold" size={20} style={{ marginTop: 8 }}>
+              {profile.name}
+            </T>
+            <T size={14} color={colors.mute}>
+              {ROLE_NAMES[profile.role] ?? profile.role}
+              {profile.home ? ` · ${profile.home}` : ""}
+            </T>
+            <T size={12.5} color={profile.online ? colors.sage : colors.dim} weight={profile.online ? "semibold" : "regular"}>
+              {profile.online ? "online" : profile.lastSeenAt ? `last seen ${fmt.dayShort(profile.lastSeenAt, zone)} ${fmt.time(profile.lastSeenAt, zone)}` : "not on chat yet"}
+            </T>
+            {profile.id !== myId ? (
+              <Pressable accessibilityRole="button" onPress={() => void messagePerson(profile.id)} style={[styles.primary, { alignSelf: "stretch" }]}>
+                <Icon name="message-circle" size={18} color="#ffffff" />
+                <T weight="semibold" color="#ffffff">
+                  Message {profile.name.split(" ")[0]}
+                </T>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <T color={colors.mute} style={{ textAlign: "center", padding: 12 }}>
+            This person is no longer in the chat.
+          </T>
+        )}
       </Sheet>
 
       <Sheet visible={sheet === "person"} onClose={() => setSheet("")} title="Who is this about?">
@@ -590,6 +745,59 @@ function Action({ icon, label, onPress, danger }: { icon: IconName; label: strin
         {label}
       </T>
     </Pressable>
+  );
+}
+
+/* Starting a poll: a question, 2 to 12 choices, and whether people may pick more than one. */
+function PollSheet({ onClose, onSend }: { onClose: () => void; onSend: (poll: { question: string; options: string[]; multiple: boolean }) => Promise<void> }) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", ""]);
+  const [multiple, setMultiple] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const filled = options.map(option => option.trim()).filter(Boolean);
+  const ready = question.trim().length > 0 && new Set(filled).size >= 2;
+  return (
+    <Sheet visible onClose={onClose} title="New poll">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <TextInput value={question} onChangeText={setQuestion} maxLength={300} placeholder="Ask a question" placeholderTextColor={colors.dim} style={styles.pollField} accessibilityLabel="Question" autoFocus />
+        <View style={{ maxHeight: 300 }}>
+          <FlatList
+            data={options.map((value, index) => ({ value, index }))}
+            keyExtractor={item => String(item.index)}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <View style={styles.pollOption}>
+                <TextInput value={item.value} onChangeText={value => setOptions(current => current.map((option, at) => (at === item.index ? value : option)))} maxLength={100} placeholder={`Choice ${item.index + 1}`} placeholderTextColor={colors.dim} style={[styles.pollField, { flex: 1, marginBottom: 0 }]} accessibilityLabel={`Choice ${item.index + 1}`} />
+                {options.length > 2 ? (
+                  <Pressable accessibilityLabel={`Remove choice ${item.index + 1}`} onPress={() => setOptions(current => current.filter((_, at) => at !== item.index))} style={{ padding: 8 }}>
+                    <Icon name="x" size={18} color={colors.mute} />
+                  </Pressable>
+                ) : null}
+              </View>
+            )}
+          />
+        </View>
+        {options.length < 12 ? <Action icon="plus" label="Add a choice" onPress={() => setOptions(current => [...current, ""])} /> : null}
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: multiple }} onPress={() => setMultiple(!multiple)} style={styles.action}>
+          <Icon name={multiple ? "check-square" : "square"} size={19} color={multiple ? colors.sage : colors.mute} />
+          <T size={15}>People may choose more than one</T>
+        </Pressable>
+        <Pressable
+          disabled={!ready || busy}
+          onPress={async () => {
+            setBusy(true);
+            await onSend({ question, options: filled, multiple });
+            setBusy(false);
+          }}
+          style={[styles.primary, (!ready || busy) && { opacity: 0.5 }]}
+        >
+          {busy ? <ActivityIndicator color="#ffffff" /> : <Icon name="bar-chart-2" size={18} color="#ffffff" />}
+          <T weight="semibold" color="#ffffff">
+            Send poll
+          </T>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Sheet>
   );
 }
 
@@ -716,6 +924,10 @@ const styles = StyleSheet.create({
   pickRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 6 },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.brand, borderRadius: 16, minHeight: 50, marginTop: 10 },
   infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  unreadRow: { alignItems: "center", marginVertical: 8, backgroundColor: "rgba(255,255,255,0.45)", paddingVertical: 5 },
+  unreadPill: { backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  pollField: { backgroundColor: "#f4f6f0", borderRadius: 14, paddingHorizontal: 14, height: 48, fontFamily: fonts.regular, fontSize: 16, color: colors.ink, marginBottom: 8 },
+  pollOption: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
   viewer: { flex: 1, backgroundColor: "#000000" },
   viewerBar: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: 12, paddingTop: 8 },
 });

@@ -34,21 +34,25 @@ export type Message = {
   mentions: string[];
   person: { id: string; name: string } | null;
   attachment: { name: string; contentType: string; size: number; durationMs?: number } | null;
-  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean } | null;
+  // chat: the group a privately answered message came from.
+  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean; chat: { id: string; title: string } | null } | null;
   reactions: { emoji: string; count: number; mine: boolean; names: string[] }[];
   status: "sent" | "delivered" | "read" | null;
+  poll: Poll | null;
 };
+export type Poll = { options: { id: string; text: string; votes: number; mine: boolean; voters: string[] }[]; multiple: boolean; closed: boolean; voters: number };
 export type ChatDetail = {
   id: string;
   kind: ChatKind;
   title: string;
   about: string;
-  members: { id: string; name: string; role: string; admin: boolean; auto: boolean; online: boolean; lastSeenAt: string | null }[];
+  members: Member[];
   pinned: { id: string; body: string; kind: string; at: string }[];
-  me: { muted: boolean; mutedUntil: string | null; archived: boolean; pinned: boolean; admin: boolean };
-  can: { post: boolean; manageMembers: boolean; rename: boolean; leave: boolean; export: boolean; attach: boolean; moderate: boolean };
+  me: { muted: boolean; mutedUntil: string | null; archived: boolean; pinned: boolean; admin: boolean; readUpTo: string };
+  can: { post: boolean; manageMembers: boolean; rename: boolean; leave: boolean; export: boolean; attach: boolean; moderate: boolean; mentionAll: boolean; poll: boolean };
   rules: { editMinutes: number; deleteHours: number };
 };
+export type Member = { id: string; name: string; role: string; home: string | null; admin: boolean; auto: boolean; online: boolean; lastSeenAt: string | null };
 export type Person = { id: string; name: string; role: string; home: string | null; online: boolean };
 export type LiveEvent = { t: string; c?: string; m?: string; u?: string; n?: string; online?: boolean };
 
@@ -182,6 +186,9 @@ export const colorFor = (id: string) => AVATAR_COLORS[[...id].reduce((sum, char)
 export const durationText = (ms = 0) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, "0")}`;
 export const sizeText = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "🙏", "✅"];
-export const previewOf = (kind: string, body: string) => body || (kind === "image" ? "📷 Photo" : kind === "voice" ? "🎤 Voice note" : kind === "file" ? "📄 File" : "");
+export const previewOf = (kind: string, body: string) => (kind === "poll" ? `📊 ${body}` : body || (kind === "image" ? "📷 Photo" : kind === "voice" ? "🎤 Voice note" : kind === "file" ? "📄 File" : ""));
+
+/* A group message being answered privately, handed to the one-to-one chat as it opens. */
+export const carriedReply = { chatId: null as string | null, message: null as Message | null };
 
 export const ROLE_NAMES: Record<string, string> = { admin: "Administrator", coordinator: "Coordinator", nurse: "Nurse", dsp: "Direct support" };

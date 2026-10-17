@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Mic, Paperclip, Pencil, SendHorizontal, Smile, Trash2, UserRound, X } from "lucide-react";
+import { BarChart3, Loader2, Megaphone, Mic, Paperclip, Pencil, SendHorizontal, Smile, Trash2, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { durationText, EMOJIS, ROLE_NAMES, type ChatDetail, type Message } from "./client";
 
-export type Draft = { body: string; mentions: string[]; personId: string | null };
+export type Draft = { body: string; mentions: string[]; mentionAll: boolean; personId: string | null };
 
 /*
- * Writing a message: text with @mentions, emoji, tagging a person supported, a photo or file, or a
- * voice note recorded right here. Enter sends; Shift+Enter starts a new line.
+ * Writing a message: text with @mentions (and @everyone where the agency allows it), emoji, tagging a
+ * person supported, a photo or file, a poll, or a voice note recorded right here. Enter sends;
+ * Shift+Enter starts a new line.
  */
 export function Composer({
   detail,
@@ -23,6 +24,7 @@ export function Composer({
   onAttach,
   onVoice,
   onTyping,
+  onPoll,
 }: {
   detail: ChatDetail;
   replyTo: Message | null;
@@ -35,9 +37,11 @@ export function Composer({
   onAttach: (file: File, caption: string) => Promise<void>;
   onVoice: (audio: Blob, durationMs: number) => Promise<void>;
   onTyping: () => void;
+  onPoll: () => void;
 }) {
   const [text, setText] = useState("");
   const [mentions, setMentions] = useState<string[]>([]);
+  const [mentionAll, setMentionAll] = useState(false);
   const [person, setPerson] = useState<{ id: string; name: string } | null>(null);
   const [panel, setPanel] = useState<"" | "emoji" | "person">("");
   const [personQuery, setPersonQuery] = useState("");
@@ -79,6 +83,14 @@ export function Composer({
   // "@" followed by letters at the cursor offers the chat's members.
   const atMatch = /(^|\s)@([\p{L}]*)$/u.exec(text.slice(0, cursor));
   const mentionOptions = atMatch ? detail.members.filter(member => member.name.toLowerCase().includes(atMatch[2].toLowerCase())).slice(0, 6) : [];
+  const offerEveryone = Boolean(atMatch) && detail.can.mentionAll && "everyone".startsWith(atMatch![2].toLowerCase());
+  const chooseEveryone = () => {
+    const before = text.slice(0, cursor).replace(/@[\p{L}]*$/u, "@everyone ");
+    setText(before + text.slice(cursor));
+    setCursor(before.length);
+    setMentionAll(true);
+    area.current?.focus();
+  };
   const chooseMention = (member: ChatDetail["members"][number]) => {
     const before = text.slice(0, cursor).replace(/@[\p{L}]*$/u, `@${member.name.split(" ")[0]} `);
     setText(before + text.slice(cursor));
@@ -104,9 +116,10 @@ export function Composer({
     if (!body && !person) return;
     setBusy(true);
     try {
-      await onSend({ body, mentions: mentions.filter(id => detail.members.some(member => member.id === id && body.includes(`@${member.name.split(" ")[0]}`))), personId: person?.id ?? null });
+      await onSend({ body, mentions: mentions.filter(id => detail.members.some(member => member.id === id && body.includes(`@${member.name.split(" ")[0]}`))), mentionAll: mentionAll && body.includes("@everyone"), personId: person?.id ?? null });
       setText("");
       setMentions([]);
+      setMentionAll(false);
       setPerson(null);
       setPanel("");
     } finally {
@@ -154,12 +167,12 @@ export function Composer({
 
   const filteredPersons = persons.filter(item => item.name.toLowerCase().includes(personQuery.toLowerCase())).slice(0, 8);
   return (
-    <div className="relative border-t border-line bg-[#f6f7f2] px-3 pb-3 pt-2 sm:px-4">
+    <div className="relative border-t border-line bg-[#f6f7f2] px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 sm:px-4 sm:pb-3">
       {(replyTo || editing) && (
         <div className="mb-2 flex items-start gap-3 rounded-xl border-l-4 border-brand bg-white px-3 py-2">
           {editing ? <Pencil className="mt-0.5 h-4 w-4 text-brand" /> : null}
           <div className="min-w-0 flex-1 text-[13px]">
-            <p className="font-semibold text-brand">{editing ? "Editing message" : `Replying to ${replyTo?.sender?.name ?? "message"}`}</p>
+            <p className="font-semibold text-brand">{editing ? "Editing message" : replyTo && replyTo.chatId !== detail.id ? `Replying privately to ${replyTo.sender?.name ?? "message"}` : `Replying to ${replyTo?.sender?.name ?? "message"}`}</p>
             <p className="truncate text-mute">{(editing ?? replyTo)?.body || ((editing ?? replyTo)?.kind === "image" ? "Photo" : (editing ?? replyTo)?.kind === "voice" ? "Voice note" : "File")}</p>
           </div>
           <button type="button" onClick={() => { if (editing) { onCancelEdit(); setText(""); } else onCancelReply(); }} className="rounded-full p-1 text-mute hover:bg-panel" aria-label="Cancel">
@@ -176,8 +189,15 @@ export function Composer({
         </div>
       )}
 
-      {mentionOptions.length > 0 && (
+      {(mentionOptions.length > 0 || offerEveryone) && (
         <div className="absolute bottom-full left-4 mb-1 w-64 overflow-hidden rounded-xl border border-line bg-white py-1 shadow-xl">
+          {offerEveryone && (
+            <button type="button" onMouseDown={event => { event.preventDefault(); chooseEveryone(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-panel">
+              <Megaphone className="h-4 w-4 text-brand" />
+              <span className="font-semibold">everyone</span>
+              <span className="text-xs text-mute">all {detail.members.length} members</span>
+            </button>
+          )}
           {mentionOptions.map(member => (
             <button key={member.id} type="button" onMouseDown={event => { event.preventDefault(); chooseMention(member); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-panel">
               <span className="font-semibold">{member.name}</span>
@@ -187,7 +207,7 @@ export function Composer({
         </div>
       )}
       {panel === "emoji" && (
-        <div className="absolute bottom-full left-3 mb-1 grid w-[300px] grid-cols-8 gap-1 rounded-2xl border border-line bg-white p-2 shadow-xl">
+        <div className="absolute bottom-full left-2 mb-1 grid w-[min(300px,calc(100vw-1rem))] grid-cols-8 gap-1 rounded-2xl border border-line bg-white p-2 shadow-xl">
           {EMOJIS.map(emoji => (
             <button key={emoji} type="button" onClick={() => { setText(current => current + emoji); area.current?.focus(); }} className="rounded-lg p-1 text-xl hover:bg-panel">
               {emoji}
@@ -224,8 +244,8 @@ export function Composer({
         </div>
       ) : (
         <div className="flex items-end gap-2">
-          <div className="flex flex-1 items-end gap-1 rounded-[22px] bg-white px-2 py-1.5 shadow-sm ring-1 ring-line focus-within:ring-brand/40">
-            <button type="button" onClick={() => setPanel(panel === "emoji" ? "" : "emoji")} className={cn("rounded-full p-2 text-mute hover:text-ink", panel === "emoji" && "text-brand")} aria-label="Emoji">
+          <div className="flex min-w-0 flex-1 items-end gap-0.5 rounded-[22px] bg-white px-1 py-1 shadow-sm ring-1 ring-line focus-within:ring-brand/40 sm:gap-1 sm:px-2 sm:py-1.5">
+            <button type="button" onClick={() => setPanel(panel === "emoji" ? "" : "emoji")} className={cn("shrink-0 rounded-full p-2 text-mute hover:text-ink", panel === "emoji" && "text-brand")} aria-label="Emoji">
               <Smile className="h-5 w-5" />
             </button>
             <textarea
@@ -241,7 +261,8 @@ export function Composer({
               onKeyDown={event => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  if (mentionOptions.length) chooseMention(mentionOptions[0]);
+                  if (offerEveryone) chooseEveryone();
+                  else if (mentionOptions.length) chooseMention(mentionOptions[0]);
                   else void submit();
                 }
                 if (event.key === "Escape") {
@@ -253,15 +274,20 @@ export function Composer({
               placeholder={editing ? "Edit your message" : "Message"}
               aria-label="Message"
               maxLength={4000}
-              className="max-h-40 min-h-[36px] flex-1 resize-none bg-transparent px-1 py-2 text-[15px] leading-snug outline-none placeholder:text-dim"
+              className="max-h-40 min-h-[36px] min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-snug outline-none placeholder:text-dim md:text-[15px]"
             />
             {!editing && (
               <>
-                <button type="button" onClick={() => setPanel(panel === "person" ? "" : "person")} className={cn("rounded-full p-2 text-mute hover:text-ink", panel === "person" && "text-brand")} aria-label="Tag a person supported" title="Tag a person supported">
+                <button type="button" onClick={() => setPanel(panel === "person" ? "" : "person")} className={cn("shrink-0 rounded-full p-1.5 text-mute hover:text-ink sm:p-2", panel === "person" && "text-brand")} aria-label="Tag a person supported" title="Tag a person supported">
                   <UserRound className="h-5 w-5" />
                 </button>
+                {detail.can.poll && (
+                  <button type="button" onClick={onPoll} className="shrink-0 rounded-full p-1.5 text-mute hover:text-ink sm:p-2" aria-label="Start a poll" title="Start a poll">
+                    <BarChart3 className="h-5 w-5" />
+                  </button>
+                )}
                 {detail.can.attach && (
-                  <button type="button" onClick={() => fileInput.current?.click()} className="rounded-full p-2 text-mute hover:text-ink" aria-label="Attach a photo or file">
+                  <button type="button" onClick={() => fileInput.current?.click()} className="shrink-0 rounded-full p-1.5 text-mute hover:text-ink sm:p-2" aria-label="Attach a photo or file">
                     <Paperclip className="h-5 w-5" />
                   </button>
                 )}

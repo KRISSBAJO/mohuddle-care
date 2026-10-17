@@ -200,6 +200,8 @@ const GROUPS: Group[] = [
       { key: "chat_direct", title: "One-to-one chats", help: "Who may start a private chat with one other person. Home groups and Announcements are always there.", options: [["anyone", "Anyone"], ["managers", "Coordinators and administrators only"]] },
       { key: "chat_groups", title: "New groups", help: "Who may create a group and choose its members.", options: [["anyone", "Anyone"], ["managers", "Coordinators and administrators only"]] },
       { key: "chat_attachments", title: "Photos, files and voice notes", help: "Whether people can send them in chat. Each file can be up to the agency upload limit.", options: [["on", "Allowed"], ["off", "Text only"]] },
+      { key: "chat_mention_all", title: "@everyone", help: "Who may mention everyone in a group at once. Everyone is notified, even people who muted the group.", options: [["admins", "Group admins, coordinators and administrators"], ["anyone", "Anyone in the group"], ["off", "No one"]] },
+      { key: "chat_polls", title: "Polls", help: "Who may start a poll in a group, such as who can cover a shift.", options: [["anyone", "Anyone in the group"], ["admins", "Group admins, coordinators and administrators"], ["off", "No one"]] },
       { key: "chat_edit_minutes", title: "Editing a sent message", help: "How long after sending the writer can still change it. It then shows as edited.", unit: "minutes", min: 0, max: 1440 },
       { key: "chat_delete_hours", title: "Deleting for everyone", help: "How long after sending the writer can delete a message for everyone. Managers can always remove a message. A copy is kept for audits.", unit: "hours", min: 0, max: 168 },
     ],

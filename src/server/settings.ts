@@ -45,6 +45,18 @@ export const settingDefs = {
     schema: z.enum(["on", "off"]),
     fallback: "on",
   },
+  chat_mention_all: {
+    label: "Who may @everyone in a group (admins: group admins, coordinators and administrators; anyone; off)",
+    kind: "text",
+    schema: z.enum(["admins", "anyone", "off"]),
+    fallback: "admins",
+  },
+  chat_polls: {
+    label: "Who may start a poll in a group (anyone; admins: group admins, coordinators and administrators; off)",
+    kind: "text",
+    schema: z.enum(["anyone", "admins", "off"]),
+    fallback: "anyone",
+  },
   chat_edit_minutes: {
     label: "Minutes after sending that a chat message can be edited (0 to 1440)",
     kind: "number",

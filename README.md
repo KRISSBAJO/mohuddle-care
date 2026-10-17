@@ -190,6 +190,10 @@ deployment guide for the command and follow-up authenticator setup.
   `SESSION_SECRET`, and `CHAT_SOCKET_URL` on the website must be the gateway's public `wss://` address
   ending in `/chat`. Vercel rewrites cannot carry WebSockets, so apps connect to the gateway directly.
   Without it chat still works, checking for news every few seconds. See [docs/deployment.md](docs/deployment.md#chat-live-connection).
+  In groups: reply privately to a message (it opens the one-to-one chat, quoting it), tap a name to
+  see who it is and message them, @everyone and polls (who may use them are agency settings,
+  `chat_mention_all` and `chat_polls`), and every chat opens at an "unread messages" line. On a
+  phone-sized screen the website's chat fills the screen like a chat app.
 - **Ports:** the gateway uses 3401 locally (`CHAT_SOCKET_PORT`); use another port for a local
   production smoke test.
 - **Operations:** verify owner two-factor setup, agency isolation, file access, service health and

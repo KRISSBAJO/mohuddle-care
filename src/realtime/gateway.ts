@@ -9,9 +9,11 @@
  *
  *   pnpm chat:gateway      (listens on PORT when the host sets it, else CHAT_SOCKET_PORT, 3401 by default)
  */
+import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 
-process.loadEnvFile?.(".env");
+// Locally the settings come from .env; a host such as Render passes them in the environment instead.
+if (existsSync(".env")) process.loadEnvFile?.(".env");
 
 type Event = { a: string; t: string; c?: string; m?: string; u?: string; n?: string; users?: string[]; online?: boolean };
 type Client = { userId: string; agencyId: string; name: string; chats: Set<string>; alive: boolean; typedAt: number };
@@ -124,18 +126,22 @@ async function main() {
       client.alive = true;
     });
     socket.on("message", raw => {
-      let message: { t?: string; c?: string };
+      let message: unknown;
       try {
         message = JSON.parse(String(raw));
       } catch {
         return;
       }
+      // Anything that is not an object with a text "t" (null, a number, a list) is ignored.
+      if (!message || typeof message !== "object" || Array.isArray(message)) return;
+      const { t, c } = message as { t?: unknown; c?: unknown };
+      if (typeof t !== "string") return;
       // "Typing…", at most once a second per person, and only into their own chats.
-      if (message.t === "typing" && message.c && client.chats.has(message.c) && Date.now() - client.typedAt > 1000) {
+      if (t === "typing" && typeof c === "string" && client.chats.has(c) && Date.now() - client.typedAt > 1000) {
         client.typedAt = Date.now();
-        void notify({ a: client.agencyId, t: "typing", c: message.c, u: client.userId, n: client.name });
+        void notify({ a: client.agencyId, t: "typing", c, u: client.userId, n: client.name });
       }
-      if (message.t === "ping") send(socket, { t: "pong" });
+      if (t === "ping") send(socket, { t: "pong" });
     });
     socket.on("close", () => {
       clients.delete(socket);

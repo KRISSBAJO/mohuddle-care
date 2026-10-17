@@ -24,6 +24,71 @@ function Ticks({ status, color }: { status: Message["status"]; color: string }) 
   );
 }
 
+/* A poll: tap a choice to vote, tap it again to take the vote back. Bars show the results and who chose what. */
+function PollCard({ message, mine, canClose, onVote, onClose }: { message: Message; mine: boolean; canClose: boolean; onVote: (message: Message, optionIds: string[]) => void; onClose: (message: Message) => void }) {
+  const poll = message.poll!;
+  const top = Math.max(1, ...poll.options.map(option => option.votes));
+  const ink = mine ? "#ffffff" : colors.ink;
+  const soft = mine ? "rgba(255,255,255,0.75)" : colors.mute;
+  const choose = (id: string) => {
+    if (poll.closed) return;
+    const current = poll.options.filter(option => option.mine).map(option => option.id);
+    onVote(message, current.includes(id) ? current.filter(item => item !== id) : poll.multiple ? [...current, id] : [id]);
+  };
+  return (
+    <View style={{ width: 250, paddingVertical: 2 }}>
+      <View style={styles.inline}>
+        <Icon name="bar-chart-2" size={12} color={soft} />
+        <T size={11.5} weight="bold" color={soft} style={{ letterSpacing: 0.6 }}>
+          {`POLL${poll.closed ? " · CLOSED" : poll.multiple ? " · CHOOSE ANY" : ""}`}
+        </T>
+      </View>
+      <T size={15.5} weight="semibold" color={ink} style={{ lineHeight: 21, marginBottom: 6 }}>
+        {message.body}
+      </T>
+      {poll.options.map(option => (
+        <Pressable
+          key={option.id}
+          accessibilityRole="button"
+          accessibilityState={{ selected: option.mine, disabled: poll.closed }}
+          accessibilityLabel={`${option.text}, ${option.votes} ${option.votes === 1 ? "vote" : "votes"}`}
+          onPress={() => choose(option.id)}
+          style={[styles.option, { backgroundColor: mine ? "rgba(255,255,255,0.12)" : "#f0f3ec", borderColor: option.mine ? (mine ? colors.lime : colors.sage) : "transparent" }]}
+        >
+          <View style={[styles.optionFill, { width: `${(option.votes / top) * 100}%`, backgroundColor: mine ? "rgba(255,255,255,0.18)" : "#dcebc9" }]} />
+          <View style={styles.optionRow}>
+            <Icon name={option.mine ? "check-circle" : "circle"} size={16} color={option.mine ? (mine ? colors.lime : colors.sage) : soft} />
+            <T size={14} color={ink} style={{ flex: 1 }}>
+              {option.text}
+            </T>
+            <T size={12.5} weight="semibold" color={soft}>
+              {option.votes}
+            </T>
+          </View>
+          {option.voters.length ? (
+            <T size={11} color={soft} numberOfLines={1} style={{ marginLeft: 24, marginTop: 1 }}>
+              {option.voters.slice(0, 3).join(", ")}
+              {option.voters.length > 3 ? ` and ${option.voters.length - 3} more` : ""}
+            </T>
+          ) : null}
+        </Pressable>
+      ))}
+      <View style={[styles.inline, { justifyContent: "space-between", marginTop: 4 }]}>
+        <T size={12} color={soft}>
+          {poll.voters === 1 ? "1 person voted" : `${poll.voters} people voted`}
+        </T>
+        {canClose && !poll.closed ? (
+          <Pressable accessibilityRole="button" onPress={() => onClose(message)} hitSlop={8}>
+            <T size={12} weight="bold" color={mine ? colors.lime : colors.sage}>
+              Close poll
+            </T>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 /* A voice note: play and pause with the sign-in, a progress line and the length. */
 function VoiceNote({ message, mine, token }: { message: Message; mine: boolean; token: string | null }) {
   const player = useRef<AudioPlayer | null>(null);
@@ -76,6 +141,11 @@ export function ChatBubble({
   onOpenFile,
   onJump,
   onReact,
+  onSender,
+  onOpenQuoted,
+  onVote,
+  onClosePoll,
+  canClosePoll,
   highlighted,
 }: {
   message: Message;
@@ -89,6 +159,11 @@ export function ChatBubble({
   onOpenFile: (message: Message) => void;
   onJump: (messageId: string) => void;
   onReact: (message: Message, emoji: string | null) => void;
+  onSender: (userId: string) => void;
+  onOpenQuoted: (chatId: string, messageId: string) => void;
+  onVote: (message: Message, optionIds: string[]) => void;
+  onClosePoll: (message: Message) => void;
+  canClosePoll: boolean;
   highlighted: boolean;
 }) {
   if (message.kind === "system") {
@@ -115,9 +190,11 @@ export function ChatBubble({
           style={[styles.bubble, mine ? styles.mine : styles.theirs, image && !message.body && { padding: 4 }, highlighted && styles.highlight]}
         >
           {showSender && group && !mine ? (
-            <T size={12.5} weight="bold" color={colorFor(message.sender?.id ?? "")} style={{ marginBottom: 2 }}>
-              {message.sender?.name ?? "Former colleague"}
-            </T>
+            <Pressable accessibilityRole="button" accessibilityLabel={`About ${message.sender?.name ?? "this colleague"}`} onPress={() => message.sender && onSender(message.sender.id)} hitSlop={6}>
+              <T size={12.5} weight="bold" color={colorFor(message.sender?.id ?? "")} style={{ marginBottom: 2 }}>
+                {message.sender?.name ?? "Former colleague"}
+              </T>
+            </Pressable>
           ) : null}
           {message.forwarded && !message.deleted ? (
             <View style={styles.inline}>
@@ -128,10 +205,20 @@ export function ChatBubble({
             </View>
           ) : null}
           {message.replyTo && !message.deleted ? (
-            <Pressable onPress={() => onJump(message.replyTo!.id)} style={[styles.quote, { borderLeftColor: mine ? colors.lime : colors.brand, backgroundColor: mine ? "rgba(255,255,255,0.13)" : "#f0f3ec" }]}>
-              <T size={12.5} weight="bold" color={mine ? colors.lime : colors.brand}>
-                {message.replyTo.senderName ?? "Message"}
-              </T>
+            <Pressable onPress={() => (message.replyTo!.chat ? onOpenQuoted(message.replyTo!.chat.id, message.replyTo!.id) : onJump(message.replyTo!.id))} style={[styles.quote, { borderLeftColor: mine ? colors.lime : colors.brand, backgroundColor: mine ? "rgba(255,255,255,0.13)" : "#f0f3ec" }]}>
+              <View style={styles.inline}>
+                <T size={12.5} weight="bold" color={mine ? colors.lime : colors.brand}>
+                  {message.replyTo.senderName ?? "Message"}
+                </T>
+                {message.replyTo.chat ? (
+                  <>
+                    <Icon name="users" size={11} color={soft} />
+                    <T size={12} color={soft} numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {message.replyTo.chat.title || "Group"}
+                    </T>
+                  </>
+                ) : null}
+              </View>
               <T size={12.5} color={soft} numberOfLines={2}>
                 {message.replyTo.deleted ? "Deleted message" : previewOf(message.replyTo.kind, message.replyTo.body)}
               </T>
@@ -164,6 +251,7 @@ export function ChatBubble({
                 </Pressable>
               ) : null}
               {message.kind === "voice" && message.attachment ? <VoiceNote message={message} mine={mine} token={token} /> : null}
+              {message.poll ? <PollCard message={message} mine={mine} canClose={canClosePoll} onVote={onVote} onClose={onClosePoll} /> : null}
               {message.person ? (
                 <View style={[styles.person, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : colors.sky }]}>
                   <Icon name="user" size={12} color={mine ? "#ffffff" : colors.skyInk} />
@@ -172,7 +260,7 @@ export function ChatBubble({
                   </T>
                 </View>
               ) : null}
-              {message.body ? (
+              {message.body && !message.poll ? (
                 <T size={15.5} color={ink} style={[{ lineHeight: 21 }, image ? { paddingHorizontal: 6, paddingTop: 6 } : null]}>
                   {message.body}
                 </T>
@@ -230,6 +318,9 @@ const styles = StyleSheet.create({
   meta: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 2 },
   metaOnImage: { position: "absolute", right: 10, bottom: 10, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 },
   reactions: { flexDirection: "row", gap: 4, marginTop: -6, marginHorizontal: 8 },
+  option: { borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 5, overflow: "hidden" },
+  optionFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 10 },
+  optionRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   reaction: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#ffffff", borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 6, paddingVertical: 2 },
   systemRow: { alignItems: "center", marginVertical: 6 },
   system: { backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, maxWidth: "85%" },

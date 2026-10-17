@@ -33,21 +33,25 @@ export type Message = {
   mentions: string[];
   person: { id: string; name: string } | null;
   attachment: { name: string; contentType: string; size: number; durationMs?: number } | null;
-  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean } | null;
+  // chat: the group a privately answered message came from.
+  replyTo: { id: string; kind: string; body: string; senderName: string | null; deleted: boolean; chat: { id: string; title: string } | null } | null;
   reactions: { emoji: string; count: number; mine: boolean; names: string[] }[];
   status: "sent" | "delivered" | "read" | null;
+  poll: Poll | null;
 };
+export type Poll = { options: { id: string; text: string; votes: number; mine: boolean; voters: string[] }[]; multiple: boolean; closed: boolean; voters: number };
 export type ChatDetail = {
   id: string;
   kind: ChatKind;
   title: string;
   about: string;
-  members: { id: string; name: string; role: string; admin: boolean; auto: boolean; online: boolean; lastSeenAt: string | null }[];
+  members: Member[];
   pinned: { id: string; body: string; kind: string; at: string }[];
-  me: { muted: boolean; mutedUntil: string | null; archived: boolean; pinned: boolean; admin: boolean };
-  can: { post: boolean; manageMembers: boolean; rename: boolean; leave: boolean; export: boolean; attach: boolean; moderate: boolean };
+  me: { muted: boolean; mutedUntil: string | null; archived: boolean; pinned: boolean; admin: boolean; readUpTo: string };
+  can: { post: boolean; manageMembers: boolean; rename: boolean; leave: boolean; export: boolean; attach: boolean; moderate: boolean; mentionAll: boolean; poll: boolean };
   rules: { editMinutes: number; deleteHours: number };
 };
+export type Member = { id: string; name: string; role: string; home: string | null; admin: boolean; auto: boolean; online: boolean; lastSeenAt: string | null };
 export type Person = { id: string; name: string; role: string; home: string | null; online: boolean };
 
 export class ChatError extends Error {}

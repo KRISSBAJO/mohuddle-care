@@ -153,6 +153,11 @@ export default function ChatInfoScreen() {
                 <ChatAvatar chat={{ id: member.id, kind: "direct", title: member.name }} size={38} online={member.online} />
                 <View style={{ flex: 1 }}>
                   <T weight="semibold">{member.id === me?.user.id ? "You" : member.name}</T>
+                  {member.home ? (
+                    <T size={12} color={colors.mute} numberOfLines={1}>
+                      {member.home}
+                    </T>
+                  ) : null}
                   <T size={12} color={colors.mute}>
                     {member.online ? "online" : member.lastSeenAt ? `last seen ${fmt.dayShort(member.lastSeenAt, zone)} ${fmt.time(member.lastSeenAt, zone)}` : "not on chat yet"}
                   </T>
@@ -163,6 +168,23 @@ export default function ChatInfoScreen() {
                       Admin
                     </T>
                   </View>
+                ) : null}
+                {member.id !== me?.user.id ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Message ${member.name}`}
+                    onPress={async () => {
+                      try {
+                        const result = await call<{ chatId: string }>("/chat/chats", { kind: "direct", userId: member.id });
+                        router.push(`/conversation?id=${result.chatId}`);
+                      } catch (problem) {
+                        fail(problem);
+                      }
+                    }}
+                    style={{ padding: 6 }}
+                  >
+                    <Icon name="message-circle" size={18} color={colors.sage} />
+                  </Pressable>
                 ) : null}
                 {detail.kind === "group" && detail.can.manageMembers ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={member.admin ? `Dismiss ${member.name} as admin` : `Make ${member.name} an admin`} onPress={() => void change("members", member.admin ? { dismiss: [member.id] } : { admin: [member.id] })} style={styles.roleButton}>

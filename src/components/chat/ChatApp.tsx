@@ -1,42 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowLeft, BellOff, Check, ChevronDown, Download, Info, Loader2, LogOut, Megaphone, MessageSquarePlus, Pin, Search, Star, UserPlus, Users, Wifi, WifiOff, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Archive, ArrowLeft, BarChart3, BellOff, Check, ChevronDown, Download, Info, Loader2, LogOut, MessageCircle, MessageSquarePlus, Pin, Plus, UserPlus, Users, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { dateKey, fmt } from "@/lib/format";
-import { chatApi, colorFor, initialsOf, ROLE_NAMES, useLiveChat, type ChatDetail, type ChatItem, type LiveEvent, type Message, type Person } from "./client";
+import { chatApi, ROLE_NAMES, useLiveChat, type ChatDetail, type ChatItem, type LiveEvent, type Member, type Message, type Person } from "./client";
+import { Avatar } from "./Avatar";
 import { UNREAD_EVENT } from "./ChatBadge";
+import { ChatList, whenShort, type Filter, type SearchResult } from "./ChatList";
 import { Composer, type Draft } from "./Composer";
 import { MessageBubble, type BubbleActions } from "./MessageBubble";
 
 type Me = { id: string; name: string; role: string };
-type Filter = "all" | "unread" | "groups" | "archived";
-type SearchResult = { id: string; chatId: string; body: string; at: string; sender: string | null; chatTitle: string; chatKind: string };
-
-/* The avatar for a chat or a person: initials in a colour, or an icon for home groups and Announcements. */
-function Avatar({ chat, size = 44, online }: { chat: { id: string; kind: string; title: string }; size?: number; online?: boolean }) {
-  return (
-    <span className="relative shrink-0" style={{ width: size, height: size }}>
-      <span className="grid h-full w-full place-items-center rounded-full font-semibold text-white" style={{ background: chat.kind === "announcements" ? "#c27c0e" : colorFor(chat.id), fontSize: size * 0.36 }}>
-        {chat.kind === "announcements" ? <Megaphone className="h-[45%] w-[45%]" /> : chat.kind === "home" ? <Users className="h-[45%] w-[45%]" /> : initialsOf(chat.title)}
-      </span>
-      {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-[#2bb673]" aria-label="Online" />}
-    </span>
-  );
-}
 
 const dayLabel = (iso: string, now: number) => {
   const day = dateKey(new Date(iso));
   return day === dateKey(new Date(now)) ? "Today" : day === dateKey(new Date(now - 86_400_000)) ? "Yesterday" : fmt.dayLong(day);
-};
-
-const whenShort = (iso: string | null, now: number) => {
-  if (!iso) return "";
-  const at = new Date(iso);
-  const age = now - at.getTime();
-  if (age < 86_400_000 && new Date(now).getDate() === at.getDate()) return fmt.time(at);
-  if (age < 6 * 86_400_000) return at.toLocaleDateString("en-US", { weekday: "short" });
-  return at.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
 const lastSeenText = (iso: string | null, now: number) => (iso ? `last seen ${whenShort(iso, now) === fmt.time(new Date(iso)) ? `today at ${fmt.time(new Date(iso))}` : whenShort(iso, now)}` : "not on chat yet");
@@ -54,7 +33,16 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
   const [typing, setTyping] = useState<Record<string, { name: string; until: number }>>({});
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
-  const [dialog, setDialog] = useState<"" | "new" | "info" | "forward" | "msginfo" | "starred" | "delete">("");
+  const [dialog, setDialog] = useState<"" | "new" | "info" | "forward" | "msginfo" | "starred" | "delete" | "poll" | "profile">("");
+  // A group message being answered privately, carried into the one-to-one chat as it opens.
+  const [carry, setCarry] = useState<{ chatId: string; message: Message } | null>(null);
+  // Where this chat's unread messages started when you opened it, for the "unread messages" line.
+  const [unreadMark, setUnreadMark] = useState<{ chatId: string; messageId: string; count: number } | null>(null);
+  // Messages that arrived while you were scrolled up, counted on the jump-down button.
+  const [newBelow, setNewBelow] = useState(0);
+  // A message to scroll to once its chat has loaded: from search, starred, or a private reply's quote.
+  const [pendingJump, setPendingJump] = useState<{ chatId: string; messageId: string } | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [focus, setFocus] = useState<Message | null>(null);
   const [people, setPeople] = useState<Person[] | null>(null);
   const [persons, setPersons] = useState<{ id: string; name: string; home: string | null }[]>([]);
@@ -121,15 +109,45 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
     setShownFor(activeId);
     setMessages([]);
     setDetail(null);
-    setReplyTo(null);
+    setReplyTo(carry && carry.chatId === activeId ? carry.message : null);
+    setCarry(null);
     setEditing(null);
+    setUnreadMark(null);
+    setNewBelow(0);
     setLoading(Boolean(activeId));
   }
+  /*
+   * Opening a chat loads back far enough to show where your unread messages start (a few hundred at
+   * most), and opens there instead of at the bottom.
+   */
+  const openChat = useCallback(
+    async (chatId: string) => {
+      const data = await chatApi<ChatDetail>(`chats/${chatId}`);
+      let page = await chatApi<{ messages: Message[]; hasMore: boolean }>(`chats/${chatId}/messages?limit=40`);
+      let list = page.messages;
+      let more = page.hasMore;
+      const isNew = (message: Message) => message.at > data.me.readUpTo && message.sender?.id !== me.id && message.kind !== "system";
+      for (let pages = 0; more && list.length && isNew(list[0]) && pages < 5; pages++) {
+        page = await chatApi<{ messages: Message[]; hasMore: boolean }>(`chats/${chatId}/messages?limit=40&before=${encodeURIComponent(list[0].at)}`);
+        list = [...page.messages, ...list];
+        more = page.hasMore;
+      }
+      if (activeRef.current !== chatId) return;
+      const first = list.find(isNew);
+      atBottom.current = !first;
+      setDetail(data);
+      setMessages(list);
+      setHasMore(more);
+      setUnreadMark(first ? { chatId, messageId: first.id, count: list.filter(isNew).length } : null);
+    },
+    [me.id],
+  );
+
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
     atBottom.current = true;
-    Promise.all([loadDetail(activeId), refreshMessages(activeId)])
+    openChat(activeId)
       .then(() => !cancelled && markRead(activeId))
       .catch(fail)
       .finally(() => !cancelled && setLoading(false));
@@ -139,7 +157,26 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
     return () => {
       cancelled = true;
     };
-  }, [activeId, loadDetail, refreshMessages, markRead]);
+  }, [activeId, openChat, markRead]);
+
+  // The "unread messages" line is where a chat opens.
+  useEffect(() => {
+    if (unreadMark) document.getElementById("chat-unread")?.scrollIntoView({ block: "start" });
+  }, [unreadMark]);
+
+  // A message asked for from elsewhere is scrolled to once it is on screen.
+  useEffect(() => {
+    if (!pendingJump || pendingJump.chatId !== activeId || loading) return;
+    const wanted = pendingJump.messageId;
+    const timer = setTimeout(() => {
+      setPendingJump(null);
+      atBottom.current = false;
+      document.getElementById(`message-${wanted}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlight(wanted);
+      setTimeout(() => setHighlight(null), 1600);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [pendingJump, activeId, loading, messages]);
 
   useEffect(() => {
     void chatApi("delivered", { body: {} }).catch(() => undefined);
@@ -182,6 +219,7 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
       if (event.c && event.c === active) {
         if (event.t === "message") {
           setTyping(current => ({ ...current, [event.c!]: { name: "", until: 0 } }));
+          if (!atBottom.current) setNewBelow(count => count + 1);
           void refreshMessages(event.c).then(() => markRead(event.c!));
         }
         if (event.t === "update" || event.t === "receipt") void refreshMessages(event.c);
@@ -243,6 +281,7 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
       const result = await chatApi<{ message: Message }>(`chats/${activeId}/messages`, { body: { ...draft, replyToId: replyTo?.id ?? null } });
       setMessages(current => (current.some(item => item.id === result.message.id) ? current : [...current, result.message]));
       setReplyTo(null);
+      setUnreadMark(null);
       void loadChats();
     } catch (problem) {
       fail(problem);
@@ -294,12 +333,37 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
       setDialog("msginfo");
     },
     jump,
+    replyPrivately: message => void replyPrivately(message),
+    profile: userId => {
+      setProfileId(userId);
+      setDialog("profile");
+    },
+    openQuoted: (chatId, messageId) => {
+      if (!chats.some(item => item.id === chatId)) return fail(new Error("You are no longer in that group."));
+      setPendingJump({ chatId, messageId });
+      setActiveId(chatId);
+    },
+    vote: (message, optionIds) => void chatApi(`messages/${message.id}/vote`, { body: { options: optionIds } }).then(() => reload(), fail),
+    closePoll: message => void chatApi(`messages/${message.id}/close`, { body: {} }).then(() => reload(), fail),
   };
 
-  async function startDirect(person: Person) {
+  async function startDirect(userId: string) {
     try {
-      const result = await chatApi<{ chatId: string }>("chats", { body: { kind: "direct", userId: person.id } });
+      const result = await chatApi<{ chatId: string }>("chats", { body: { kind: "direct", userId } });
       setDialog("");
+      await loadChats();
+      setActiveId(result.chatId);
+    } catch (problem) {
+      fail(problem);
+    }
+  }
+
+  /* Answers a group message in the one-to-one chat with the person who wrote it, quoting it. */
+  async function replyPrivately(message: Message) {
+    if (!message.sender) return;
+    try {
+      const result = await chatApi<{ chatId: string }>("chats", { body: { kind: "direct", userId: message.sender.id } });
+      setCarry({ chatId: result.chatId, message });
       await loadChats();
       setActiveId(result.chatId);
     } catch (problem) {
@@ -323,16 +387,6 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
 
   /* ---------- What to show ---------- */
 
-  const listed = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return chats.filter(item => {
-      if (filter === "archived" ? !item.archived : item.archived) return false;
-      if (filter === "unread" && !item.unread) return false;
-      if (filter === "groups" && item.kind === "direct") return false;
-      return !term || item.title.toLowerCase().includes(term);
-    });
-  }, [chats, filter, query]);
-  const archivedCount = chats.filter(item => item.archived).length;
   const typingIn = (chatId: string) => (typing[chatId] && typing[chatId].until > now && typing[chatId].name ? typing[chatId].name : "");
   const headerLine = !detail
     ? ""
@@ -346,103 +400,35 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
         : detail.members.map(member => (member.id === me.id ? "You" : member.name.split(" ")[0])).slice(0, 8).join(", ") + (detail.members.length > 8 ? ` and ${detail.members.length - 8} more` : "");
 
   return (
-    <div className="chat-shell flex h-[calc(100dvh-150px)] min-h-[520px] overflow-hidden rounded-3xl border border-line bg-white shadow-[0_20px_60px_-30px_rgba(23,62,53,0.35)]">
-      {/* The list */}
-      <aside className={cn("flex w-full flex-col border-r border-line md:w-[360px] md:shrink-0", activeId && "hidden md:flex")}>
-        <div className="flex items-center justify-between px-5 pb-3 pt-5">
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight">Chats</h1>
-            <p className={cn("mt-0.5 flex items-center gap-1.5 text-[11.5px]", live ? "text-sage" : "text-mute")}>
-              {live ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />} {live ? "Live" : "Connecting…"}
-            </p>
-          </div>
-          <div className="flex gap-1">
-            <button type="button" onClick={() => setDialog("starred")} className="rounded-full p-2.5 text-mute hover:bg-panel hover:text-ink" aria-label="Starred messages" title="Starred messages">
-              <Star className="h-5 w-5" />
-            </button>
-            <button type="button" onClick={() => { void openPeople(); setDialog("new"); }} className="rounded-full bg-brand p-2.5 text-white shadow-md hover:bg-brand-deep" aria-label="New chat" title="New chat">
-              <MessageSquarePlus className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-        <div className="px-4">
-          <label className="flex items-center gap-2 rounded-full bg-panel px-4 py-2.5">
-            <Search className="h-4 w-4 text-mute" />
-            <input value={query} onChange={event => { setQuery(event.target.value); if (event.target.value.trim().length < 2) setResults([]); }} placeholder="Search chats and messages" aria-label="Search chats and messages" className="flex-1 bg-transparent text-sm outline-none placeholder:text-dim" />
-            {query && (
-              <button type="button" onClick={() => { setQuery(""); setResults([]); }} aria-label="Clear search">
-                <X className="h-4 w-4 text-mute" />
-              </button>
-            )}
-          </label>
-          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
-            {(
-              [
-                ["all", "All"],
-                ["unread", "Unread"],
-                ["groups", "Groups"],
-                ["archived", `Archived${archivedCount ? ` (${archivedCount})` : ""}`],
-              ] as const
-            ).map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} className={cn("shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition", filter === value ? "bg-[#e3efd0] text-brand-deep" : "bg-panel text-mute hover:text-ink")}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-2 flex-1 overflow-y-auto px-2 pb-3">
-          {listed.map(item => {
-            const typer = typingIn(item.id);
-            const last = item.lastMessage;
-            const preview = typer
-              ? `${item.kind === "direct" ? "" : `${typer} is `}typing…`
-              : !last
-                ? item.kind === "home"
-                  ? "Your home's group"
-                  : item.kind === "announcements"
-                    ? "News from the office"
-                    : "Say hello"
-                : last.deleted
-                  ? "This message was deleted"
-                  : `${last.senderId === me.id ? "You: " : item.kind !== "direct" && last.senderName ? `${last.senderName.split(" ")[0]}: ` : ""}${last.body || (last.kind === "image" ? "📷 Photo" : last.kind === "voice" ? "🎤 Voice note" : last.kind === "file" ? "📄 File" : "")}`;
-            return (
-              <button key={item.id} type="button" onClick={() => setActiveId(item.id)} className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition", item.id === activeId ? "bg-[#eef4e6]" : "hover:bg-panel/70")}>
-                <Avatar chat={item} online={item.other?.online} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[15px] font-semibold">{item.title}</span>
-                    <span className={cn("shrink-0 text-[11.5px]", item.unread ? "font-semibold text-brand" : "text-dim")}>{whenShort(item.lastMessageAt, now)}</span>
-                  </span>
-                  <span className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className={cn("truncate text-[13px]", typer ? "font-semibold text-brand" : "text-mute")}>{preview}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      {item.muted && <BellOff className="h-3.5 w-3.5 text-dim" aria-label="Muted" />}
-                      {item.pinned && <Pin className="h-3.5 w-3.5 text-dim" aria-label="Pinned" />}
-                      {item.mentioned && <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-[11px] font-bold text-white">@</span>}
-                      {item.unread > 0 && <span className={cn("grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold text-white", item.muted ? "bg-dim" : "bg-brand")}>{item.unread > 99 ? "99+" : item.unread}</span>}
-                    </span>
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-          {!listed.length && <p className="px-4 py-8 text-center text-sm text-mute">{filter === "unread" ? "You're all caught up." : query ? "No chats by that name." : "No chats here yet."}</p>}
-          {results.length > 0 && query.trim().length >= 2 && (
-            <div className="mt-3">
-              <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-dim">Messages</p>
-              {results.map(result => (
-                <button key={result.id} type="button" onClick={() => { setActiveId(result.chatId); setTimeout(() => jump(result.id), 700); }} className="block w-full rounded-xl px-3 py-2 text-left hover:bg-panel/70">
-                  <span className="flex justify-between text-[12px] text-mute">
-                    <span className="truncate font-semibold text-ink">{result.chatKind === "direct" ? (result.sender ?? "") : result.chatTitle}</span>
-                    <span>{whenShort(result.at, now)}</span>
-                  </span>
-                  <span className="line-clamp-2 text-[13px] text-mute">{result.body}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
+    // On a phone the chat takes the whole screen, like a chat app; on a wider screen it is a panel in the page.
+    <div className="chat-shell flex overflow-hidden bg-white max-md:fixed max-md:inset-0 max-md:z-[60] max-md:h-dvh md:h-[calc(100dvh-150px)] md:min-h-[520px] md:rounded-3xl md:border md:border-line md:shadow-[0_20px_60px_-30px_rgba(23,62,53,0.35)]">
+      <ChatList
+        chats={chats}
+        meId={me.id}
+        activeId={activeId}
+        live={live}
+        now={now}
+        query={query}
+        results={query.trim().length >= 2 ? results : []}
+        filter={filter}
+        typingIn={typingIn}
+        onQuery={value => {
+          setQuery(value);
+          if (value.trim().length < 2) setResults([]);
+        }}
+        onFilter={setFilter}
+        onOpen={setActiveId}
+        onOpenResult={result => {
+          setPendingJump({ chatId: result.chatId, messageId: result.id });
+          setActiveId(result.chatId);
+        }}
+        onStarred={() => setDialog("starred")}
+        onNew={() => {
+          void openPeople();
+          setDialog("new");
+        }}
+        hidden={Boolean(activeId)}
+      />
 
       {/* The conversation */}
       <section className={cn("chat-wallpaper relative flex min-w-0 flex-1 flex-col", !activeId && "hidden md:flex")}>
@@ -456,8 +442,8 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
           </div>
         ) : (
           <>
-            <header className="flex items-center gap-3 border-b border-line bg-white/90 px-3 py-2.5 backdrop-blur sm:px-4">
-              <button type="button" onClick={() => setActiveId(null)} className="rounded-full p-2 text-mute hover:bg-panel md:hidden" aria-label="Back to chats">
+            <header className="flex items-center gap-2 border-b border-line bg-white/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur sm:gap-3 sm:px-4 md:py-2.5">
+              <button type="button" onClick={() => setActiveId(null)} className="rounded-full p-2 text-ink hover:bg-panel md:hidden" aria-label="Back to chats">
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <button type="button" onClick={() => setDialog(dialog === "info" ? "" : "info")} className="flex min-w-0 flex-1 items-center gap-3 text-left">
@@ -484,8 +470,9 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
                 const box = event.currentTarget;
                 atBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
                 setShowJump(!atBottom.current);
+                if (atBottom.current) setNewBelow(0);
               }}
-              className="flex-1 space-y-1 overflow-y-auto px-3 py-4 sm:px-6"
+              className="flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-6 sm:py-4"
             >
               {hasMore && (
                 <div className="flex justify-center pb-2">
@@ -511,14 +498,22 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
                         <span className="rounded-full bg-white/90 px-3 py-1 text-[11.5px] font-semibold text-mute shadow-sm">{dayLabel(message.at, now)}</span>
                       </div>
                     )}
+                    {unreadMark?.chatId === activeId && unreadMark.messageId === message.id && (
+                      <div id="chat-unread" className="my-3 flex justify-center bg-white/45 py-1.5">
+                        <span className="rounded-full bg-white px-3 py-1 text-[11.5px] font-semibold text-brand shadow-sm">
+                          {unreadMark.count === 1 ? "1 unread message" : `${unreadMark.count} unread messages`}
+                        </span>
+                      </div>
+                    )}
                     <MessageBubble
                       message={message}
                       mine={mine}
                       group={group}
                       showSender={!previous || previous.sender?.id !== message.sender?.id || newDay || previous.kind === "system"}
-                      canEdit={mine && message.kind !== "system" && !message.deleted && Boolean(detail) && age <= (detail?.rules.editMinutes ?? 0) * 60_000}
+                      canEdit={mine && message.kind !== "system" && message.kind !== "poll" && !message.deleted && Boolean(detail) && age <= (detail?.rules.editMinutes ?? 0) * 60_000}
                       canDeleteForAll={Boolean(detail) && ((mine && age <= (detail?.rules.deleteHours ?? 0) * 3_600_000) || Boolean(detail?.can.moderate))}
                       canPin={Boolean(detail) && (detail!.kind === "direct" || detail!.me.admin || detail!.can.moderate)}
+                      canClosePoll={mine || Boolean(detail?.can.moderate)}
                       actions={actions}
                       highlighted={highlight === message.id}
                     />
@@ -536,8 +531,9 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
               )}
             </div>
             {showJump && messages.length > 0 && (
-              <button type="button" onClick={() => { const box = scroller.current; if (box) box.scrollTop = box.scrollHeight; atBottom.current = true; setShowJump(false); }} className="absolute bottom-24 right-6 grid h-10 w-10 place-items-center rounded-full bg-white text-mute shadow-lg" aria-label="Jump to the latest">
+              <button type="button" onClick={() => { const box = scroller.current; if (box) box.scrollTop = box.scrollHeight; atBottom.current = true; setShowJump(false); setNewBelow(0); }} className="absolute bottom-24 right-4 grid h-10 w-10 place-items-center rounded-full bg-white text-mute shadow-lg sm:right-6" aria-label={newBelow ? `${newBelow} new messages. Jump to the latest` : "Jump to the latest"}>
                 <ChevronDown className="h-5 w-5" />
+                {newBelow > 0 && <span className="absolute -top-1.5 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">{newBelow > 99 ? "99+" : newBelow}</span>}
               </button>
             )}
             {detail && (
@@ -569,6 +565,7 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
                     sendTyping(detail.id);
                   }
                 }}
+                onPoll={() => setDialog("poll")}
               />
             )}
           </>
@@ -600,12 +597,16 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
           }}
           people={people}
           loadPeople={openPeople}
+          onProfile={userId => {
+            setProfileId(userId);
+            setDialog("profile");
+          }}
           fail={fail}
           now={now}
         />
       )}
 
-      {dialog === "new" && <NewChat people={people} onClose={() => setDialog("")} onPerson={startDirect} onGroup={async (title, members) => {
+      {dialog === "new" && <NewChat people={people} onClose={() => setDialog("")} onPerson={person => void startDirect(person.id)} onGroup={async (title, members) => {
         try {
           const result = await chatApi<{ chatId: string }>("chats", { body: { kind: "group", title, members } });
           setDialog("");
@@ -650,7 +651,34 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
       )}
 
       {dialog === "msginfo" && focus && <MessageInfo message={focus} onClose={() => setDialog("")} />}
-      {dialog === "starred" && <Starred onClose={() => setDialog("")} onOpen={(chatId, messageId) => { setDialog(""); setActiveId(chatId); setTimeout(() => jump(messageId), 700); }} now={now} />}
+
+      {dialog === "poll" && detail && (
+        <PollForm
+          onClose={() => setDialog("")}
+          onSend={async poll => {
+            try {
+              atBottom.current = true;
+              const result = await chatApi<{ message: Message }>(`chats/${detail.id}/polls`, { body: poll });
+              setMessages(current => (current.some(item => item.id === result.message.id) ? current : [...current, result.message]));
+              setDialog("");
+              void loadChats();
+            } catch (problem) {
+              fail(problem);
+            }
+          }}
+        />
+      )}
+
+      {dialog === "profile" && profileId && (
+        <Profile
+          person={detail?.members.find(member => member.id === profileId) ?? people?.find(person => person.id === profileId) ?? null}
+          isMe={profileId === me.id}
+          now={now}
+          onClose={() => setDialog("")}
+          onMessage={() => void startDirect(profileId)}
+        />
+      )}
+      {dialog === "starred" && <Starred onClose={() => setDialog("")} onOpen={(chatId, messageId) => { setDialog(""); setPendingJump({ chatId, messageId }); setActiveId(chatId); }} now={now} />}
     </div>
   );
 }
@@ -814,6 +842,93 @@ function Starred({ onClose, onOpen, now }: { onClose: () => void; onOpen: (chatI
   );
 }
 
+/* A colleague: who they are, where they work, whether they are online, and a button to message them. */
+function Profile({ person, isMe, now, onClose, onMessage }: { person: Member | Person | null; isMe: boolean; now: number; onClose: () => void; onMessage: () => void }) {
+  return (
+    <Modal title={isMe ? "You" : "Colleague"} onClose={onClose}>
+      {!person ? (
+        <p className="p-6 text-center text-sm text-mute">This person is no longer in your agency.</p>
+      ) : (
+        <div className="flex flex-col items-center px-6 pb-6 pt-5 text-center">
+          <Avatar chat={{ id: person.id, kind: "direct", title: person.name }} size={84} online={person.online} />
+          <p className="mt-3 font-display text-xl font-bold">{person.name}</p>
+          <p className="mt-0.5 text-sm text-mute">
+            {ROLE_NAMES[person.role] ?? person.role}
+            {person.home ? ` · ${person.home}` : ""}
+          </p>
+          <p className={cn("mt-1 text-xs", person.online ? "font-semibold text-sage" : "text-dim")}>{person.online ? "online" : "lastSeenAt" in person ? lastSeenText(person.lastSeenAt, now) : ""}</p>
+          {!isMe && (
+            <button type="button" onClick={onMessage} className="btn-brand mt-5 w-full justify-center">
+              <MessageCircle className="h-4 w-4" /> Message {person.name.split(" ")[0]}
+            </button>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/* Starting a poll: a question, 2 to 12 choices, and whether people may pick more than one. */
+function PollForm({ onClose, onSend }: { onClose: () => void; onSend: (poll: { question: string; options: string[]; multiple: boolean }) => Promise<void> }) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", ""]);
+  const [multiple, setMultiple] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const filled = options.map(option => option.trim()).filter(Boolean);
+  const ready = question.trim().length > 0 && new Set(filled).size >= 2;
+  return (
+    <Modal title="New poll" onClose={onClose}>
+      <form
+        className="space-y-3 p-5"
+        onSubmit={async event => {
+          event.preventDefault();
+          if (!ready || busy) return;
+          setBusy(true);
+          await onSend({ question, options: filled, multiple });
+          setBusy(false);
+        }}
+      >
+        <label className="block">
+          <span className="text-xs font-semibold text-mute">Question</span>
+          <input autoFocus value={question} onChange={event => setQuestion(event.target.value)} maxLength={300} placeholder="Who can cover Saturday night?" className="field mt-1" />
+        </label>
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-mute">Choices</span>
+          {options.map((option, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input
+                value={option}
+                onChange={event => setOptions(current => current.map((item, at) => (at === index ? event.target.value : item)))}
+                maxLength={100}
+                placeholder={`Choice ${index + 1}`}
+                aria-label={`Choice ${index + 1}`}
+                className="field py-2"
+              />
+              {options.length > 2 && (
+                <button type="button" onClick={() => setOptions(current => current.filter((_, at) => at !== index))} className="rounded-full p-1.5 text-mute hover:bg-panel" aria-label={`Remove choice ${index + 1}`}>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {options.length < 12 && (
+            <button type="button" onClick={() => setOptions(current => [...current, ""])} className="flex items-center gap-1.5 text-sm font-semibold text-brand">
+              <Plus className="h-4 w-4" /> Add a choice
+            </button>
+          )}
+        </div>
+        <label className="flex items-center gap-2.5 text-sm">
+          <input type="checkbox" checked={multiple} onChange={event => setMultiple(event.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />
+          People may choose more than one
+        </label>
+        <button type="submit" disabled={!ready || busy} className="btn-brand w-full justify-center disabled:opacity-50">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />} Send poll
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
 function ChatInfo({
   detail,
   me,
@@ -823,6 +938,7 @@ function ChatInfo({
   onLeft,
   people,
   loadPeople,
+  onProfile,
   fail,
   now,
 }: {
@@ -834,6 +950,7 @@ function ChatInfo({
   onLeft: () => Promise<void>;
   people: Person[] | null;
   loadPeople: () => Promise<void>;
+  onProfile: (userId: string) => void;
   fail: (problem: unknown) => void;
   now: number;
 }) {
@@ -932,11 +1049,13 @@ function ChatInfo({
             <div className="mt-1">
               {detail.members.map(member => (
                 <div key={member.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-panel/60">
-                  <Avatar chat={{ id: member.id, kind: "direct", title: member.name }} size={36} online={member.online} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{member.id === me.id ? "You" : member.name}</span>
-                    <span className="block truncate text-xs text-mute">{member.online ? "online" : lastSeenText(member.lastSeenAt, now)}</span>
-                  </span>
+                  <button type="button" disabled={member.id === me.id} onClick={() => onProfile(member.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={member.id === me.id ? "You" : `About ${member.name}`}>
+                    <Avatar chat={{ id: member.id, kind: "direct", title: member.name }} size={36} online={member.online} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{member.id === me.id ? "You" : member.name}</span>
+                      <span className="block truncate text-xs text-mute">{member.online ? "online" : lastSeenText(member.lastSeenAt, now)}</span>
+                    </span>
+                  </button>
                   {member.admin && <span className="rounded-full bg-sky px-2 py-0.5 text-[10.5px] font-semibold text-brand-deep">Admin</span>}
                   {detail.kind === "group" && detail.can.manageMembers && (
                     <button type="button" onClick={() => void change("members", member.admin ? { dismiss: [member.id] } : { admin: [member.id] })} className="hidden rounded-full px-2 py-0.5 text-[11px] font-semibold text-brand hover:bg-sky group-hover:block">

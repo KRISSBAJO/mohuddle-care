@@ -24,6 +24,12 @@
         "set NODE_EXTRA_CA_CERTS=C:\\ProgramData\\Norton\\Antivirus\\wscert.pem&& npm --prefix C:/Users/kriss/milestone/mobile run web"
       ],
       "port": 8098
+    },
+    {
+      "name": "mohuddle-chat",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:\\Users\\kriss\\milestone&& pnpm chat:gateway"],
+      "port": 3401
     }
   ]
 }

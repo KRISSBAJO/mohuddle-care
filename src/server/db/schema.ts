@@ -1668,8 +1668,9 @@ export const chatMembers = pgTable(
 );
 
 export type ChatAttachment = { key: string; contentType: string; size: number; name: string; durationMs?: number; width?: number; height?: number };
+export type ChatPoll = { options: { id: string; text: string }[]; multiple: boolean; closedAt?: string; closedBy?: string };
 
-/* One message. Text, a photo, a file, a voice note, or a line Mohuddle writes (someone joined). */
+/* One message. Text, a photo, a file, a voice note, a poll, or a line Mohuddle writes (someone joined). */
 export const chatMessages = pgTable(
   "chat_messages",
   {
@@ -1679,7 +1680,7 @@ export const chatMessages = pgTable(
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
     senderId: uuid("sender_id").references(() => users.id, { onDelete: "set null" }),
-    kind: text("kind").$type<"text" | "image" | "file" | "voice" | "system">().notNull().default("text"),
+    kind: text("kind").$type<"text" | "image" | "file" | "voice" | "poll" | "system">().notNull().default("text"),
     body: text("body").notNull().default(""),
     replyToId: uuid("reply_to_id").references((): AnyPgColumn => chatMessages.id, { onDelete: "set null" }),
     forwarded: boolean("forwarded").notNull().default(false),
@@ -1687,6 +1688,8 @@ export const chatMessages = pgTable(
     // A person supported the message is about. Shown as a link to their record.
     personId: uuid("person_id").references(() => individuals.id, { onDelete: "set null" }),
     attachment: jsonb("attachment").$type<ChatAttachment | null>(),
+    // A poll's choices; the question is the body.
+    poll: jsonb("poll").$type<ChatPoll | null>(),
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
@@ -1712,6 +1715,24 @@ export const chatReactions = pgTable(
     createdAt: createdAt(),
   },
   table => [uniqueIndex("chat_reaction_once").on(table.messageId, table.userId)],
+);
+
+/* A vote in a poll: one row per choice, so a poll that allows several choices has several rows. */
+export const chatPollVotes = pgTable(
+  "chat_poll_votes",
+  {
+    id: id(),
+    agencyId: agencyId(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    optionId: text("option_id").notNull(),
+    createdAt: createdAt(),
+  },
+  table => [uniqueIndex("chat_vote_once").on(table.messageId, table.userId, table.optionId)],
 );
 
 /* Starred messages, and messages someone deleted for themselves only. */
