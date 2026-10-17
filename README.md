@@ -177,8 +177,12 @@ deployment guide for the command and follow-up authenticator setup.
 - **Agency addresses:** wildcard DNS and TLS must cover agency, shared sign-in and admin addresses.
 - **Reminders:** set `CRON_SECRET`. A long-lived server runs the built-in tick; a hosted scheduler
   can instead call `POST /api/cron/sweep` with the bearer secret. Verify reminder delivery.
-- **AI:** provision the self-hosted speech and Ollama runtimes/models; local paths on this computer
-  are not portable deployment configuration. Verify capacity and latency on the target host.
+- **AI:** hosted speech is on hold because of the additional server cost. The optional private
+  runtime is prepared in [scripts/scribe/hosted/README.md](scripts/scribe/hosted/README.md), with
+  local transcription and transport checks passing. Production speech remains disabled until a
+  host is approved, both models are verified there, and the phone recording flow is tested.
+- **Phone updates:** preview and production EAS channels are configured with native fingerprints.
+  Compatible code and layout changes use OTA updates; see the phone README for publishing.
 - **Push:** configure browser VAPID keys and native Expo/FCM/APNs credentials. Real phone push needs
   a development/store build, not Expo Go; see the mobile README.
 - **Operations:** verify owner two-factor setup, agency isolation, file access, service health and

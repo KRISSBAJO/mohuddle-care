@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { cleanDraft, scribePrompt, scribeSchema, type ScribeDraft, type ScribeKind } from "@/lib/scribe";
+import { scribeService } from "@/lib/scribe-service";
 
 /*
  * The note scribe's two local engines: Whisper turns a recording into words, and an Ollama model
@@ -13,6 +14,9 @@ import { cleanDraft, scribePrompt, scribeSchema, type ScribeDraft, type ScribeKi
 const PYTHON = process.env.SCRIBE_PYTHON ?? "";
 const WHISPER_ROOT = process.env.SCRIBE_WHISPER_ROOT ?? "";
 const OLLAMA = (process.env.OLLAMA_URL ?? "http://127.0.0.1:11434").replace(/\/$/, "");
+const remote = scribeService(process.env.SCRIBE_SERVICE_URL, process.env.SCRIBE_SERVICE_KEY);
+let remoteSpeechRunning = false;
+const ollamaFetch = (path: string, init?: RequestInit) => remote ? remote.raw(`/ollama${path}`, init) : fetch(`${OLLAMA}${path}`, init);
 const WORKER = join(process.cwd(), "scripts", "scribe", "whisper_worker.py");
 
 export const MAX_PCM_BYTES = 16000 * 2 * 60 * 10;
@@ -33,10 +37,16 @@ const whisperDir = (speech: string) => join(WHISPER_ROOT, `faster-whisper-${spee
 
 /* Whether each engine is there to use, with a plain reason when not. */
 export async function scribeStatus(speech: string, model: string) {
+  if (remote) {
+    try {
+      const status = await remote.json<{ speech: boolean; drafting: boolean }>(`/health?speech=${encodeURIComponent(speech)}&model=${encodeURIComponent(model)}`, { signal: AbortSignal.timeout(4000) });
+      return { speech: status.speech === true, drafting: status.drafting === true, reason: !status.speech ? "The speech model is still being prepared." : !status.drafting ? "The note model is still being prepared." : "" };
+    } catch { remoteSpeechRunning = false; return { speech: false, drafting: false, reason: "The speech service is unavailable. Try again shortly." }; }
+  }
   const speechReady = Boolean(PYTHON && WHISPER_ROOT && existsSync(/*turbopackIgnore: true*/ PYTHON) && existsSync(/*turbopackIgnore: true*/ whisperDir(speech)));
   let draftReady = false;
   try {
-    const response = await fetch(`${OLLAMA}/api/tags`, { signal: AbortSignal.timeout(2500) });
+    const response = await ollamaFetch("/api/tags", { signal: AbortSignal.timeout(2500) });
     const tags = (await response.json()) as { models?: { name: string }[] };
     draftReady = Boolean(tags.models?.some(item => item.name === model));
   } catch {
@@ -50,12 +60,12 @@ export async function scribeStatus(speech: string, model: string) {
 }
 
 /* Whether the speech engine is running now (it stops itself after a spell of not being used). */
-export const speechRunning = () => Boolean(holder.mohuddleSpeech);
+export const speechRunning = () => remote ? remoteSpeechRunning : Boolean(holder.mohuddleSpeech);
 
 /* Loads the note model into memory ahead of time, so the first draft does not wait for it. */
 export function warmModel(model: string) {
   // Not awaited: the load can take minutes from disk, and Ollama stops loading if the request is dropped.
-  void fetch(`${OLLAMA}/api/generate`, { method: "POST", signal: AbortSignal.timeout(5 * 60_000), body: JSON.stringify({ model, keep_alive: "30m" }) }).catch(() => undefined);
+  void ollamaFetch("/api/generate", { method: "POST", signal: AbortSignal.timeout(5 * 60_000), body: JSON.stringify({ model, keep_alive: "30m", stream: false }) }).catch(() => undefined);
 }
 
 /*
@@ -174,6 +184,7 @@ function speechWorker(speech: string): Worker {
 
 /* Starts the speech worker ahead of use, so the first request does not wait for the model to load. */
 export function warmSpeech(speech: string) {
+  if (remote) { void remote.json(`/warm?speech=${encodeURIComponent(speech)}`, { method: "POST" }).then(() => { remoteSpeechRunning = true; }).catch(() => { remoteSpeechRunning = false; }); return; }
   if (!PYTHON || !existsSync(/*turbopackIgnore: true*/ PYTHON) || !existsSync(/*turbopackIgnore: true*/ whisperDir(speech))) return;
   speechWorker(speech);
 }
@@ -184,6 +195,14 @@ export function warmSpeech(speech: string) {
  */
 export function transcribe(pcm: Buffer, speech: string, vocabulary: string[], encoded = false): Promise<{ text: string; seconds: number; decodeMs: number }> {
   if (!pcm.length || pcm.length > (encoded ? MAX_ENCODED_BYTES : MAX_PCM_BYTES) || (!encoded && pcm.length % 2)) return Promise.reject(new ScribeError("The recording is empty or longer than ten minutes."));
+  if (remote) return oneAtATime(async () => {
+    try {
+      const result = await remote.json<{ text: string; seconds: number; decodeMs: number }>(`/transcribe?speech=${encodeURIComponent(speech)}`, { method: "POST", headers: { "content-type": "application/octet-stream", "x-speech-encoded": encoded ? "true" : "false", "x-speech-vocabulary": Buffer.from(JSON.stringify(vocabulary.slice(0, 120))).toString("base64") }, body: new Uint8Array(pcm) });
+      if (typeof result.text !== "string" || !Number.isFinite(result.seconds) || !Number.isFinite(result.decodeMs)) throw new Error("Invalid speech response");
+      remoteSpeechRunning = true;
+      return result;
+    } catch { throw new ScribeError("The speech service could not process this recording. Try again shortly."); }
+  });
   if (!PYTHON || !existsSync(/*turbopackIgnore: true*/ PYTHON) || !existsSync(/*turbopackIgnore: true*/ whisperDir(speech))) return Promise.reject(new ScribeError("The speech engine is not set up on this server."));
   return oneAtATime(async () => {
     const worker = speechWorker(speech);
@@ -211,7 +230,7 @@ export function draftNote(kind: ScribeKind, text: string, model: string, context
   return oneAtATime(async () => {
     let response: Response;
     try {
-      response = await fetch(`${OLLAMA}/api/chat`, {
+      response = await ollamaFetch("/api/chat", {
         method: "POST",
         signal: AbortSignal.timeout(4 * 60_000),
         body: JSON.stringify({
@@ -261,7 +280,7 @@ export function chooseRequest(text: string, model: string, kinds: readonly strin
       "clock_in, clock_out, break_start, break_end, next_shift (when they work), huddle (a briefing on the people and what is due this shift), whos_on (who is working now), my_hours (hours worked), whats_due (their tasks, notes owed, doses), leave (time-off balance), write_note (daily note for a person), incident (report an incident for a person), open (open a page), help (a question about how to use the app), greeting, unknown.",
       "Choose unknown when it is none of these. Never invent a person.",
     ].join("\n");
-    const response = await fetch(`${OLLAMA}/api/chat`, {
+    const response = await ollamaFetch("/api/chat", {
       method: "POST",
       signal: AbortSignal.timeout(25_000),
       body: JSON.stringify({ model, stream: false, think: false, keep_alive: "30m", format: schema, options: { temperature: 0 }, messages: [{ role: "system", content: system }, { role: "user", content: text.slice(0, 500) }] }),
@@ -274,7 +293,7 @@ export function chooseRequest(text: string, model: string, kinds: readonly strin
 /* Whether the model is already in memory, so a request can use it without waiting minutes for it to load. */
 export async function modelLoaded(model: string) {
   try {
-    const response = await fetch(`${OLLAMA}/api/ps`, { signal: AbortSignal.timeout(1500) });
+    const response = await ollamaFetch("/api/ps", { signal: AbortSignal.timeout(1500) });
     const data = (await response.json()) as { models?: { name: string }[] };
     return Boolean(data.models?.some(item => item.name === model));
   } catch {

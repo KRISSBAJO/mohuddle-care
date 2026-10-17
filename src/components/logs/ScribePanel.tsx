@@ -125,16 +125,16 @@ export function ScribePanel({ kind, personId, personName, onFill }: { kind: Scri
 
   return (
     <section className="card overflow-hidden border-brand/20" aria-label="Speak your note">
-      <div className="flex flex-wrap items-center gap-3 bg-gradient-to-r from-sky to-white px-5 py-4">
+      <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 bg-gradient-to-r from-sky to-white px-4 py-4 sm:flex sm:flex-wrap sm:px-5">
         <span className="grid h-10 w-10 place-items-center rounded-full bg-brand text-white"><Sparkles className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg font-bold">Speak your note</h2>
           <p className="text-sm text-mute">Tell it like you would tell the next shift{personName ? ` about ${personName}` : ""}. It fills in the note for you to check and sign.</p>
         </div>
         {stage === "recording" ? (
-          <button type="button" onClick={() => recorder.current?.stop()} className="btn-brand bg-flag hover:bg-flag/90"><Square className="h-4 w-4" /> Stop · {minutes}</button>
+          <button type="button" onClick={() => recorder.current?.stop()} className="btn-brand col-span-2 w-full bg-flag hover:bg-flag/90 sm:w-auto"><Square className="h-4 w-4" /> Stop · {minutes}</button>
         ) : (
-          <button type="button" onClick={start} disabled={busy || (kind === "daily" && !personId)} className="btn-brand disabled:opacity-50"><Mic className="h-4 w-4" /> {words ? "Record more" : "Start speaking"}</button>
+          <button type="button" onClick={start} disabled={busy || (kind === "daily" && !personId)} className="btn-brand col-span-2 w-full disabled:opacity-50 sm:w-auto"><Mic className="h-4 w-4" /> {words ? "Record more" : "Start speaking"}</button>
         )}
       </div>
 

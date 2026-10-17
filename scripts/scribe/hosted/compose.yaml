@@ -1,0 +1,45 @@
+services:
+  ollama:
+    image: ollama/ollama:0.40.5
+    restart: unless-stopped
+    environment:
+      OLLAMA_NO_CLOUD: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama-models:/root/.ollama
+  gateway:
+    build:
+      context: ..
+      dockerfile: hosted/Dockerfile
+    restart: unless-stopped
+    environment:
+      BIND_HOST: 0.0.0.0
+      SCRIBE_SERVICE_KEY: ${SCRIBE_SERVICE_KEY:?Set a private speech-service key}
+      SCRIBE_WHISPER_ROOT: /models/whisper
+      OLLAMA_URL: http://ollama:11434
+      SPEECH_THREADS: "2"
+    volumes:
+      - whisper-models:/models/whisper
+    depends_on:
+      - ollama
+  https:
+    image: caddy:2.11.7
+    restart: unless-stopped
+    environment:
+      VOICE_DOMAIN: ${VOICE_DOMAIN:?Set the public speech hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - gateway
+volumes:
+  ollama-models:
+  whisper-models:
+  caddy-data:
+  caddy-config:

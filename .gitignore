@@ -18,3 +18,5 @@ mobile/dist/
 mobile/web-build/
 frontend/public/
 frontend/src/
+__pycache__/
+*.pyc

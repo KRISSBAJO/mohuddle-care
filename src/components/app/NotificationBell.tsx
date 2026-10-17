@@ -54,7 +54,7 @@ export function NotificationBell({ unread, items, now, pushKey }: { unread: numb
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[min(380px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-float)]">
+        <div className="fixed inset-x-3 top-32 z-50 overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-float)] sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[380px]">
           <header className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-bold">Notifications{unread ? ` · ${unread} new` : ""}</p>
             {unread > 0 && (

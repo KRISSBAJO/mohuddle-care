@@ -1,0 +1,6 @@
+{$VOICE_DOMAIN} {
+    request_body {
+        max_size 26MB
+    }
+    reverse_proxy gateway:8000
+}
