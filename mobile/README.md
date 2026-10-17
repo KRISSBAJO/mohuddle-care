@@ -16,8 +16,11 @@ npx eas-cli update --channel preview --environment preview --platform android --
 Use the production channel/environment for released apps. Native dependencies, permissions,
 app icons and native splash settings still require a native build. The initial APK
 `f16810d8-7014-4392-9368-36f7bd89398d` predates the updater and cannot receive OTA updates.
-One planned native release containing expo-updates is needed to activate this configuration.
-Afterward, password-eye, text, layout and color changes use OTA updates.
+Install the [OTA-enabled Android baseline](https://expo.dev/accounts/logaxp/projects/mohuddle/builds/59dde392-141c-4d43-9ed9-3f332116b9e9)
+once to activate updates. This build passed on October 16, 2026 and includes the password eye.
+Afterward, compatible text, layout, behavior and color changes use OTA updates. The preview update
+endpoint was checked against the build's runtime fingerprint, including refusing an incompatible
+runtime. Delivery and restart on an installed physical device still need a device check.
 
 The Mohuddle app for care staff on shift. One app for every agency. Built with Expo (React Native), so the same code makes the iPhone and Android apps.
 
