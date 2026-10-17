@@ -32,7 +32,7 @@ const dayOf = (iso: string, zone?: string) => new Intl.DateTimeFormat("en-CA", {
  * text, photos (camera or library), files and voice notes.
  */
 export default function ConversationScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, m: target } = useLocalSearchParams<{ id: string; m?: string }>();
   const { call, me, token } = useSession();
   const { typing: sendTyping } = useChatLive();
   const zone = me?.agency?.zone;
@@ -56,6 +56,8 @@ export default function ConversationScreen() {
   const [highlight, setHighlight] = useState<string | null>(null);
   // When the message menu opened, for the edit and delete time limits.
   const [openedAt, setOpenedAt] = useState(0);
+  // A message to scroll to once it is on screen, from search or starred messages.
+  const [pendingJump, setPendingJump] = useState<string | null>(target ?? null);
   const [recording, setRecording] = useState(false);
   const [recordStart, setRecordStart] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -127,6 +129,21 @@ export default function ConversationScreen() {
     const timer = setInterval(() => setElapsed(Date.now() - recordStart), 250);
     return () => clearInterval(timer);
   }, [recording, recordStart]);
+
+  useEffect(() => {
+    if (!pendingJump || loading) return;
+    if (messages.some(item => item.id === pendingJump)) {
+      const wanted = pendingJump;
+      const timer = setTimeout(() => {
+        setPendingJump(null);
+        jump(wanted);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    if (hasMore) void loadOlder();
+    // jump and loadOlder read the latest messages themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump, messages, loading, hasMore]);
 
   async function loadOlder() {
     if (!hasMore || !messages.length) return;

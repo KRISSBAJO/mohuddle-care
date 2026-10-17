@@ -91,3 +91,51 @@ The mobile repository has the Expo app at its root. Its Expo project is `@logaxp
 `EXPO_PUBLIC_API_URL=https://mohuddle.com`. Run `npm ci`, set `EXPO_PUBLIC_API_URL`,
 and use its `eas.json` preview profile for an Android APK/internal iOS build. iOS signing needs
 the existing Apple/Expo account setup. No signing credentials belong in Git.
+
+
+## Chat live connection
+
+Chat (`/app/chat` on the website, the Chat tab in the phone app) saves every message through the
+website's API. A small WebSocket gateway, `src/realtime/gateway.ts`, tells open phones and browsers
+the moment something changes: new messages, edits, reactions, read ticks, "typing…" and online
+status. Postgres carries the news between them (`pg_notify` on `mohuddle_chat`), so several gateways
+can run side by side. Without a gateway, chat still works; pages check for news every few seconds.
+
+**On Render**, add a second web service from the same repository:
+
+```yaml
+  - type: web
+    name: mohuddle-chat
+    runtime: node
+    region: ohio            # the same region as the database and the website
+    plan: starter
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm chat:gateway
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.3
+      - key: DATABASE_URL
+        sync: false         # the same database as mohuddle-care
+      - key: SESSION_SECRET
+        fromService:        # must be identical to the website's: the gateway checks its signed passes
+          type: web
+          name: mohuddle-care
+          envVarKey: SESSION_SECRET
+```
+
+Then, on **mohuddle-care**, set `CHAT_SOCKET_URL` to the gateway's public address, for example
+`wss://mohuddle-chat.onrender.com/chat` (or a custom domain such as `wss://chat.mohuddle.com/chat`).
+Apps fetch a one-minute pass from `/api/chat/ticket` (website) or `/api/v1/chat/ticket` (phone) and
+connect straight to that address; Vercel's rewrites cannot carry WebSockets, so the gateway must not
+sit behind them.
+
+Check it: `GET https://<gateway>/health` answers `{"ok":true,"connections":…,"postgres":true}`, and the
+chat page shows "Live" under Chats.
+
+The gateway listens on `PORT` when the host sets it, otherwise on `CHAT_SOCKET_PORT` (3401).
+
+**Phones:** chat added native modules (expo-clipboard, expo-sharing, expo-haptics, expo-file-system),
+so the native fingerprint changed. Make new preview and production builds before publishing an
+over-the-air update that includes chat; older builds will not accept it.

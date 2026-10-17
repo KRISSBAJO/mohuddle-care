@@ -7,7 +7,7 @@
  * members. Only ids travel this way; apps fetch the message itself. Apps send "typing" here, and the
  * gateway keeps "online" and "last seen" up to date. Several gateways can run side by side.
  *
- *   pnpm chat:gateway      (listens on CHAT_SOCKET_PORT, 3401 by default)
+ *   pnpm chat:gateway      (listens on PORT when the host sets it, else CHAT_SOCKET_PORT, 3401 by default)
  */
 import { createServer } from "node:http";
 
@@ -157,7 +157,9 @@ async function main() {
     void seen([...new Set([...clients.values()].map(client => client.userId))]);
   }, 30_000);
 
-  server.listen(env.CHAT_SOCKET_PORT, () => console.log(`Chat gateway: ws://localhost:${env.CHAT_SOCKET_PORT}/chat`));
+  // A host such as Render gives the service its port in PORT; locally it is CHAT_SOCKET_PORT (3401).
+  const port = Number(process.env.PORT) || env.CHAT_SOCKET_PORT;
+  server.listen(port, () => console.log(`Chat gateway: ws://localhost:${port}/chat`));
 }
 
 main().catch(error => {

@@ -164,6 +164,13 @@ export default function ChatInfoScreen() {
                     </T>
                   </View>
                 ) : null}
+                {detail.kind === "group" && detail.can.manageMembers ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={member.admin ? `Dismiss ${member.name} as admin` : `Make ${member.name} an admin`} onPress={() => void change("members", member.admin ? { dismiss: [member.id] } : { admin: [member.id] })} style={styles.roleButton}>
+                    <T size={11.5} weight="semibold" color={colors.sage}>
+                      {member.admin ? "Dismiss" : "Make admin"}
+                    </T>
+                  </Pressable>
+                ) : null}
                 {detail.can.manageMembers && member.id !== me?.user.id && !member.auto ? (
                   <Pressable accessibilityLabel={`Remove ${member.name}`} onPress={() => void change("members", { remove: [member.id] })} style={{ padding: 6 }}>
                     <Icon name="x" size={18} color={colors.mute} />
@@ -220,4 +227,5 @@ const styles = StyleSheet.create({
   member: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   admin: { backgroundColor: colors.sky, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   leave: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roleButton: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 8, paddingVertical: 3 },
 });

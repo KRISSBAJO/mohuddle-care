@@ -76,7 +76,7 @@ export type LiveEvent = { t: "hello" | "message" | "update" | "receipt" | "typin
  * The live connection to the chat gateway. It reconnects by itself, waiting a little longer each time,
  * and says whether it is live; when it is not, the page checks for news every few seconds instead.
  */
-export function useLiveChat(onEvent: (event: LiveEvent) => void) {
+export function useLiveChat(onEvent: (event: LiveEvent) => void, enabled = true) {
   const [live, setLive] = useState(false);
   const socket = useRef<WebSocket | null>(null);
   const handler = useRef(onEvent);
@@ -85,6 +85,7 @@ export function useLiveChat(onEvent: (event: LiveEvent) => void) {
   }, [onEvent]);
 
   useEffect(() => {
+    if (!enabled) return;
     let stopped = false;
     let attempt = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -129,7 +130,7 @@ export function useLiveChat(onEvent: (event: LiveEvent) => void) {
       clearInterval(ping);
       socket.current?.close();
     };
-  }, []);
+  }, [enabled]);
 
   const typing = (chatId: string) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ t: "typing", c: chatId }));

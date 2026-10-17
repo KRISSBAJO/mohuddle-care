@@ -25,6 +25,7 @@ import {
   MessagesSquare,
   X,
 } from "lucide-react";
+import { ChatBadge } from "@/components/chat/ChatBadge";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/marketing/Logo";
 
@@ -116,7 +117,7 @@ export function Sidebar({ user, manager, signOut, chatUnread }: { user: { name: 
                     <span className={cn("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition", active ? "bg-accent" : "bg-transparent")} aria-hidden="true" />
                     <item.icon className={cn("h-[17px] w-[17px] shrink-0", active ? "text-accent" : "text-white/45 group-hover:text-white/80")} aria-hidden="true" />
                     {item.label}
-                    {item.chat && chatUnread ? <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-ink">{chatUnread > 99 ? "99+" : chatUnread}</span> : null}
+                    {item.chat && chatUnread !== null ? <ChatBadge initial={chatUnread} /> : null}
                   </Link>
                 </li>
               );

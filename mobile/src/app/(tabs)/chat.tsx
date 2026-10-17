@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ErrorText, Icon, T } from "@/components/ui";
@@ -28,6 +28,15 @@ export default function ChatsScreen() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [results, setResults] = useState<{ id: string; chatId: string; body: string; at: string; sender: string | null; chatTitle: string; chatKind: string }[]>([]);
+  // Messages that match the search, across all your chats, a moment after you stop typing.
+  useEffect(() => {
+    if (query.trim().length < 2) return;
+    const timer = setTimeout(() => {
+      call<{ results: typeof results }>(`/chat/search?q=${encodeURIComponent(query.trim())}`).then(data => setResults(data.results), () => undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, call]);
 
   const load = useCallback(
     () =>
@@ -83,10 +92,23 @@ export default function ChatsScreen() {
               {live ? "● Live" : "Connecting…"}
             </T>
           </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Starred messages" onPress={() => router.push("/chat-starred")} style={styles.headerButton}>
+            <Icon name="star" size={19} color={colors.ink} />
+          </Pressable>
         </View>
         <View style={styles.search}>
           <Icon name="search" size={16} color={colors.mute} />
-          <TextInput value={query} onChangeText={setQuery} placeholder="Search chats" placeholderTextColor={colors.dim} style={styles.searchInput} accessibilityLabel="Search chats" />
+          <TextInput
+            value={query}
+            onChangeText={value => {
+              setQuery(value);
+              if (value.trim().length < 2) setResults([]);
+            }}
+            placeholder="Search chats and messages"
+            placeholderTextColor={colors.dim}
+            style={styles.searchInput}
+            accessibilityLabel="Search chats and messages"
+          />
         </View>
         <View style={styles.filters}>
           {(
@@ -122,6 +144,31 @@ export default function ChatsScreen() {
             }}
             tintColor={colors.brand}
           />
+        }
+        ListFooterComponent={
+          results.length && query.trim().length >= 2 ? (
+            <View style={{ marginTop: 10 }}>
+              <T size={11} weight="bold" color={colors.dim} style={{ letterSpacing: 1, paddingHorizontal: 10, marginBottom: 4 }}>
+                MESSAGES
+              </T>
+              {results.map(result => (
+                <Pressable key={result.id} accessibilityRole="button" onPress={() => router.push(`/conversation?id=${result.chatId}&m=${result.id}`)} style={({ pressed }) => [styles.result, pressed && { backgroundColor: "#eef1e8" }]}>
+                  <View style={styles.between}>
+                    <T size={13} weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+                      {result.chatKind === "direct" ? (result.sender ?? "") : result.chatTitle}
+                    </T>
+                    <T size={12} color={colors.dim}>
+                      {whenText(result.at, zone)}
+                    </T>
+                  </View>
+                  <T size={13.5} color={colors.mute} numberOfLines={2}>
+                    {result.sender && result.chatKind !== "direct" ? `${result.sender.split(" ")[0]}: ` : ""}
+                    {result.body}
+                  </T>
+                </Pressable>
+              ))}
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           chats ? (
@@ -201,6 +248,8 @@ const styles = StyleSheet.create({
   filterOn: { backgroundColor: colors.wash },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, paddingVertical: 11, borderRadius: 18 },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  result: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 14, gap: 2 },
+  headerButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
   badge: { minWidth: 21, height: 21, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.sage, alignItems: "center", justifyContent: "center" },
   fab: { position: "absolute", right: 22, bottom: 100, width: 58, height: 58, borderRadius: 29, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
 });

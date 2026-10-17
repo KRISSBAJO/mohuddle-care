@@ -185,6 +185,13 @@ deployment guide for the command and follow-up authenticator setup.
   Compatible code and layout changes use OTA updates; see the phone README for publishing.
 - **Push:** configure browser VAPID keys and native Expo/FCM/APNs credentials. Real phone push needs
   a development/store build, not Expo Go; see the mobile README.
+- **Chat:** messages are saved by the website, but live delivery needs the WebSocket gateway as a
+  second service (`pnpm chat:gateway`). It must share the website's `DATABASE_URL` and the same
+  `SESSION_SECRET`, and `CHAT_SOCKET_URL` on the website must be the gateway's public `wss://` address
+  ending in `/chat`. Vercel rewrites cannot carry WebSockets, so apps connect to the gateway directly.
+  Without it chat still works, checking for news every few seconds. See [docs/deployment.md](docs/deployment.md#chat-live-connection).
+- **Ports:** the gateway uses 3401 locally (`CHAT_SOCKET_PORT`); use another port for a local
+  production smoke test.
 - **Operations:** verify owner two-factor setup, agency isolation, file access, service health and
   recovery on the target deployment before using real care records.
 

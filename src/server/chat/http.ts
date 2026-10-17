@@ -99,7 +99,7 @@ export async function handleChat(user: SessionUser, request: Request, path: stri
     if (post && action === "group") return done(await chat.updateGroup(user, chatId, { title: typeof body.title === "string" ? body.title : undefined, about: typeof body.about === "string" ? body.about : undefined }));
     if (post && action === "members") {
       const list = (key: string) => (Array.isArray(body[key]) ? (body[key] as unknown[]).map(String) : []);
-      return done(await chat.changeMembers(user, chatId, { add: list("add"), remove: list("remove"), admin: list("admin"), leave: body.leave === true }));
+      return done(await chat.changeMembers(user, chatId, { add: list("add"), remove: list("remove"), admin: list("admin"), dismiss: list("dismiss"), leave: body.leave === true }));
     }
   }
 

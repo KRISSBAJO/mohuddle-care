@@ -211,7 +211,9 @@ export async function startDirect(user: SessionUser, otherId: string): Promise<R
   const directKey = [user.id, otherId].sort().join(":");
   await db.insert(schema.chats).values({ kind: "direct", directKey, createdBy: user.id }).onConflictDoNothing();
   const [chat] = await db.select({ id: schema.chats.id }).from(schema.chats).where(eq(schema.chats.directKey, directKey)).limit(1);
-  await db.insert(schema.chatMembers).values([user.id, otherId].map(userId => ({ chatId: chat.id, userId, role: "admin" as const }))).onConflictDoNothing();
+  const added = await db.insert(schema.chatMembers).values([user.id, otherId].map(userId => ({ chatId: chat.id, userId, role: "admin" as const }))).onConflictDoNothing().returning({ userId: schema.chatMembers.userId });
+  // A new chat: both people's open apps start listening to it, so the first message arrives live.
+  if (added.length) await announce(user.agencyId, { t: "members", c: chat.id, users: added.map(row => row.userId) });
   return { ok: true, chatId: chat.id };
 }
 
@@ -593,7 +595,7 @@ export async function updateGroup(user: SessionUser, chatId: string, input: { ti
   return { ok: true };
 }
 
-export async function changeMembers(user: SessionUser, chatId: string, input: { add?: string[]; remove?: string[]; admin?: string[]; leave?: boolean }): Promise<Result> {
+export async function changeMembers(user: SessionUser, chatId: string, input: { add?: string[]; remove?: string[]; admin?: string[]; dismiss?: string[]; leave?: boolean }): Promise<Result> {
   const found = await membership(user, chatId);
   if (!found) return fail(404, "That chat is not yours.");
   const { chat } = found;
@@ -623,8 +625,19 @@ export async function changeMembers(user: SessionUser, chatId: string, input: { 
     await db.delete(schema.chatMembers).where(and(eq(schema.chatMembers.chatId, chatId), inArray(schema.chatMembers.userId, remove)));
     if (names.length) await systemLine(user, chatId, `${user.name} removed ${names.map(row => row.name).join(", ")}.`);
   }
-  if (input.admin?.length && chat.kind === "group") await db.update(schema.chatMembers).set({ role: "admin" }).where(and(eq(schema.chatMembers.chatId, chatId), inArray(schema.chatMembers.userId, input.admin)));
-  await announce(user.agencyId, { t: "members", c: chatId, users: [...valid.map(row => row.id), ...remove] });
+  if (input.admin?.length && chat.kind === "group") {
+    const promoted = await db.update(schema.chatMembers).set({ role: "admin" }).where(and(eq(schema.chatMembers.chatId, chatId), inArray(schema.chatMembers.userId, input.admin), eq(schema.chatMembers.role, "member"))).returning({ userId: schema.chatMembers.userId });
+    const names = promoted.length ? await db.select({ name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, promoted.map(row => row.userId))) : [];
+    if (names.length) await systemLine(user, chatId, `${user.name} made ${names.map(row => row.name).join(", ")} a group admin.`);
+  }
+  // Dismissing an admin never leaves a group without one.
+  if (input.dismiss?.length && chat.kind === "group") {
+    const admins = await db.select({ userId: schema.chatMembers.userId }).from(schema.chatMembers).where(and(eq(schema.chatMembers.chatId, chatId), eq(schema.chatMembers.role, "admin")));
+    const dismiss = input.dismiss.filter(id => admins.some(row => row.userId === id));
+    if (dismiss.length >= admins.length) return fail(400, "A group needs at least one admin. Make someone else an admin first.");
+    if (dismiss.length) await db.update(schema.chatMembers).set({ role: "member" }).where(and(eq(schema.chatMembers.chatId, chatId), inArray(schema.chatMembers.userId, dismiss)));
+  }
+  await announce(user.agencyId, { t: "members", c: chatId, users: [...valid.map(row => row.id), ...remove, ...(input.admin ?? []), ...(input.dismiss ?? [])] });
   return { ok: true };
 }
 

@@ -5,6 +5,7 @@ import { Archive, ArrowLeft, BellOff, Check, ChevronDown, Download, Info, Loader
 import { cn } from "@/lib/cn";
 import { dateKey, fmt } from "@/lib/format";
 import { chatApi, colorFor, initialsOf, ROLE_NAMES, useLiveChat, type ChatDetail, type ChatItem, type LiveEvent, type Message, type Person } from "./client";
+import { UNREAD_EVENT } from "./ChatBadge";
 import { Composer, type Draft } from "./Composer";
 import { MessageBubble, type BubbleActions } from "./MessageBubble";
 
@@ -69,6 +70,11 @@ export function ChatApp({ me, initialChats, initialChat }: { me: Me; initialChat
   useEffect(() => {
     activeRef.current = activeId;
   }, [activeId]);
+  // The sidebar's unread count follows this page's chats while it is open.
+  useEffect(() => {
+    const total = chats.filter(item => !item.archived && !item.muted).reduce((sum, item) => sum + item.unread, 0);
+    window.dispatchEvent(new CustomEvent(UNREAD_EVENT, { detail: total }));
+  }, [chats]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 20_000);
     return () => clearInterval(timer);
@@ -932,6 +938,11 @@ function ChatInfo({
                     <span className="block truncate text-xs text-mute">{member.online ? "online" : lastSeenText(member.lastSeenAt, now)}</span>
                   </span>
                   {member.admin && <span className="rounded-full bg-sky px-2 py-0.5 text-[10.5px] font-semibold text-brand-deep">Admin</span>}
+                  {detail.kind === "group" && detail.can.manageMembers && (
+                    <button type="button" onClick={() => void change("members", member.admin ? { dismiss: [member.id] } : { admin: [member.id] })} className="hidden rounded-full px-2 py-0.5 text-[11px] font-semibold text-brand hover:bg-sky group-hover:block">
+                      {member.admin ? "Dismiss as admin" : "Make admin"}
+                    </button>
+                  )}
                   {detail.can.manageMembers && member.id !== me.id && !member.auto && (
                     <button type="button" onClick={() => void change("members", { remove: [member.id] })} className="hidden rounded-full p-1 text-mute hover:bg-flag-soft hover:text-flag group-hover:block" aria-label={`Remove ${member.name}`}>
                       <X className="h-4 w-4" />
