@@ -1,7 +1,20 @@
 "use client";
 
 import { useActionState } from "react";
-import { submitEnquiry, type EnquiryState } from "@/server/actions/public";
+type EnquiryState = { ok: boolean; error?: string };
+
+async function submitEnquiry(_previous: EnquiryState, formData: FormData): Promise<EnquiryState> {
+  try {
+    const response = await fetch("/api/enquiries", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(formData.entries())),
+    });
+    return await response.json();
+  } catch {
+    return { ok: false, error: "We could not send your message. Please try again." };
+  }
+}
 
 /* "Book a demo": goes to the website messages inbox like any other enquiry. */
 export function DemoForm() {

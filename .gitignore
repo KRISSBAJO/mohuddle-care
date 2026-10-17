@@ -16,3 +16,5 @@ output/
 mobile/.expo/
 mobile/dist/
 mobile/web-build/
+frontend/public/
+frontend/src/

@@ -54,7 +54,7 @@ export default function MohuddleHome() {
             {NAV.map(([href, text]) => <a key={href} href={href} className="mh-link hover:text-[#173e35]">{text}</a>)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link href={product.signInHref} className="whitespace-nowrap rounded-full px-2 py-2 text-xs font-semibold text-[#173e35]/80 hover:text-[#173e35] sm:px-4 sm:text-sm">Sign in</Link>
+            <a href={product.signInHref} className="whitespace-nowrap rounded-full px-2 py-2 text-xs font-semibold text-[#173e35]/80 hover:text-[#173e35] sm:px-4 sm:text-sm">Sign in</a>
             <a href="#demo" className="mh-shine whitespace-nowrap rounded-full bg-[#173e35] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0f2c25] sm:px-4 sm:text-sm">Book a demo</a>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function MohuddleHome() {
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-[#5b6b62]" aria-label="Footer">
             {NAV.map(([href, text]) => <a key={href} href={href} className="mh-link hover:text-[#173e35]">{text}</a>)}
             <a href="#demo" className="mh-link hover:text-[#173e35]">Book a demo</a>
-            <Link href={product.signInHref} className="mh-link hover:text-[#173e35]">Sign in</Link>
+            <a href={product.signInHref} className="mh-link hover:text-[#173e35]">Sign in</a>
           </nav>
           <p className="text-sm text-[#67766c]">© 2026 {product.name}. Care, organised.</p>
         </div>

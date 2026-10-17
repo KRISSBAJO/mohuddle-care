@@ -1,0 +1,29 @@
+{
+  "name": "mohuddle-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "build": "node prepare.mjs && next build",
+    "dev": "node prepare.mjs && next dev --port 3402",
+    "start": "next start --port 3402"
+  },
+  "dependencies": {
+    "clsx": "2.1.1",
+    "lucide-react": "1.55.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  }
+}

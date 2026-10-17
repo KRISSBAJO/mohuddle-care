@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      // The public frontend proxies portal actions to this Render service.
+      allowedOrigins: process.env.APP_URL ? [new URL(process.env.APP_URL).host] : [],
+    },
+  },
   serverExternalPackages: ["pg", "@node-rs/argon2", "@resvg/resvg-js"],
   // Each agency's own address on this machine (milestone.localhost:3400) may load the dev server's files.
   allowedDevOrigins: ["*.localhost"],

@@ -149,11 +149,11 @@ Remove-Item Env:RUN_API_TESTS
 ## Production build and deployment
 
 See [docs/deployment.md](docs/deployment.md) and `render.yaml` for the hosted test deployment.
-The test service is [mohuddle-care.onrender.com](https://mohuddle-care.onrender.com). The planned
-custom address is `care.mohuddle.com`; its Render domain registration and DNS verification must
-finish before agency subdomains can be used there. Until then, `APP_URL` uses the Render address
-and `AGENCY_ADDRESSES=off`, so login and setup links work on the same host. Existing `mohuddle.com` and
-`www.mohuddle.com` records serve the original site.
+The public frontend deploys to Vercel from `frontend/`. The Render backend is
+[mohuddle-care.onrender.com](https://mohuddle-care.onrender.com); Vercel forwards sign-in, portal,
+API and private-file requests there. Set Render's `APP_URL` to the public Vercel origin and keep
+`AGENCY_ADDRESSES=off` until agency DNS is ready. The planned custom address is `care.mohuddle.com`,
+registered in Vercel. Existing `mohuddle.com` and `www.mohuddle.com` records serve the original site.
 
 ```bash
 pnpm build

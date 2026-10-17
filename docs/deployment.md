@@ -1,7 +1,9 @@
 # Mohuddle test deployment
 
-The server-rendered website, server actions and phone API form one Next.js application.
-Render runs that application, with PostgreSQL on Renviq and email through RelyKit.
+The public frontend runs on Vercel from the `frontend/` project. Render runs the authenticated
+server-rendered portal, server actions, API, reminders and private-file storage, with PostgreSQL
+on Renviq and email through RelyKit. Vercel forwards portal and API paths to Render, keeping one
+browser origin for cookies and forms. The frontend has no database or email credentials.
 The speech worker and Ollama need separate runtime/model provisioning; they are not bundled
 with the Node service. Until configured, voice drafting reports that it is unavailable.
 
@@ -12,11 +14,21 @@ Private S3-compatible storage can replace the disk later.
 
 ## Environment
 
+In Vercel, import the web repository, choose root directory `frontend`, and include files outside
+the root directory so the build can copy the shared public components. Use Node 22, `npm ci`,
+and `npm run build`. The build generates `frontend/src` and `frontend/public` from the shared
+source; edit the originals in the repository's `src` and `public` directories.
+Set `BACKEND_ORIGIN=https://mohuddle-care.onrender.com`. No other app secrets belong in Vercel.
+The marketing assets use `/marketing-assets` to keep the two Next.js builds separate. Links
+from the public frontend to sign-in use full navigation across deployments.
+
+In Render:
+
 - `DATABASE_URL`: Renviq's direct, TLS-enabled connection string, stored only as a secret.
 - `SESSION_SECRET`: a new deployment-specific random secret; keep it stable across redeploys.
 - `CRON_SECRET`: a separate random secret for the reminder endpoint.
-- For the initial working test: `APP_URL=https://mohuddle-care.onrender.com`,
-  `PUBLIC_SITE=mohuddle`, `AGENCY_ADDRESSES=off`. After custom-domain verification, switch
+- Set `APP_URL` to the public Vercel production origin, `PUBLIC_SITE=mohuddle`,
+  and `AGENCY_ADDRESSES=off`. Server Actions explicitly allow that public host. After custom-domain verification, switch
   `APP_URL=https://care.mohuddle.com` and `AGENCY_ADDRESSES=on` together.
 - `OWNER_TWO_FACTOR=required`, `STORAGE_DIR=/var/data/uploads`.
 - For email: `EMAIL_PROVIDER=relykit`, a dedicated `RELYKIT_API_KEY`, and `EMAIL_FROM` on the
@@ -51,8 +63,8 @@ and deployment environment out of Git; the owner must set their own password and
 ## Domains and verification
 
 Use `care.mohuddle.com` for this test deployment, with `app.care.mohuddle.com`,
-`admin.care.mohuddle.com` and `milestone.care.mohuddle.com` in the hosting service. Keep the
-existing root and www website records, and follow Render's exact DNS instructions in GoDaddy.
+`admin.care.mohuddle.com` and `milestone.care.mohuddle.com` registered in Vercel. Keep the
+existing root and www website records, and follow Vercel's exact DNS instructions in GoDaddy.
 Mail DNS records come from RelyKit and are
 separate from website records. If the verified mail domain is `www.mohuddle.com`, DKIM hosts
 must end in `._domainkey.www` in GoDaddy's `mohuddle.com` zone, and the return path is
