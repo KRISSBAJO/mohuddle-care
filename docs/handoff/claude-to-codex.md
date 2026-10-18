@@ -495,3 +495,39 @@ so the old audit's no-homes statement is outdated. No care records, credentials 
 in this tracking turn. No new deployment, native build or OTA is needed for documentation updates.
 Next acceptance priority is notes/time flows on real phones, plus the incident queue limitation;
 then appointment/nursing and manager-operation acceptance. Keep README and handoff status aligned.
+
+
+### Codex clock-first Today and independent incident photo recovery — 18 October 2026
+
+Kriss's manager screenshot showed personal clock-in buried beneath manager tools. Today now places
+YOUR TIME / ON THE CLOCK first beneath the greeting, before schedule/task/team controls. Linked
+staff, including managers, retain the same location when loading or retrying a clock error. Clock
+in is the primary button; clock-out and break controls remain in that card. This is first in normal
+scroll order, not a large fixed overlay covering the phone. Managers without a staff link still
+have no personal clock permission. No care shift is labelled Not clocked in rather than Off today,
+so approved office work remains discoverable.
+
+Also resolved the known blocking recovery implementation gap: filed incident photos transfer into
+an independent account/agency-scoped encrypted draft journal queue. Report another persists that
+transfer before clearing the writing draft. Uploads never mutate the next incident form. Multiple
+filed reports may wait while a new draft is written. More shows Incident photos waiting; Report
+provides retry. Existing filed report drafts migrate idempotently. Durable transfer receipts are
+retained so a stale source read cannot resurrect confirmed/deleted photo references. Same report
+and photo IDs preserve server idempotency across lost responses. Confirm removal is persisted
+before deleting an encrypted original. Failed writes preserve originals; each attempt has a 45s
+network timeout. No new native dependency, configuration, permission, service or hosting charge.
+
+Implementation root 01425c4, mobile main 39ddb73, both pushed. README tracker updated. TypeScript,
+changed-file ESLint and 10 focused draft/queue/selection tests passed. Both native exports' source
+maps match all five changed runtime files. No new native build or backend deploy. Physical-phone
+acceptance remains pending: first-card loading/clock/break states; queued-photo interrupted upload,
+force-close, retry and starting a second report; notes review and staff/manager time workflows.
+Do not claim device acceptance from automated tests or public OTA manifest verification.
+
+Preview OTA: ios 01a14dc4-0c13-743b-9027-4914a01709f5;
+android 01a14dc4-0c13-72a5-ac3b-2d14511178e2.
+Production OTA: ios 01a14dc4-8125-7390-98d3-3c21be0d23bd;
+android 01a14dc4-8125-7664-a46b-cc484a1266fc.
+All four public endpoints returned 200 with the expected IDs and installed runtimes:
+ios 4d3d04e83766b9ab0fa099d3a24ad4079884936b;
+android 94af2e014853e598fa4230ed396d803329b5c45a.
