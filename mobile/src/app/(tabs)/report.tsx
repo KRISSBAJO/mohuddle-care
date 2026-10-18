@@ -2,7 +2,7 @@ import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DateTimeField } from "@/components/DateTimeField";
@@ -11,6 +11,7 @@ import { Button, Check, Chips, ErrorText, Field, Icon, Section, T } from "@/comp
 import { API_URL, ApiError } from "@/lib/api";
 import { draftKey } from "@/lib/drafts";
 import { keepDraftPhoto, photoForUpload, forgetDraftPhoto, type DraftPhoto } from "@/lib/draft-photos";
+import { incidentUploads, incidentUploadKey, pendingIncidentUploads, type IncidentUpload } from "@/lib/incident-uploads";
 import { useDraft } from "@/lib/use-draft";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
@@ -58,14 +59,52 @@ export default function ReportScreen() {
   const setActions = (v: string) => change("actions", v);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [completed, setCompleted] = useState<{ tier: string } | null>(null);
-  const done = data.filedId ? { tier: data.tier ?? "", photosFailed: photos.length } : completed ? { tier: completed.tier, photosFailed: 0 } : null;
+  const queueKey = me?.agency ? incidentUploadKey(me.user.id, me.agency.id) : null;
+  const [queue, setQueue] = useState<{ key: string; jobs: IncidentUpload[] } | null>(null);
+  const jobs = queue?.key === queueKey ? queue.jobs : [];
+  const pending = jobs.reduce((count, job) => count + job.photos.length, 0);
+  const [uploading, setUploading] = useState(false);
+  const uploadLock = useRef(false);
+  const done = data.filedId ? { tier: data.tier ?? "" } : null;
 
   useFocusEffect(
     useCallback(() => {
-      if (!form) call<FormData>("/incidents/form").then(setForm, problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."));
-    }, [call, form]),
+      let active = true;
+      if (!form) call<FormData>("/incidents/form").then(value => { if (active) setForm(value); }, problem => { if (active) setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."); });
+      if (me?.agency && queueKey) pendingIncidentUploads(me.user.id, me.agency.id).then(value => { if (active) setQueue({ key: queueKey, jobs: value }); }, () => { if (active) setError("Could not open saved incident photos. Your report is still saved; retry before leaving this screen."); });
+      return () => { active = false; };
+    }, [call, form, me, queueKey]),
   );
+
+  async function keepFiled(current: ReportDraft) {
+    if (!queueKey || !current.filedId) throw new Error("Missing report account");
+    await incidentUploads.enqueue(queueKey, { reportId: current.filedId, date: current.date, time: current.time, photos: current.photos });
+    setQueue({ key: queueKey, jobs: await incidentUploads.list(queueKey) });
+  }
+
+  async function uploadPhotos() {
+    if (!queueKey || !token || uploadLock.current) return;
+    uploadLock.current = true; setUploading(true);
+    try {
+      const waiting = await incidentUploads.list(queueKey);
+      for (const job of waiting) for (const photo of job.photos) {
+        let temp: Awaited<ReturnType<typeof photoForUpload>> | null = null;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
+        try {
+          temp = await photoForUpload(photo);
+          const blob = await (await fetch(temp.uri, { signal: controller.signal })).blob();
+          const response = await fetch(`${API_URL}/api/v1/incidents/${job.reportId}/photos`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": photo.type, "x-upload-id": photo.id }, body: blob, signal: controller.signal });
+          if (!response.ok) continue;
+          await incidentUploads.confirmPhoto(queueKey, job.reportId, photo.id);
+          try { await forgetDraftPhoto(photo); } catch { /* The server has the photo; cleanup must not revive it. */ }
+        } catch { /* Preserve encrypted originals and stable upload IDs for retry. */ }
+        finally { clearTimeout(timeout); try { if (temp?.exists) temp.delete(); } catch { /* Cache cleanup can wait. */ } }
+        setQueue({ key: queueKey, jobs: await incidentUploads.list(queueKey) });
+      }
+    } catch { setError("Could not open saved photos. Try again."); }
+    finally { uploadLock.current = false; setUploading(false); }
+  }
 
   const nearby = form?.people.filter(item => form.homeId && item.homeId === form.homeId) ?? [];
   const listed = showEveryone || !nearby.length ? (form?.people ?? []) : nearby;
@@ -109,30 +148,21 @@ export default function ReportScreen() {
       setBusy("");
       return setError(problem instanceof ApiError ? (problem.code === "offline" ? "No signal. Incident reports need a signal. Everything you typed is still here; try again when you have one." : problem.message) : "Something went wrong. Try again.");
     }
-    // Keep the report ID and each outstanding encrypted photo durably. Retries reuse their IDs.
-    const remaining = [...current.photos];
-    for (const [index, photo] of current.photos.entries()) {
-      setBusy(`Adding photo ${index + 1} of ${current.photos.length}…`);
-      let temp: Awaited<ReturnType<typeof photoForUpload>> | null = null;
-      try {
-        temp = await photoForUpload(photo);
-        const blob = await (await fetch(temp.uri)).blob();
-        const response = await fetch(`${API_URL}/api/v1/incidents/${current.filedId}/photos`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": photo.type, "x-upload-id": photo.id }, body: blob });
-        if (!response.ok) continue;
-        remaining.splice(remaining.findIndex(item => item.id === photo.id), 1);
-        draft.save({ ...current, photos: [...remaining] });
-        await draft.flush();
-        await forgetDraftPhoto(photo);
-      } catch { /* Keep the photo for retry, including when its response was lost. */ }
-      finally { if (temp?.exists) temp.delete(); }
-    }
+    try { await keepFiled(current); }
+    catch { setError("Report filed. Its photos are still saved with this report. Retry saving them before starting another report."); }
     setBusy("");
-    if (!remaining.length) { setCompleted({ tier: current.tier ?? "" }); try { await draft.clear(); } catch { setError("Report saved. The local copy could not be cleared yet."); } }
+    void uploadPhotos();
   }
 
   async function reset() {
-    if (photos.length) return;
-    try { await draft.clear(); setCompleted(null); } catch { setError("Could not clear the local copy. Try again."); }
+    if (busy) return;
+    setBusy("Opening a new report…"); setError("");
+    try {
+      await draft.flush();
+      await keepFiled(data);
+      await draft.clear();
+    } catch { setError("Could not safely save the pending photos and open a new report. Try again; your report is still here."); }
+    finally { setBusy(""); }
   }
 
   if (!draft.ready) return <SafeAreaView style={[styles.page, { padding: 24 }]}><T>{draft.message || "Opening your saved report…"}</T></SafeAreaView>;
@@ -158,9 +188,10 @@ export default function ReportScreen() {
               </T>
             </View>
           ) : null}
-          {done.photosFailed ? <ErrorText>{done.photosFailed === 1 ? "One photo" : `${done.photosFailed} photos`} are saved on this phone and waiting to upload. Retry when you have a connection.</ErrorText> : null}
+          {pending ? <T color={colors.mute}>{pending} incident photo(s) saved on this phone, waiting to upload. You can report another incident while they wait.</T> : null}
           <ErrorText>{error}</ErrorText>
-          {done.photosFailed ? <Button label={busy || "Retry photo uploads"} busy={Boolean(busy)} onPress={submit} /> : <Button label="Report another" tone="ghost" onPress={() => void reset()} />}
+          {pending ? <Button label="Retry photo uploads" tone="ghost" busy={uploading} onPress={() => void uploadPhotos()} /> : null}
+          <Button label={busy || "Report another"} busy={Boolean(busy)} onPress={() => void reset()} />
         </View>
       </SafeAreaView>
     );
@@ -179,6 +210,9 @@ export default function ReportScreen() {
             </T>
           </SafeAreaView>
 
+          {pending ? <Section title="Incident photos waiting" hint={`${pending} photo(s) from ${jobs.length} filed report(s) are saved on this phone. You can write a new report below.`}>
+            <Button label="Retry photo uploads" tone="ghost" busy={uploading} onPress={() => void uploadPhotos()} />
+          </Section> : null}
           <T size={13} accessibilityLiveRegion="polite">{draft.message}</T>
           <Section title="Who was involved">
             <Chips options={listed.map(item => [item.id, item.name] as const)} value={person} onChange={next => setPerson(typeof next === "string" ? next : "")} />

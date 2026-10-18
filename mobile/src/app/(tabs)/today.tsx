@@ -157,10 +157,10 @@ export default function TodayScreen() {
   const progress = shiftStart && shiftEnd ? Math.min(1, Math.max(0, (now - new Date(shiftStart).getTime()) / (new Date(shiftEnd).getTime() - new Date(shiftStart).getTime()))) : 0;
   const status =
     clock?.state === "on"
-      ? { words: clock.onBreak ? "On a break" : "On shift", bg: colors.sageSoft, fg: colors.sage }
+      ? { words: clock.onBreak ? "On a break" : "Clocked in", bg: colors.sageSoft, fg: colors.sage }
       : clock?.shift
         ? { words: "Not clocked in", bg: "#fdf0dc", fg: "#9a6212" }
-        : { words: "Off today", bg: "#eef0ec", fg: colors.mute };
+        : { words: "Not clocked in", bg: "#eef0ec", fg: colors.mute };
 
   // Three small counts along the bottom of the shift card.
   const counts = [
@@ -241,13 +241,11 @@ export default function TodayScreen() {
           </View>
         </SafeAreaView>
 
-        {canManage ? <ManagerOverview team={team?.agencyId === agencyId ? team.data : null} error={teamError} onRetry={() => void load()} /> : null}
-
         {showPersonal && me?.user.isStaff && clock ? (
           <View style={[styles.shift, shadow.soft]}>
             <View style={styles.shiftTop}>
               <T weight="semibold" size={12} color={colors.mute} style={{ letterSpacing: 1 }}>
-                {clock.state === "on" ? "ON THE CLOCK" : "YOUR SHIFT"}
+                {clock.state === "on" ? "ON THE CLOCK" : "YOUR TIME"}
               </T>
               <View style={[styles.chip, { backgroundColor: status.bg }]}>
                 <View style={[styles.chipDot, { backgroundColor: status.fg }]} />
@@ -261,7 +259,7 @@ export default function TodayScreen() {
                 ? `On for ${duration(clock.since, now)}`
                 : clock.shift
                   ? `${fmt.time(clock.shift.startsAt, zone)} – ${fmt.time(clock.shift.endsAt, zone)}`
-                  : "No shift scheduled today"}
+                  : "No care shift scheduled today"}
             </T>
             {clock.state === "off" && !clock.shift && clock.next ? <T size={13} color={colors.mute} style={{ marginTop: 4 }}>Next: {fmt.dayShort(clock.next.startsAt, zone)}, {fmt.time(clock.next.startsAt, zone)} · {clock.next.home}</T> : null}
             {where && (clock.state === "on" || clock.shift) ? (
@@ -300,7 +298,7 @@ export default function TodayScreen() {
             ) : clock.shift ? (
               <Button label="Clock in" icon="log-in" onPress={() => router.push("/clock")} style={styles.actions} />
             ) : (
-              <Button label="Clock in without a shift" tone="ghost" icon="log-in" onPress={() => router.push("/clock")} style={styles.actions} />
+              <Button label="Clock in" icon="log-in" onPress={() => router.push("/clock")} style={styles.actions} />
             )}
             {breakChoice ? (
               <View style={[styles.actions, { marginTop: 8 }]}>
@@ -308,9 +306,14 @@ export default function TodayScreen() {
                 <Button label="Rest break" tone="ghost" onPress={() => takeBreak({ action: "start", kind: "rest" })} style={{ flex: 1 }} />
               </View>
             ) : null}
+            {error ? <ErrorText>{error}</ErrorText> : null}
             {today && hasCounts ? <View style={styles.summaryInCard}>{summary}</View> : null}
           </View>
         ) : null}
+
+        {showPersonal && me?.user.isStaff && !clock ? <View style={[styles.shift, shadow.soft]}><T weight="semibold" size={12} color={colors.mute}>YOUR TIME</T><T weight="semibold" size={20} style={styles.big}>{error ? "Clock status unavailable" : "Checking your clock status…"}</T>{error ? <><ErrorText>{error}</ErrorText><Button label="Retry clock status" tone="ghost" onPress={() => void load()} style={styles.actions} /></> : <T size={13} color={colors.mute}>Your clock-in and break controls stay here.</T>}</View> : null}
+
+        {canManage ? <ManagerOverview team={team?.agencyId === agencyId ? team.data : null} error={teamError} onRetry={() => void load()} /> : null}
 
         {showPersonal && !(me?.user.isStaff && clock) && today && hasCounts ? <View style={[styles.summaryCard, shadow.soft]}>{summary}</View> : null}
 
@@ -319,7 +322,7 @@ export default function TodayScreen() {
             <ErrorText>This agency&apos;s Mohuddle subscription has lapsed. You can look, but nothing can be changed. Ask your office.</ErrorText>
           </View>
         ) : null}
-        {error ? (
+        {error && !me?.user.isStaff ? (
           <View style={styles.notice}>
             <ErrorText>{error}</ErrorText>
           </View>

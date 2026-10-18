@@ -253,15 +253,17 @@ mean the whole workflow has passed acceptance on physical Android and iPhone dev
 | Website handoffs | PDF placed-field signing now opens the secure website flow; common notification/assistant links map to native screens | Browser authentication/agency selection and less common notification/assistant destinations |
 | Speech | On hold: hosting not activated; phone speech visibility now checks actual engine readiness | Requires a separately agreed deployment; no new speech hosting charge approved |
 
-Open recovery limitation: an incident with pending photos keeps the Report screen on its upload
-retry flow; a separate queue allowing a new incident while older photos wait has not been added.
-Do not mark incident recovery completely accepted until interrupted-upload/device checks pass.
+Incident recovery now keeps pending encrypted photos in a separate account/agency queue. Staff can
+start another report while earlier photos wait, and retry from Report or More. Transfer receipts
+prevent stale filed drafts from reviving already uploaded photos. Interrupted-upload/device checks
+remain required before marking incident recovery accepted. Today keeps personal clock-in, break and
+clock-out controls first beneath the greeting, ahead of manager tools, including loading/error states.
 Appointment medication changes are documented as visit instructions; they do not automatically
 rewrite medication orders or the MAR. Clinical medication-record changes still require the website.
 Native PDF placed-field signing has not been added; the working website handoff is intentional.
 
-Next priorities: physical-phone acceptance for stages 1 and 2; remove the incident upload queue
-limitation; then complete appointment/nursing and manager-operation acceptance. Keep this checklist
+Next priorities: physical-phone acceptance for stages 1 and 2 and interrupted incident-photo recovery;
+then complete appointment/nursing and manager-operation acceptance. Keep this checklist
 updated instead of treating the original audit text as the current implementation state.
 
 Setup snapshot: Milestone has **1 active home and 0 upcoming, unfinished shifts** at this check.

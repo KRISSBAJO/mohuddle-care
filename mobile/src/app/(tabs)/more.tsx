@@ -6,6 +6,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, ErrorText, Icon, T } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
+import { pendingIncidentUploads } from "@/lib/incident-uploads";
 import { queuedDoses } from "@/lib/outbox";
 import { disablePush, enablePush, pushState, type PushState } from "@/lib/push";
 import { readValue, removeValue, writeValue } from "@/lib/storage";
@@ -24,6 +25,8 @@ export default function MoreScreen() {
   const [error, setError] = useState("");
   const others = me?.agencies.filter(agency => agency.agencyId !== me.agency?.id) ?? [];
   // Doses saved with no signal are sent with this login; signing out first would strand them.
+  const [photoQueue, setPhotoQueue] = useState<{ scope: string; count: number } | null>(null);
+  const scope = `${me?.user.id}|${me?.agency?.id}`;
   const [unsent, setUnsent] = useState(0);
   const [sure, setSure] = useState(false);
   const [administrationOpen, setAdministrationOpen] = useState(false);
@@ -35,8 +38,11 @@ export default function MoreScreen() {
   }
   useFocusEffect(
     useCallback(() => {
+      let active = true;
+      if (me?.agency) pendingIncidentUploads(me.user.id, me.agency.id).then(jobs => { if (active) setPhotoQueue({ scope, count: jobs.reduce((count, job) => count + job.photos.length, 0) }); }, () => { if (active) setError("Could not open incident photo recovery. Open Report an incident to retry."); });
       queuedDoses(`${me?.user.email}|${me?.agency?.id}`).then(list => setUnsent(list.length));
-    }, [me]),
+      return () => { active = false; };
+    }, [me, scope]),
   );
 
   // Notifications: allowed by the phone, and not turned off here.
@@ -104,6 +110,7 @@ export default function MoreScreen() {
       </SafeAreaView>
 
       <View style={{ padding: 20, gap: 12, paddingBottom: 120 }}>
+        {photoQueue?.scope === scope && photoQueue.count > 0 ? <Button label={`Incident photos waiting · ${photoQueue.count}`} icon="image" tone="ghost" onPress={() => router.push("/report")} /> : null}
         <Button label={me?.user.role === "nurse" ? "Clinical workspace · people and care" : "People and care"} icon="users" tone="ghost" onPress={() => router.push("/people")} />
         <Button label="Appointments and follow-ups" icon="calendar" tone="ghost" onPress={() => router.push("/appointments")} />
         {me?.user.canManage ? <><Button label="Schedule and coverage" icon="calendar" tone="ghost" onPress={() => router.push("/manager-schedule")} /><Button label="Create and assign tasks" icon="check-square" tone="ghost" onPress={() => router.push("/manage-tasks")} /></> : null}
