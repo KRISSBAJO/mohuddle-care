@@ -531,3 +531,37 @@ android 01a14dc4-8125-7664-a46b-cc484a1266fc.
 All four public endpoints returned 200 with the expected IDs and installed runtimes:
 ios 4d3d04e83766b9ab0fa099d3a24ad4079884936b;
 android 94af2e014853e598fa4230ed396d803329b5c45a.
+
+
+### Codex deliberate Today / More structure — 18 October 2026
+
+Kriss requested the design cleanup following screenshots of oversized appended shortcut buttons.
+Root implementation 61f7220 reorganizes More into My work, Care tools, Management and Account with
+shared NavigationGroup/NavigationRow components. Compact horizontal profile replaces the tall
+avatar/name hero. Consistent 36px icon tiles, 64px minimum rows, wrapping text, separators, rounded
+group containers and trailing arrows replace mixed full-width buttons and separate shadow cards.
+Notifications and website administration expand within groups; external links have external-link
+arrows. Existing role filters remain: personal time requires a staff link; Management requires
+canManage; website setup remains admin/coordinator with admin-only office setup. Care, documents,
+tasks, incident-photo recovery, account switching, notification settings, lock explanation, OTA
+checking/restart and sign-out remain reachable. Existing unsent-dose sign-out/restart safeguards
+are preserved. AppUpdates embeds within the Account group rather than nesting another card.
+
+Today still starts with personal clock controls from the previous release. ManagerOverview now
+shows team coverage and grouped approvals/attention before a compact Manage your team section for
+schedule/coverage and task creation. No standalone shortcut stack above Team overview. Missing
+team data remains loading/error, never an all-clear. This is a presentation change with the same
+routes and permissions; no backend, native dependency/config/permission or paid service changes.
+
+TypeScript, changed-file ESLint, whitespace checks and existing role-specific website link/50-home
+selection tests pass. Both native exports' source maps match More, Today, ManagerOverview,
+NavigationGroup and AppUpdates. No new native build. Physical-device layout, large text, scrolling,
+expanded controls and navigation acceptance still need Android/iPhone verification; no native UI
+screenshot/device pass is claimed by the automated checks. OTA IDs and manifest results follow.
+
+- preview ios: 01a14dc9-dfb1-79e6-8647-b72e44ab7da1; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- preview android: 01a14dc9-dfb1-76b4-98a8-cf824dd69267; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+- production ios: 01a14dca-6536-7e7f-b0ad-997ac5733b7b; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- production android: 01a14dca-6536-7241-9724-cae7eb1c9c72; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+
+All four public OTA endpoints return 200 with those update IDs and installed-runtime compatibility.
