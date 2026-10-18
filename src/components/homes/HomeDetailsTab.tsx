@@ -26,7 +26,7 @@ export async function HomeDetailsTab({ homeId, staff }: { homeId: string; staff:
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <Panel title="Details">
+      <Panel title="Edit home details">
         <div className="p-5">
           <ActionForm action={updateHome.bind(null, home.id)} submitLabel="Save home">
             <HomeFormFields home={home} patterns={patterns} minCapacity={Math.max(1, residents.length)} />

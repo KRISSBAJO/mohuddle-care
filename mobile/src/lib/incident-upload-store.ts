@@ -1,4 +1,4 @@
-import type { DraftPhoto } from "./draft-photos";
+import type { DraftPhoto } from "./draft-photo-types";
 export type IncidentUpload = { reportId: string; date: string; time: string; photos: DraftPhoto[] };
 type QueueState = { jobs: IncidentUpload[]; transfers: string[] };
 type Repository = { read<T>(key: string): Promise<T | null>; write(key: string, value: unknown): Promise<unknown> };

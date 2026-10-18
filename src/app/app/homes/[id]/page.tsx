@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Phone, Pill, Receipt, Settings2, ShieldAlert, Wrench } from "lucide-react";
+import { ArrowLeft, CalendarDays, FolderOpen, Home, MapPin, Pencil, Phone, Pill, Receipt, Settings2, ShieldAlert, Wrench } from "lucide-react";
 import { ModalForm } from "@/components/app/ModalForm";
 import { Select } from "@/components/app/Select";
 import { Badge, Field } from "@/components/app/ui";
@@ -31,7 +31,7 @@ const TABS = [
   ["issues", "Issues", Wrench],
   ["schedule", "Schedule", CalendarDays],
   ["documents", "Documents", FolderOpen],
-  ["details", "Details", Settings2],
+  ["details", "Edit details", Settings2],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -79,8 +79,9 @@ export default async function HomePage({ params, searchParams }: { params: Promi
             </span>
           </p>
         </div>
-        {home.active && (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          {manager && <Link href={`/app/homes/${id}?tab=details`} className="btn-ghost btn-sm"><Pencil className="h-4 w-4" /> Edit home</Link>}
+          {home.active && <>
             <Link href={`/app/incidents/new?home=${id}`} className="btn-ghost btn-sm"><ShieldAlert className="h-4 w-4" /> Report incident</Link>
             <ModalForm
               action={reportIssue.bind(null, id)}
@@ -134,8 +135,8 @@ export default async function HomePage({ params, searchParams }: { params: Promi
               <Field label="Store or supplier" htmlFor="exp-vendor"><input id="exp-vendor" name="vendor" maxLength={120} className="field" placeholder="Kroger, Nolensville Pike" /></Field>
               <Field label="What it was for" htmlFor="exp-description"><input id="exp-description" name="description" required minLength={3} maxLength={500} className="field" placeholder="Weekly groceries" /></Field>
             </ModalForm>
-          </div>
-        )}
+          </>}
+        </div>
       </div>
 
       {query.created && (
@@ -146,7 +147,7 @@ export default async function HomePage({ params, searchParams }: { params: Promi
             <Link href={`/app/schedule?home=${id}`} className="font-semibold underline">Add shifts on the schedule</Link>
             {manager && !home.managerStaffId && (
               <>
-                {" "}and choose a home manager under <Link href={`/app/homes/${id}?tab=details`} className="font-semibold underline">Details</Link>
+                {" "}and choose a home manager under <Link href={`/app/homes/${id}?tab=details`} className="font-semibold underline">Edit details</Link>
               </>
             )}
             .

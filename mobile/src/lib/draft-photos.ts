@@ -3,7 +3,8 @@ import { Directory, File, Paths } from "expo-file-system";
 import { Platform } from "react-native";
 import { readValue, removeValue, writeValue } from "./storage";
 
-export type DraftPhoto = { id: string; uri: string; type: string };
+import type { DraftPhoto } from "./draft-photo-types";
+export type { DraftPhoto } from "./draft-photo-types";
 const keyName = (id: string) => `mohuddle.draftPhoto.${id}`;
 const folder = () => new Directory(Paths.document, "draft-photos");
 export async function keepDraftPhoto(uri: string, type: string): Promise<DraftPhoto> {
