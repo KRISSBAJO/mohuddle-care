@@ -327,3 +327,40 @@ Chat is comparatively complete in source and live server checks; physical-phone 
 attachment delivery, offline-resync and the two-phone conversation acceptance checks remain pending.
 Settings, payroll configuration/export, bulk administration and owner console are intentionally web
 scope under the existing mobile README; they should not automatically be labeled implementation bugs.
+
+### Codex notes and recovery release — 18 October 2026
+
+Kriss authorized fixing the audited gaps in order, starting with draft recovery and the full notes
+workflow. `01c62d9` is pushed to root main and Live on the existing Render service. Mobile main is
+`e6d1b88`. No new native build, native dependency, permission, paid service or migration was added.
+
+Notes now reopen written entries; own recent notes, returned notes and eligible review queues are
+available. Native Community Participation supports signing, reading and correction. Corrections,
+resubmission, return/approve/reopen and event history use shared web/mobile domain services.
+Configured roles and home leads retain review rights; own approval is refused. Note writes and
+events are transactional; mobile sends a version to reject stale updates. Community overlap checks
+serialize simultaneous requests. Stable note/report/photo IDs support retries after lost responses.
+
+Shift drafts retain their form and answers offline in a scoped two-slot SecureStore journal;
+community and amendment drafts also recover. Signing consent is not recovered. Incident drafts keep
+text and AES-encrypted document-directory photos (key in SecureStore). Failed photos remain tied to
+the filed report with an in-app retry. No automatic background filing was added.
+
+Validation: production build passes; root suite 160 pass / 14 optional skips; mobile typecheck and
+targeted lint pass. An opt-in disposable-agency integration test covers review rights, home leads,
+return/resubmit audit, concurrent approvals, approved locks, tenant isolation, community overlap and
+report/photo retry identity. Live HTTP tests with temporary accounts also passed authentication,
+role checks, cross-agency 404, corrections/reviews and community retry. Test fixtures were removed.
+Both bundle source maps match the release source. All four public OTA manifests deliver compatible
+updates:
+- Preview iOS `01a14d84-ae33-759f-bf6f-b197725b7447`; Android `01a14d84-ae33-70f2-b9da-6ed3a08dba62`.
+- Production iOS `01a14d86-ce6c-764f-9656-30efdf1f2ad6`; Android `01a14d86-ce6c-7cf4-a471-d54fff4096e4`.
+
+Actual phone force-close/recovery, camera encryption and keyboard acceptance remain with Kriss;
+asked for Android/iPhone results. Do not claim physical testing passed. Preview server launch was
+previously auto-review blocked; no workaround server was launched.
+
+Work continues locally on the next stage: shared own-time services/API plus native My schedule and
+time (weekly schedule, punch correction, leave and own timesheet). Those working-tree changes are
+not included in this notes OTA or deployed yet. Appointments/nursing and manager scheduling/tasks
+remain afterward. Native builds stay on hold. Do not run seed or reset staff passwords.
