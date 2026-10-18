@@ -41,10 +41,10 @@ export function SignIn() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.ground }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: colors.brand }}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.ground }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}>
-          <SafeAreaView edges={["top"]} style={styles.hero}>
+          <View style={styles.hero}>
             <View style={styles.heroContent}>
               <BrandMark size={48} />
               <T weight="heavy" size={28} color="#ffffff" style={{ marginTop: 12, letterSpacing: -0.8 }}>
@@ -54,7 +54,7 @@ export function SignIn() {
                 {choices ? "You work for more than one. You can switch later in More." : "Sign in to Mohuddle"}
               </T>
             </View>
-          </SafeAreaView>
+          </View>
           <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, 24) }]}>
             {choices ? (
               <View style={{ gap: 10 }}>
@@ -88,7 +88,7 @@ export function SignIn() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
