@@ -4,6 +4,8 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { DateTimeField } from "@/components/DateTimeField";
+import { NoteEditor } from "@/components/NoteEditor";
 import { SpeakNote, type Draft } from "@/components/SpeakNote";
 import { Button, Check, Chips, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
 import { ApiError, type NoteForm, type SectionKey } from "@/lib/api";
@@ -28,21 +30,7 @@ const hourLabel = (hour: string) => {
 
 /* A written answer of a few lines. */
 function Area({ label, value, onChange, placeholder, hint }: { label?: string; value: string; onChange: (next: string) => void; placeholder?: string; hint?: string }) {
-  return (
-    <View style={{ gap: 6 }}>
-      {label ? (
-        <T weight="medium" size={14}>
-          {label}
-        </T>
-      ) : null}
-      <TextInput multiline value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.dim} maxLength={5000} style={[ui.field, ui.area]} />
-      {hint ? (
-        <T size={12} color={colors.mute}>
-          {hint}
-        </T>
-      ) : null}
-    </View>
-  );
+  return <NoteEditor label={label} value={value} onChange={onChange} placeholder={placeholder} hint={hint} />;
 }
 
 /* A short number, such as hours slept or a pulse. */
@@ -184,10 +172,10 @@ export default function NoteScreen() {
           <Section title="The shift">
             <View style={styles.pair}>
               <View style={{ flex: 1 }}>
-                <Field label="Started" value={value("timeIn")} onChangeText={set("timeIn")} placeholder="15:00" maxLength={5} />
+                <DateTimeField kind="time" label="Started" value={value("timeIn")} onChange={set("timeIn")} />
               </View>
               <View style={{ flex: 1 }}>
-                <Field label="Finished" value={value("timeOut")} onChangeText={set("timeOut")} placeholder="23:00" maxLength={5} />
+                <DateTimeField kind="time" label="Finished" value={value("timeOut")} onChange={set("timeOut")} />
               </View>
             </View>
             <T weight="medium" size={14}>

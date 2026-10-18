@@ -3,9 +3,11 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button, Check, Chips, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
+import { DateTimeField } from "@/components/DateTimeField";
+import { NoteEditor } from "@/components/NoteEditor";
+import { Button, Check, Chips, ErrorText, Field, Icon, Section, T } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
 import { draftKey } from "@/lib/drafts";
 import { keepDraftPhoto, photoForUpload, forgetDraftPhoto, type DraftPhoto } from "@/lib/draft-photos";
@@ -110,7 +112,7 @@ export default function ReportScreen() {
     // Keep the report ID and each outstanding encrypted photo durably. Retries reuse their IDs.
     const remaining = [...current.photos];
     for (const [index, photo] of current.photos.entries()) {
-      setBusy(`Adding photo ${index + 1} of ${current.photos.length}…`);
+      setBusy(`Adding photo ${index + 1} of ${current.photos.length}â€¦`);
       let temp: Awaited<ReturnType<typeof photoForUpload>> | null = null;
       try {
         temp = await photoForUpload(photo);
@@ -133,7 +135,7 @@ export default function ReportScreen() {
     try { await draft.clear(); setCompleted(null); } catch { setError("Could not clear the local copy. Try again."); }
   }
 
-  if (!draft.ready) return <SafeAreaView style={[styles.page, { padding: 24 }]}><T>{draft.message || "Opening your saved report…"}</T></SafeAreaView>;
+  if (!draft.ready) return <SafeAreaView style={[styles.page, { padding: 24 }]}><T>{draft.message || "Opening your saved reportâ€¦"}</T></SafeAreaView>;
 
   if (done)
     return (
@@ -204,10 +206,10 @@ export default function ReportScreen() {
             {!now ? (
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <Field label="Date" value={date} onChangeText={setDate} placeholder="2026-10-16" maxLength={10} />
+                  <DateTimeField kind="date" label="Date" value={date} onChange={setDate} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Field label="Time" value={time} onChangeText={setTime} placeholder="14:30" maxLength={5} />
+                  <DateTimeField kind="time" label="Time" value={time} onChange={setTime} />
                 </View>
               </View>
             ) : null}
@@ -266,7 +268,7 @@ export default function ReportScreen() {
           </Section>
 
           <Section title="What happened" hint="What, when, where, who and why. At least a sentence or two.">
-            <TextInput multiline value={description} onChangeText={setDescription} maxLength={8000} placeholder="At 2:30 PM Devon slipped on the wet kitchen floor and fell onto his left side." placeholderTextColor={colors.dim} style={[ui.field, ui.area]} />
+            <NoteEditor label="Event description" value={description} onChange={setDescription} maxLength={8000} placeholder="Describe what you saw and heard, and when and where it happened." />
           </Section>
 
           <Section title="Was anyone injured?">
@@ -278,11 +280,11 @@ export default function ReportScreen() {
               value={injury}
               onChange={next => setInjury(typeof next === "string" ? next : "")}
             />
-            {injury === "yes" ? <TextInput multiline value={injuryDetails} onChangeText={setInjuryDetails} maxLength={3000} placeholder="A bruise on his left hip, about 2 inches" placeholderTextColor={colors.dim} style={[ui.field, ui.area]} /> : null}
+            {injury === "yes" ? <NoteEditor label="Injury details" value={injuryDetails} onChange={setInjuryDetails} maxLength={3000} /> : null}
           </Section>
 
           <Section title="What you did">
-            <TextInput multiline value={actions} onChangeText={setActions} maxLength={3000} placeholder="Helped him up, checked for injury, applied ice, called the nurse." placeholderTextColor={colors.dim} style={[ui.field, ui.area]} />
+            <NoteEditor label="Actions taken" value={actions} onChange={setActions} maxLength={3000} />
           </Section>
 
           <Section title="Photos (optional)" hint="An injury or damage. Kept private; only staff of the agency can see them.">

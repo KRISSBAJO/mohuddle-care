@@ -1,8 +1,8 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { ScreenBar } from "@/components/ScreenBar";
-import { ErrorText, Icon, Section, T } from "@/components/ui";
+import { Button, ErrorText, Icon, Section, T } from "@/components/ui";
 import { ApiError, type PersonFacts } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -171,6 +171,7 @@ export default function PersonScreen() {
             ))}
           </Section>
         ) : null}
+        {facts ? <><Button label="Health history and care team" tone="ghost" onPress={() => router.push({ pathname: "/health", params: { id: facts.id } })} /><Button label="All appointments and follow-ups" tone="ghost" onPress={() => router.push({ pathname: "/appointments", params: { person: facts.id } })} /></> : null}
       </ScrollView>
     </View>
   );

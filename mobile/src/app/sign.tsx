@@ -1,10 +1,10 @@
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { ScreenBar } from "@/components/ScreenBar";
 import { SignaturePad, type Drawing } from "@/components/SignaturePad";
 import { Button, Check, Chips, ErrorText, Field, Icon, Section, T } from "@/components/ui";
-import { ApiError, type DocumentToSign } from "@/lib/api";
+import { API_URL, ApiError, type DocumentToSign } from "@/lib/api";
 import { goBack } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
@@ -74,6 +74,7 @@ export default function SignScreen() {
               <T color={colors.mute} style={{ textAlign: "center" }}>
                 {done || doc.signed ? `${doc.title} is signed and filed. Your coordinator has been told.` : `${doc.title} has places to sign on its pages, which need a bigger screen. Open My documents on the Mohuddle website.`}
               </T>
+              {!doc.signed && !done && doc.kind === "pdf" ? <Button label="Open secure website signing" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/my-documents/sign/${encodeURIComponent(item)}`).catch(() => setError("Could not open your browser. Visit My documents on mohuddle.com."))} /> : null}
               <Button label="Back to my documents" tone="ghost" onPress={() => goBack()} />
             </View>
           )}

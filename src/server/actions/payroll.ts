@@ -1,10 +1,10 @@
 "use server";
+import * as selfService from "@/server/time-self-service";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dateKey } from "@/lib/format";
-import { nameMatches } from "@/lib/timeclock";
 import { canManage } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
@@ -51,26 +51,14 @@ function refresh(start: string, staffId?: string) {
 
 /* A staff member signs their own timesheet once the period has ended and nothing is still open. */
 export async function signTimesheet(start: string, _previous: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  if (!user.staffId) return { error: "Your login is not linked to a staff record." };
-  if (!isDay(start)) return { error: "Unknown pay period." };
-  const settings = await getSettings();
-  const [period] = await db.select().from(schema.payPeriods).where(eq(schema.payPeriods.startDate, start)).limit(1);
-  if (!period) return { error: "Unknown pay period." };
-  if (period.status === "locked") return { error: "This pay period is locked." };
-  if (period.endDate > dateKey()) return { error: `You can sign from ${period.endDate}, the last day of the period.` };
-  if (await openPunchesIn({ start: period.startDate, end: period.endDate }, user.staffId)) return { error: "You are still clocked in on a punch in this period. Clock out or ask for a correction first." };
-  const [member] = await db.select({ first: schema.staff.firstName, last: schema.staff.lastName }).from(schema.staff).where(eq(schema.staff.id, user.staffId)).limit(1);
-  const signedName = String(formData.get("signedName") ?? "").trim();
-  if (!member || !nameMatches(signedName, member.first, member.last)) return { error: `Type your full name, ${member?.first ?? ""} ${member?.last ?? ""}, to sign.` };
-  const sheet = await sheetFor(user.staffId, { start: period.startDate, end: period.endDate }, settings);
-  if (sheet.sheet?.status === "approved") return { error: "This timesheet is already approved." };
-  await upsertSheet(period.id, user.staffId, { status: "signed", signedName, signedAt: new Date(), signedTotals: snapshot(sheet.totals), returnNote: "" });
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "timesheet:sign", entity: "timesheet", entityId: `${period.id}:${user.staffId}` });
-  refresh(start);
+  const result = await selfService.signTimesheet(await requireUser(), start, formData);
+  if (result.error) return result;
+  revalidatePath("/app/clock");
+  revalidatePath("/app/clock/time-off");
+  revalidatePath("/app/clock/timesheets");
+  revalidatePath("/app/time");
   return {};
 }
-
 /* A manager approves a timesheet. Approving one that was not signed needs a note saying why. */
 export async function approveTimesheet(periodId: string, staffId: string, _previous: FormState, formData: FormData): Promise<FormState> {
   const user = await manager();

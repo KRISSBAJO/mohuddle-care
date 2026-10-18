@@ -1,11 +1,12 @@
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Fragment, useCallback, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Fragment, useCallback, useRef, useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Chips, ErrorText, Icon, Section, T } from "@/components/ui";
-import { ApiError, type NotesOwed } from "@/lib/api";
+import { type NotesOwed } from "@/lib/api";
 import { type NoteInbox, type NoteRow } from "@/lib/note-workflow";
+import { drafts, listNoteDrafts, type NoteDraftLink } from "@/lib/drafts";
 import { fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
@@ -21,33 +22,42 @@ export default function NotesScreen() {
   const { call, me } = useSession();
   const zone = me?.agency?.zone;
   const scope = `${me?.agency?.id}.${me?.user.id}`;
-  const [loaded, setLoaded] = useState<{ scope: string; data: NotesOwed; inbox: NoteInbox } | null>(null);
+  const [loaded, setLoaded] = useState<{ scope: string; data: NotesOwed | null; inbox: NoteInbox | null } | null>(null);
   const data = loaded?.scope === scope ? loaded.data : null;
   const inbox = loaded?.scope === scope ? loaded.inbox : null;
+  const [localDrafts, setLocalDrafts] = useState<{ scope: string; items: NoteDraftLink[] } | null>(null);
   const [error, setError] = useState("");
   const [choosing, setChoosing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const loadSequence = useRef(0);
 
-  const load = useCallback(
-    () =>
-      Promise.all([call<NotesOwed>("/notes"), call<NoteInbox>("/notes/workflow")]).then(
-        ([result, workflow]) => {
-          setLoaded({ scope, data: result, inbox: workflow });
-          setError("");
-        },
-        problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
-      ),
-    [call, scope],
-  );
+  const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
+    const firstDrafts = me?.agency ? listNoteDrafts(me.user.id, me.agency.id).then(items => { if (sequence === loadSequence.current) setLocalDrafts({ scope, items }); }, () => {}) : Promise.resolve();
+    const [shiftsResult, inboxResult] = await Promise.allSettled([call<NotesOwed>("/notes"), call<NoteInbox>("/notes/workflow")]);
+    if (sequence !== loadSequence.current) return;
+    const data = shiftsResult.status === "fulfilled" ? shiftsResult.value : null;
+    const inbox = inboxResult.status === "fulfilled" ? inboxResult.value : null;
+    setLoaded({ scope, data, inbox });
+    const failures = [shiftsResult.status === "rejected" ? "Could not refresh your shift list." : "", inboxResult.status === "rejected" ? "Could not refresh signed notes and reviews." : ""].filter(Boolean);
+    setError(failures.length ? `${failures.join(" ")} Your saved drafts are still on this phone. Retry when connected.` : "");
+    await firstDrafts;
+    if (me?.agency) {
+      const targets = [...(inbox?.people ?? []).map(person => `${person.id}.unscheduled`), ...(data?.shifts ?? []).flatMap(shift => shift.people.map(person => `${person.id}.${shift.shiftId}`))];
+      try { const items = await listNoteDrafts(me.user.id, me.agency.id, targets); if (sequence === loadSequence.current) setLocalDrafts({ scope, items }); }
+      catch { if (sequence === loadSequence.current) setError(previous => previous || "Could not open the draft list. Your draft can still be recovered from its writing form."); }
+    }
+  }, [call, scope, me]);
   useFocusEffect(
     useCallback(() => {
       void load();
+      return () => { loadSequence.current++; };
     }, [load]),
   );
 
   function row(note: NoteRow) {
     return <Pressable key={`${note.kind}.${note.id}`} accessibilityRole="button" onPress={() => router.push({ pathname: "/note-record", params: { id: note.id, kind: note.kind } })} style={{ paddingVertical: 12, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line }}>
-      <T weight="semibold">{note.person}</T><T size={13} color={colors.mute}>{note.day} · {note.kind === "daily" ? "Shift" : "Community"} · {note.status ?? "Returned"}</T>
+      <T weight="semibold">{note.person}</T><T size={13} color={colors.mute}>{note.day} Â· {note.kind === "daily" ? "Shift" : "Community"} Â· {note.status ?? "Returned"}</T>
       {note.reason ? <T size={13} color={colors.flag}>{note.reason}</T> : null}
       {note.flags?.length ? <T size={12} color={colors.flag}>Check: {note.flags.join(", ").replace(/_/g, " ")}</T> : null}
     </Pressable>;
@@ -76,10 +86,20 @@ export default function NotesScreen() {
             Notes
           </T>
           <T size={14} color={colors.mute}>
-            {data ? (missing ? `${missing} still to write` : data.shifts.length ? "All written. Thank you." : "Nothing to write") : " "}
+            {data ? (missing ? `${missing} still to write` : data.shifts.length ? "All written. Thank you." : "No shift notes due") : "Checking your notesâ€¦"}
           </T>
         </SafeAreaView>
 
+        {localDrafts?.scope === scope && localDrafts.items.length ? <View style={{ marginHorizontal: 20, marginBottom: 16 }}><Section title="Drafts on this phone" hint="Not signed or submitted. Continue where you stopped.">
+          {localDrafts.items.map(item => {
+            const person = item.label || inbox?.people.find(person => person.id === item.personId)?.name;
+            return <View key={item.key} style={{ gap: 4 }}><Button label={`${item.kind === "community" ? "Community note" : item.kind === "amend" ? "Note correction" : "Shift note"}${person ? ` Â· ${person}` : ""}`} tone="ghost" icon="edit-3" onPress={() => {
+              if (item.kind === "community") router.push("/community-note");
+              else if (item.kind === "amend") { const [kind, id] = item.target.split("."); router.push({ pathname: "/note-record", params: { kind, id, edit: "1" } }); }
+              else { const [person, shift] = item.target.split("."); router.push({ pathname: "/note", params: { person, ...(shift && shift !== "unscheduled" ? { shift } : {}) } }); }
+            }} /><Pressable accessibilityRole="button" accessibilityLabel="Discard this unsigned draft" style={{ padding: 12, alignSelf: "flex-end" }} onPress={() => Alert.alert("Discard draft?", "This removes the unsigned draft from this phone. Signed notes are unchanged.", [{ text: "Keep draft", style: "cancel" }, { text: "Discard", style: "destructive", onPress: () => { void drafts.clear(item.key).then(() => load(), () => setError("Could not discard the draft. Try again.")); } }])}><T size={13} color={colors.flag}>Discard draft</T></Pressable></View>;
+          })}
+        </Section></View> : null}
         {inbox ? <View style={{ marginHorizontal: 20, gap: 14, marginBottom: 14 }}>
           <Button label="Write a shift note" icon="edit-3" onPress={() => setChoosing(!choosing)} />
           {choosing ? <Section title="Choose a person"><Chips options={inbox.people.map(person => [person.id, person.name] as const)} value="" onChange={next => { if (typeof next === "string" && next) router.push({ pathname: "/note", params: { person: next } }); }} /></Section> : null}
@@ -89,7 +109,7 @@ export default function NotesScreen() {
         </View> : null}
         {error ? (
           <View style={{ marginHorizontal: 20 }}>
-            <ErrorText>{error}</ErrorText>
+            <ErrorText>{error}</ErrorText><Button label="Retry loading notes" tone="ghost" onPress={() => void load()} />
           </View>
         ) : null}
 
@@ -156,7 +176,7 @@ export default function NotesScreen() {
             </View>
           );
         })}
-        {inbox?.recent.length ? <View style={{ margin: 20 }}><Section title="Your notes · last 30 days">{inbox.recent.map(row)}</Section></View> : null}
+        {inbox?.recent.length ? <View style={{ margin: 20 }}><Section title="Your notes Â· last 30 days">{inbox.recent.map(row)}</Section></View> : null}
       </ScrollView>
     </View>
   );

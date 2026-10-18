@@ -7,6 +7,8 @@ test("mobile notes: corrections, reviews, tenant boundaries and retry-safe incid
   process.env.STORAGE_DIR = "output/note-test-storage";
   delete process.env.S3_BUCKET;
   const { asAgency, db, systemDb, schema, pool, systemPool } = await import("../src/server/db");
+  // Leave room for the running app within the hosted role's connection budget.
+  pool.options.max = 3; systemPool.options.max = 1;
   const { eq } = await import("drizzle-orm");
   const flow = await import("../src/server/note-workflow");
   const { mobileNoteInbox, mobileNoteRecord } = await import("../src/server/mobile/note-workflow");
@@ -14,7 +16,15 @@ test("mobile notes: corrections, reviews, tenant boundaries and retry-safe incid
   const { addIncidentPhoto } = await import("../src/server/incident-photos");
   const { storage } = await import("../src/server/docs/storage");
   const { fileIncident } = await import("../src/server/incident-report");
-  const { dateKey } = await import("../src/lib/format");
+  const visits = await import("../src/server/appointment-workflow");
+  const clinical = await import("../src/server/weight-workflow");
+  const careTeam = await import("../src/server/care-team-workflow");
+  const scheduling = await import("../src/server/schedule-workflow");
+  const tasks = await import("../src/server/task-workflow");
+  const self = await import("../src/server/time-self-service");
+  const { staffSelfService } = await import("../src/server/mobile/self-service");
+  const { getSettings } = await import("../src/server/settings");
+  const { dateKey, addDays, zonedTime } = await import("../src/lib/format");
   const agency = randomUUID(), foreignAgency = randomUUID();
   const logins: string[] = [];
   try {
@@ -75,20 +85,77 @@ test("mobile notes: corrections, reviews, tenant boundaries and retry-safe incid
       cp.set("startTime", "11:00"); cp.set("endTime", "12:00"); cp.set("_requestId", randomUUID());
       const retryCp = await Promise.all([saveCommunityNote(writer, cp), saveCommunityNote(writer, cp)]);
       assert.ok(retryCp.every(result => result.id === cp.get("_requestId")), "community retry reuses the note");
+      const startAt = zonedTime(addDays(today, -1), "07:00"), endAt = zonedTime(addDays(today, -1), "15:00");
+      const [punch] = await db.insert(schema.timeEntries).values({ staffId: writer.staffId!, homeId: home.id, clockInAt: startAt, clockOutAt: endAt }).returning();
+      await db.insert(schema.timeEntries).values({ staffId: nurse.staffId!, homeId: home.id, clockInAt: startAt, clockOutAt: endAt });
+      await db.insert(schema.shifts).values({ staffId: writer.staffId!, homeId: home.id, startsAt: new Date(), endsAt: new Date(Date.now() + 3_600_000), kind: "day" });
+      const own = await staffSelfService(writer, today, today, Date.now()); assert.ok(own);
+      assert.equal(own.punches.length, 1); assert.equal(own.punches[0].id, punch.id);
+      assert.ok(own.shifts.every(shift => shift.home === "TEST home"));
+      const correction = new FormData();
+      for (const [key, value] of Object.entries({ entryId: punch.id, day: addDays(today, -1), start: "07:00", end: "15:10", reason: "TEST phone lost its signal." })) correction.set(key, value);
+      assert.ok((await self.requestCorrection(nurse, correction)).error, "cannot correct another staff member's punch");
+      assert.equal((await self.requestCorrection(writer, correction)).error, undefined);
+      const leave = new FormData();
+      for (const [key, value] of Object.entries({ type: own.leave.types[0], startDate: addDays(today, 7), endDate: addDays(today, 7), hours: "8", reason: "TEST leave request" })) leave.set(key, value);
+      assert.equal((await self.requestTimeOff(writer, leave)).error, undefined);
+      const requested = await staffSelfService(writer, today, today, Date.now()); assert.ok(requested);
+      const request = requested.leave.requests[0]; assert.ok(request);
+      assert.ok((await self.cancelTimeOff(nurse, request.id)).error);
+      assert.equal((await self.cancelTimeOff(writer, request.id)).error, undefined);
+      const settings = await getSettings();
+      const { periodOn, ensurePeriod } = await import("../src/server/queries/payroll");
+      const ended = await periodOn(addDays(today, -45), settings); const stored = await ensurePeriod(ended);
+      const signature = new FormData(); signature.set("signedName", "Wrong Person");
+      assert.ok((await self.signTimesheet(writer, ended.start, signature)).error);
+      signature.set("signedName", writer.name);
+      assert.equal((await self.signTimesheet(writer, ended.start, signature)).error, undefined);
+      await db.update(schema.timesheets).set({ status: "approved" }).where(eq(schema.timesheets.periodId, stored.id));
+      assert.ok((await self.signTimesheet(writer, ended.start, signature)).error, "cannot reopen an approved timesheet by signing");
+      const booking = new FormData();
+      for (const [key, value] of Object.entries({ individualId: person.id, type: "TEST visit", date: addDays(today, -1), time: "10:00", durationMinutes: "60", escortStaffId: writer.staffId! })) booking.set(key, value);
+      const booked = await visits.bookAppointment(writer, {}, booking); assert.ok(booked.id);
+      assert.ok((await visits.updateAppointment(lead, booked.id, {}, booking)).error, "another care worker cannot edit a booking");
+      assert.equal((await visits.updateAppointment(nurse, booked.id, {}, booking)).error, undefined);
+      const visitNote = new FormData(); visitNote.set("summary", "TEST clinician reviewed the support plan."); visitNote.set("followUpNeeded", "on"); visitNote.set("followUpBy", addDays(today, 7));
+      const documented = await Promise.all([visits.documentAppointment(writer, booked.id, {}, visitNote), visits.documentAppointment(writer, booked.id, {}, visitNote)]);
+      assert.equal(documented.filter(result => !result.error).length, 1, "one visit documentation under concurrent requests");
+      booking.set("followUpOf", booked.id); booking.set("date", addDays(today, 7));
+      const followUp = await visits.bookAppointment(nurse, {}, booking); assert.ok(followUp.id);
+      assert.ok((await visits.bookAppointment(nurse, {}, booking)).error, "cannot create duplicate linked follow-up");
+      const range = new FormData(); range.set("weightLow", "120"); range.set("weightHigh", "180"); range.set("heightInches", "66");
+      assert.ok((await clinical.setWeightPlan(writer, person.id, {}, range)).error);
+      assert.equal((await clinical.setWeightPlan(nurse, person.id, {}, range)).error, undefined);
+      const weight = new FormData(); weight.set("recordedOn", today); weight.set("pounds", "150"); weight.set("attest", "on");
+      assert.equal((await clinical.addWeightRecord(writer, person.id, {}, weight)).error, undefined);
+      const contact = new FormData(); contact.set("role", "TEST clinician"); contact.set("name", "TEST contact"); contact.set("phone", "555-0100");
+      assert.ok((await careTeam.saveContact(writer, person.id, null, {}, contact)).error);
+      assert.equal((await careTeam.saveContact(nurse, person.id, null, {}, contact)).error, undefined);
+      const shiftInput = { homeId: home.id, day: addDays(today, 9), start: "07:00", end: "15:00", staffId: writer.staffId, patternId: null };
+      assert.ok((await scheduling.saveShift(writer, shiftInput)).error);
+      const cover = await Promise.all([scheduling.saveShift(admin, shiftInput), scheduling.saveShift(admin, shiftInput)]);
+      assert.equal(cover.filter(result => !result.error).length, 1, "one assignment wins when two managers book the same staff time");
+      const taskForm = new FormData(); for (const [key, value] of Object.entries({ title: "TEST assigned task", details: "TEST only", assignedTo: writer.staffId!, homeId: home.id, individualId: person.id, priority: "normal", dueDate: "", dueTime: "" })) taskForm.set(key, value);
+      const assigned = await tasks.addTask(admin, {}, taskForm); assert.ok(assigned.id);
+      assert.ok((await tasks.editTask(lead, assigned.id, {}, taskForm)).error, "unrelated staff cannot reassign tasks");
+      assert.equal((await tasks.editTask(admin, assigned.id, {}, taskForm)).error, undefined);
+      console.log("TEST care/operations: booking ownership, nurse edits, visit audit/concurrency, follow-up identity, clinical permissions, coverage collisions and task ownership passed");
+      console.log("TEST staff self-service: own schedule/punches, correction ownership, leave request/cancellation ownership, signature and approved-sheet lock passed");
       console.log("TEST notes workflow: permissions, return/resubmit, audit, concurrency, tenant isolation, community overlap and incident retries passed");
     });
   } catch (error) {
     console.error("TEST failure:", error instanceof Error ? error.message : "unknown", error instanceof Error && error.cause instanceof Error ? error.cause.message : "");
     throw error;
   } finally {
+    await pool.end();
     // These two TEST agencies were allocated above; no existing agency IDs are ever used.
     for (const id of [agency, foreignAgency]) {
       const storedPhotos = await systemPool.query("select storage_key from incident_photos where agency_id=$1", [id]);
       for (const photo of storedPhotos.rows) await storage().remove(photo.storage_key);
-      for (const table of ["note_events", "incident_photos", "audit_log", "notifications", "daily_logs", "community_notes", "incidents", "settings", "individuals", "users", "homes", "staff"]) await systemPool.query(`delete from "${table}" where agency_id=$1`, [id]);
+      for (const table of ["tasks", "appointments", "weight_records", "person_contacts", "time_corrections", "time_breaks", "time_entries", "leave_ledger", "time_off_requests", "timesheets", "pay_periods", "shifts", "note_events", "incident_photos", "audit_log", "notifications", "daily_logs", "community_notes", "incidents", "settings", "individuals", "users", "homes", "staff"]) await systemPool.query(`delete from "${table}" where agency_id=$1`, [id]);
       await systemDb.delete(schema.agencies).where(eq(schema.agencies.id, id));
     }
     for (const id of logins) await systemDb.delete(schema.logins).where(eq(schema.logins.id, id));
-    await pool.end(); await systemPool.end();
+    await systemPool.end();
   }
 });

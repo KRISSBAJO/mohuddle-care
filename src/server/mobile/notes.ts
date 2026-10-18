@@ -10,6 +10,7 @@ import { db, schema } from "@/server/db";
 import { shiftDoses } from "@/server/queries/logs";
 import { notesOwed } from "@/server/queries/notes-owed";
 import { configForPerson } from "@/server/queries/note-requirements";
+import { phoneScribeReady } from "@/server/scribe";
 import { getSettings } from "@/server/settings";
 
 /* The phone app's Notes tab: the staff member's recent shifts, and who still needs a note. */
@@ -107,6 +108,6 @@ export async function noteForm(user: SessionUser, individualId: string, shiftId:
       goalOutcome: GOAL_OUTCOME,
     },
     summaryMin: settings.daily_log_summary_min_chars,
-    scribe: settings.scribe_enabled === "on",
+    scribe: settings.scribe_enabled === "on" && await phoneScribeReady(settings.scribe_speech, settings.scribe_model),
   };
 }

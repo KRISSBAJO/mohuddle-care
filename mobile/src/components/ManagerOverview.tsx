@@ -10,6 +10,8 @@ export function ManagerOverview({ team, error, onRetry }: { team: TeamNow | null
   const short = team?.homes.filter(home => home.on.length < home.expected) ?? [];
   return (
     <View style={styles.wrap}>
+      <Button label="Schedule and arrange cover" icon="calendar" tone="ghost" onPress={() => router.push("/manager-schedule")} />
+      <Button label="Create and assign tasks" icon="check-square" tone="ghost" onPress={() => router.push("/manage-tasks")} />
       <View style={styles.heading}>
         <T weight="bold" size={20}>Team overview</T>
         <Pressable accessibilityRole="link" onPress={() => router.push("/team")} style={styles.link}>

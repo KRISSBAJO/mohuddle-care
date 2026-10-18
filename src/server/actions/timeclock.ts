@@ -1,14 +1,15 @@
 "use server";
+import * as selfService from "@/server/time-self-service";
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addDays, dateKey, zonedTime } from "@/lib/format";
+import { dateKey, zonedTime } from "@/lib/format";
 import { canManage, destroySession } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireManager, requireUser } from "@/server/guard";
-import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
+import { notify } from "@/server/notify";
 import { isUuid } from "@/server/queries/timeclock";
 import { lockedOn } from "@/server/queries/payroll";
 import { getSettings } from "@/server/settings";
@@ -32,11 +33,6 @@ function readPayload(formData: FormData): unknown {
   }
 }
 
-async function tellManagers(homeId: string | null, except: string, message: Parameters<typeof notify>[1]) {
-  const settings = await getSettings();
-  const ids = await recipients({ roles: settings.notify_roles_time as Role[], staffIds: [await homeManagerOf(homeId)], except });
-  await notify(ids, message);
-}
 
 /* ---------- Clock in ---------- */
 
@@ -86,49 +82,16 @@ export async function clockOut(_previous: FormState, formData: FormData): Promis
 const localDay = z.iso.date("Choose the date.");
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 07:00.");
 
-/* "07:00 to 15:00" on a day, rolling the end into the next day when it is earlier than the start. */
-function span(day: string, start: string, end: string) {
-  const inAt = zonedTime(day, start);
-  let outAt = zonedTime(day, end);
-  if (outAt <= inAt) outAt = zonedTime(addDays(day, 1), end);
-  return { inAt, outAt };
-}
-
-const correctionInput = z.object({
-  entryId: z.union([z.literal(""), z.uuid()]).default(""),
-  homeId: z.union([z.literal(""), z.uuid()]).default(""),
-  day: localDay,
-  start: clock,
-  end: clock,
-  reason: z.string().trim().min(10, "Explain what happened in a sentence or two.").max(1000),
-});
 
 export async function requestCorrection(_previous: FormState, formData: FormData): Promise<FormState> {
-  const user = await requireUser();
-  if (!user.staffId) return { error: "Your login is not linked to a staff record." };
-  const parsed = correctionInput.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the request." };
-  const { entryId, homeId, day, start, end, reason } = parsed.data;
-  const { inAt, outAt } = span(day, start, end);
-  if (outAt.getTime() > Date.now()) return { error: "The end time is in the future." };
-  if (outAt.getTime() - inAt.getTime() > 24 * 3_600_000) return { error: "One request covers at most 24 hours." };
-  if (await touchesLocked(inAt)) return { error: "That pay period is locked and has gone to payroll. Ask your manager to add an adjustment to your current timesheet." };
-  let home = homeId || null;
-  if (entryId) {
-    const [entry] = await db.select({ staffId: schema.timeEntries.staffId, homeId: schema.timeEntries.homeId }).from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
-    if (!entry || entry.staffId !== user.staffId) return { error: "That punch is not yours." };
-    home = entry.homeId;
-  } else if (!home) return { error: "Choose the home you worked at." };
-  const [row] = await db
-    .insert(schema.timeCorrections)
-    .values({ staffId: user.staffId, entryId: entryId || null, homeId: home, clockInAt: inAt, clockOutAt: outAt, reason })
-    .returning({ id: schema.timeCorrections.id });
-  await tellManagers(home, user.id, { kind: "time", title: `${user.name} asked for a time correction`, body: reason, href: "/app/time?tab=review", tone: "info", dedupeKey: `time:correction:${row.id}` });
+  const result = await selfService.requestCorrection(await requireUser(), formData);
+  if (result.error) return result;
   revalidatePath("/app/clock");
+  revalidatePath("/app/clock/time-off");
+  revalidatePath("/app/clock/timesheets");
   revalidatePath("/app/time");
   redirect("/app/clock?done=correction");
 }
-
 /* ---------- Manager fixes ---------- */
 
 const managerTimes = z.object({

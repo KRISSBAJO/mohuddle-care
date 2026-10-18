@@ -226,8 +226,17 @@ upload, and failed uploads can be retried without filing a second report.
 
 Deploy the backend before publishing the matching OTA update. No native build is required for
 these screens. See [mobile/README.md](mobile/README.md) for checks and physical-phone acceptance
-steps. Staff time self-service, appointment/nursing tools and manager scheduling/task actions are
-the subsequent implementation stages.
+steps. Notes also show unsigned drafts on their own list, independently of server refreshes.
+Calendar/time selectors and expandable plain-text editors support writing without entering raw
+date formats. A home must exist before an unscheduled clock-in can be submitted.
+
+The phone app includes personal weekly schedules, punch corrections, leave requests and timesheet
+review/signing; a searchable people directory; appointment booking, documentation and follow-up;
+health history, weights and care-team tools with nurse/manager permissions; and manager scheduling,
+coverage checks and task assignment. These use the same domain rules as the website. Administrative
+setup, payroll exports, home issues/expenses and staff credential management remain website workflows.
+Speech still requires the separately configured engines; the previously deferred speech hosting has
+not been enabled by these changes.
 
 ## Original-site content audit — 12 October 2026
 

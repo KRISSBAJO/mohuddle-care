@@ -300,3 +300,16 @@ export async function modelLoaded(model: string) {
     return false;
   }
 }
+
+// Phone entry points only offer speech when both engines are ready. Coalesce checks across sessions.
+const phoneReadiness = new Map<string, { until: number; value: Promise<boolean> }>();
+export function phoneScribeReady(speech: string, model: string): Promise<boolean> {
+  // Speech installations are provisioned separately from the deployed JavaScript bundle.
+  if (!remote && (!PYTHON || !WHISPER_ROOT || !existsSync(/* turbopackIgnore: true */ PYTHON) || !existsSync(/* turbopackIgnore: true */ whisperDir(speech)))) return Promise.resolve(false);
+  const key = `${speech}:${model}`, kept = phoneReadiness.get(key);
+  if (kept && kept.until > Date.now()) return kept.value;
+  const value = scribeStatus(speech, model).then(status => status.speech && status.drafting).catch(() => false);
+  if (phoneReadiness.size > 100) phoneReadiness.clear();
+  phoneReadiness.set(key, { until: Date.now() + 30_000, value });
+  return value;
+}

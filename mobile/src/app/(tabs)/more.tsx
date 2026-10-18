@@ -96,6 +96,10 @@ export default function MoreScreen() {
       </SafeAreaView>
 
       <View style={{ padding: 20, gap: 12, paddingBottom: 120 }}>
+        <Button label={me?.user.role === "nurse" ? "Clinical workspace · people and care" : "People and care"} icon="users" tone="ghost" onPress={() => router.push("/people")} />
+        <Button label="Appointments and follow-ups" icon="calendar" tone="ghost" onPress={() => router.push("/appointments")} />
+        {me?.user.canManage ? <><Button label="Schedule and coverage" icon="calendar" tone="ghost" onPress={() => router.push("/manager-schedule")} /><Button label="Create and assign tasks" icon="check-square" tone="ghost" onPress={() => router.push("/manage-tasks")} /></> : null}
+        {me?.user.isStaff ? <Button label="My schedule and time" icon="calendar" tone="ghost" onPress={() => router.push("/my-time")} /> : null}
         <Pressable accessibilityRole="button" onPress={() => router.push("/report")} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
           <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={[styles.linkIcon, { backgroundColor: colors.flagSoft }]}>

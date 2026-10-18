@@ -19,13 +19,19 @@ test("website links open the matching phone screen", () => {
   assert.equal(phoneScreenFor("/app/clock", false), "/clock");
   assert.equal(phoneScreenFor("/app/daily-logs/new?individual=abc", false), "/note?person=abc");
   assert.equal(phoneScreenFor("/app/tasks/0b9c2f4e-1111-4222-8333-944455556666", false), "/task?id=0b9c2f4e-1111-4222-8333-944455556666");
-  assert.equal(phoneScreenFor("/app/clock/timesheets/2026-10-01", false), null);
+  assert.equal(phoneScreenFor("/app/clock/timesheets/2026-10-01", false), "/my-time?view=sheet&period=2026-10-01");
   assert.equal(phoneScreenFor("", false), null);
   const id = "0b9c2f4e-1111-4222-8333-944455556666";
   assert.equal(phoneScreenFor(`/app/daily-logs/${id}`, false), `/note-record?kind=daily&id=${id}`);
   assert.equal(phoneScreenFor(`/app/community-notes/${id}`, false), `/note-record?kind=community&id=${id}`);
   assert.equal(phoneScreenFor("/app/community-notes/new", false), "/community-note");
   assert.equal(phoneScreenFor(`/app/individuals/${id}`, false), `/person?id=${id}`);
+  assert.equal(phoneScreenFor("/app/individuals", false), "/people");
+  assert.equal(phoneScreenFor("/app/appointments", false), "/appointments");
+  assert.equal(phoneScreenFor(`/app/appointments/${id}`, false), `/appointment?id=${id}`);
+  assert.equal(phoneScreenFor("/app/schedule", true), "/manager-schedule");
+  assert.equal(phoneScreenFor("/app/schedule", false), "/my-time");
+  assert.equal(phoneScreenFor("/app/clock/time-off", false), "/my-time?view=leave");
 });
 
 test("team and incident screens open only for managers", () => {

@@ -1,9 +1,9 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Check, Choice, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
-import { ApiError, type ClockScreen } from "@/lib/api";
+import { API_URL, ApiError, type ClockScreen } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { combineHandovers } from "@/lib/handover";
 import { distanceWords, locationVerdict, readPosition, type Reading } from "@/lib/location";
@@ -165,7 +165,10 @@ function ClockIn({ data }: { data: Off }) {
           <Section title="No shift to clock in to" hint={data.next ? `Your next shift is ${fmt.dayShort(data.next.startsAt, zone)} at ${fmt.time(data.next.startsAt, zone)}, at ${data.next.home}. You can clock in ${data.rules.earlyMinutes} minutes before it starts.` : "There is no shift on your schedule."}>
             {working ? (
               <>
-                <T weight="semibold">Which home are you working at?</T>
+                {!data.homes.length ? <>
+                  <ErrorText>Your agency has no active homes to choose from. A home must be set up before you can clock in.</ErrorText>
+                  {me?.user.canManage ? <Button label="Set up a home on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/homes/new`).catch(() => setError("Open Homes on mohuddle.com to finish setup."))} /> : <T size={13}>Ask your office to add or activate your home.</T>}
+                </> : <T weight="semibold">Which home are you working at?</T>}
                 <Choice value={homeId} options={data.homes.map(item => [item.id, item.name])} onChange={setHomeId} />
                 <Field label="Why you are working without a scheduled shift" value={reason} onChangeText={setReason} placeholder="Covering for Devon, agreed with the manager" maxLength={500} />
               </>
@@ -245,7 +248,7 @@ function ClockIn({ data }: { data: Off }) {
         {working ? (
           <>
             <ErrorText>{error}</ErrorText>
-            <Button label="Clock in" icon="log-in" busy={busy} onPress={submit} style={styles.go} />
+            <Button label="Clock in" icon="log-in" busy={busy} disabled={!data.shift && (!homeId || !data.homes.length)} onPress={submit} style={styles.go} />
           </>
         ) : null}
       </ScrollView>

@@ -24,8 +24,20 @@ export function phoneScreenFor(href: string, manager: boolean): string | null {
       return "/notes";
     case "/app/incidents/new":
       return person ? `/report?person=${person}` : "/report";
+    case "/app/individuals":
+      return "/people";
+    case "/app/appointments":
+      return "/appointments";
     case "/app/medications":
       return "/meds";
+    case "/app/schedule":
+      return manager ? "/manager-schedule" : "/my-time";
+    case "/app/clock/time-off":
+      return "/my-time?view=leave";
+    case "/app/clock/correction":
+      return "/my-time?view=punches";
+    case "/app/clock/timesheets":
+      return "/my-time?view=sheet";
     case "/app/tasks":
       return "/tasks";
     case "/app/my-documents":
@@ -37,6 +49,8 @@ export function phoneScreenFor(href: string, manager: boolean): string | null {
       return chat && /^[0-9a-f-]{36}$/.test(chat) ? `/conversation?id=${chat}` : "/chat";
     }
   }
+  if (parts[1] === "clock" && parts[2] === "timesheets" && /^\d{4}-\d{2}-\d{2}$/.test(parts[3] ?? "")) return `/my-time?view=sheet&period=${parts[3]}`;
+  if (parts[1] === "appointments" && id) return `/appointment?id=${id}`;
   if (parts[1] === "daily-logs" && id) return `/note-record?kind=daily&id=${id}`;
   if (parts[1] === "community-notes" && id) return `/note-record?kind=community&id=${id}`;
   if (parts[1] === "individuals" && id) return `/person?id=${id}`;

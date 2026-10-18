@@ -2,7 +2,8 @@ import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button, Chips, ErrorText, Field, Section, T } from "@/components/ui";
+import { Button, Chips, ErrorText, Section, T } from "@/components/ui";
+import { FormInput as Field } from "@/components/FormInput";
 import { ApiError } from "@/lib/api";
 import { draftKey } from "@/lib/drafts";
 import { fmt } from "@/lib/format";
@@ -21,12 +22,12 @@ function Recorded({ value }: { value: unknown }) {
 }
 
 export default function NoteRecordScreen() {
-  const { id = "", kind = "daily" } = useLocalSearchParams<{ id: string; kind: string }>();
+  const { id = "", kind = "daily", edit } = useLocalSearchParams<{ id: string; kind: string; edit?: string }>();
   const { call, me } = useSession();
   const scope = `${me?.agency?.id}.${me?.user.id}.${kind}.${id}`;
   const [loaded, setLoaded] = useState<{ scope: string; data: NoteRecord } | null>(null);
   const data = loaded?.scope === scope ? loaded.data : null;
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(edit === "1");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,7 +61,7 @@ export default function NoteRecordScreen() {
           <T>{kind === "daily" ? "Shift note" : "Community Participation"} · {data.note.day} · {words(data.note.status ?? "submitted")}</T>
           <T size={13} color={colors.mute}>Signed by {data.note.signedName}{data.note.signedAt ? ` · ${fmt.dayShort(data.note.signedAt, me?.agency?.zone)}` : ""}</T>
           {data.note.returnReason ? <Section title="What to correct" tone="warn"><T>{data.note.returnReason}</T></Section> : null}
-          {editing ? <>
+          {editing && data.rights.edit ? <>
             <T size={13} accessibilityLiveRegion="polite">{draft.message}</T>
             {stale ? <Section title="This note changed" tone="warn"><T>Your saved correction belongs to an earlier version. Copy anything you need before discarding it and starting from the current note.</T><Button label="Discard earlier correction" tone="ghost" onPress={() => void draft.clear()} /></Section> : null}
             {!stale && draft.ready ? <>
@@ -68,7 +69,7 @@ export default function NoteRecordScreen() {
                 {key === "location" && kind === "daily" ? <Chips options={[...new Set([...data.locations, fields[key]].filter(Boolean))]} value={fields[key] ?? ""} onChange={next => change(key, String(next))} />
                   : key === "mood" ? <Chips options={data.moods} value={fields[key] ?? ""} onChange={next => change(key, String(next))} />
                     : key === "costCenter" ? <Chips options={[...new Set([...data.costCenters, fields[key]].filter(Boolean))]} value={fields[key] ?? ""} onChange={next => change(key, String(next))} />
-                      : <Field label={label} value={fields[key] ?? ""} onChangeText={next => change(key, next)} multiline={!/Time$|^time|^trips$|^noteDate$/.test(key)} maxLength={key === "notes" || key === "note" ? 5000 : 3000} />}
+                      : <Field kind={/^time|Time$/.test(key) ? "time" : key === "noteDate" ? "date" : undefined} label={label} value={fields[key] ?? ""} onChangeText={next => change(key, next)} multiline={!/Time$|^time|^trips$|^noteDate$/.test(key)} maxLength={key === "notes" || key === "note" ? 5000 : 3000} />}
               </Section>)}
               {Object.keys(data.fields).filter(key => key.startsWith("timeline.")).map(key => <Field key={key} label={`Hour ${key.slice(9)}`} value={fields[key] ?? ""} onChangeText={next => change(key, next)} maxLength={500} />)}
               <Field label={data.rights.writer ? "Note to reviewer (optional)" : "Reason for correction"} value={fields.reason ?? ""} onChangeText={next => change("reason", next)} maxLength={1000} multiline />

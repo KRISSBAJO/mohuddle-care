@@ -117,5 +117,29 @@ community-note overlap, and report/photo retry identity. Long-text draft journal
 writes. Real-phone acceptance must still cover force-closing during typing, reopening offline,
 interrupted photo upload, keyboard behavior and reviewer/writer sessions on separate devices.
 
-The next gap-filling stages remain staff time self-service, appointments/nursing tools, then manager
-scheduling, coverage and task assignment. Payroll configuration and exports remain website scope.
+### Extended workflows
+
+- Notes lists unsigned drafts on this phone even when a network refresh fails. Older community and
+  known shift drafts are discovered on first load. Resume or explicitly discard a draft; nothing is
+  signed automatically. Dates use a calendar, times use an AM/PM selector with minute adjustments.
+  Narrative fields offer bullets, paragraphs, undo/redo, word counts and a full-screen editor.
+- My schedule and time: weekly shifts, own punch history, correction requests, leave requests and
+  cancellations, and timesheet review/signing. Approved or locked sheets keep their existing locks.
+- People and care: searchable people, health/weight history and care-team details. Nurses and
+  managers can record signed weights and change weight plans/care-team contacts.
+- Appointments: queues, booking/editing, escort details, visit documentation and follow-up booking.
+  Existing creator, nurse and manager permissions apply.
+- Manager operations: weekly coverage checks, shift creation/editing and assignment, task creation
+  and reassignment. Completed/missed shifts are preserved. These call shared website services.
+- PDF placed-field signatures open the secure website flow. Speech buttons require actual engine
+  readiness; no new speech hosting was purchased.
+
+Deploy `/api/v1/self-service`, `/api/v1/care` and `/api/v1/operations` before their matching OTA.
+No dependency, permission or native configuration changed. Database tests additionally exercise
+ownership, timesheet locks, appointment concurrency/follow-up uniqueness, clinical permissions,
+staff scheduling collisions and task ownership using disposable TEST agencies.
+
+Phone acceptance still needs the Drafts list, date/time selectors, keyboard and expanded editor on
+both platforms, plus staff/manager/nurse workflows. A local exported bundle is not a device test.
+Payroll configuration/exports, staff credential management and home issues/expenses remain on the
+website. Clock-in cannot proceed without an active home; managers receive a link to finish setup.

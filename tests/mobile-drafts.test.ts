@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createDraftStore } from "../mobile/src/lib/draft-store";
+import { createDraftRepository, draftKey } from "../mobile/src/lib/draft-catalog";
 
 function fixture() {
   const values = new Map<string, string>();
@@ -35,4 +36,28 @@ test("writes and clear are ordered; users and agencies cannot share drafts", asy
   assert.equal(await store.read("a.agency.person"), null);
   assert.deepEqual(await store.read("b.agency.person"), { n: 3 });
   assert.ok(![...values.keys()].some(key => key.startsWith("a.agency.person")));
+});
+test("Notes lists unsent drafts by account and agency, and removes submitted drafts", async () => {
+  const { store } = fixture(); const drafts = createDraftRepository(store);
+  const key = draftKey("alice", "agency-a", "note", "person.shift");
+  await Promise.all([
+    drafts.write(key, { form: { person: { id: "person", name: "TEST person" } }, fields: { notes: "Not submitted" } }),
+    drafts.write(draftKey("alice", "agency-a", "community", "new"), { individualId: "person", note: "Community draft" }),
+    drafts.write(draftKey("bob", "agency-a", "community", "new"), { note: "Other user" }),
+  ]);
+  assert.equal((await drafts.listNoteDrafts("alice", "agency-a")).length, 2);
+  assert.equal((await drafts.listNoteDrafts("alice", "agency-b")).length, 0);
+  assert.equal((await drafts.listNoteDrafts("bob", "agency-a")).length, 1);
+  await drafts.clear(key);
+  const remaining = await drafts.listNoteDrafts("alice", "agency-a");
+  assert.equal(remaining.length, 1); assert.equal(remaining[0].kind, "community");
+});
+test("Notes discovers community and known shift drafts from the earlier OTA", async () => {
+  const { store } = fixture();
+  await store.write(draftKey("alice", "agency-a", "community", "new"), { individualId: "person", note: "Earlier draft" });
+  await store.write(draftKey("alice", "agency-a", "note", "person.unscheduled"), { fields: { notes: "Earlier shift draft" }, form: { person: { id: "person", name: "TEST" } } });
+  const drafts = createDraftRepository(store);
+  const found = await drafts.listNoteDrafts("alice", "agency-a", ["person.unscheduled"]);
+  assert.deepEqual(new Set(found.map(item => item.kind)), new Set(["note", "community"]));
+  assert.equal((await drafts.listNoteDrafts("alice", "agency-a", ["person.unscheduled"])).length, 2);
 });
