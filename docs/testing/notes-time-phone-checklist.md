@@ -22,11 +22,32 @@ no existing staff or owner passwords were changed. Names begin with Test so they
 | dsp5@test.vcom | Care staff | DSP | No |
 
 Use dsp@test.vcom on Android and manager@test.vcom on iPhone, then swap roles/devices and repeat.
-Use a clearly labelled test person/home for signed care notes and care punches. These accounts are
-in the live agency; do not attach fictional observations to an actual person's care record. The
-automated tests used separate disposable agencies and removed their fixtures, so there is no
-pre-existing test shift, test timesheet or test person from those checks to select on a phone.
 Do not send test account invitations/password reset mail to these addresses.
+
+## Persistent phone practice setup — created 18 October 2026
+
+- Agency: Milestone. Home: **TEST — Phone Practice Home**. Person: **TEST Practice Person**.
+- All ten test staff are assigned to that home. Its manager is manager@test.vcom.
+- Each staff member has a recent practice shift on 17 October, 4–5 pm Central, for the Notes list,
+  and an upcoming shift on 19 October, 9–11 am Central, for schedule testing.
+- Seven nurse/DSP accounts additionally have a current practice shift on 18 October, 2:07–8:12 am
+  Central. This is a time-bounded setup; after it ends use the next scheduled window or ask to move
+  only these labelled test shifts to a fresh testing window.
+- The three office-approved accounts have no current care shift, preserving office testing access.
+  Their recent care-note practice entry still appears in Notes. A due future care shift will take
+  priority over office work according to the normal policy.
+- Total: 27 scheduled test shifts. No attendance punches, signed notes, leave requests, completed
+  timesheets or real medication orders were created. Shifts alone are not evidence of worked time.
+- This fictional home has no GPS point or clinical data. Normal agency location/statements/handover
+  rules remain in force; the strict configured office geofence is unchanged.
+- The test home has no recurring coverage requirements, so it does not add permanent around-the-clock
+  coverage gaps. Scheduled test shifts and unsigned notes can still appear in manager dashboards.
+
+These records are in the live agency. Keep all practice notes/punches on this TEST person/home and
+review/exclude test staff from real payroll/EVV/billing exports. Never enter fictional observations
+against an actual person's care record. Use Earlier period to inspect/sign an ended test staff
+period; no historical worked hours were fabricated for that test. After genuine phone test punches
+are recorded, use the normal correction/review flow on those test punches.
 
 ## 1. Notes
 
