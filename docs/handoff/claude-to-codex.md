@@ -621,3 +621,38 @@ OTA IDs and public compatibility checks follow below.
 - production android: 01a14dd6-8849-749e-b7f6-78ea111e263d; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
 
 All four public OTA endpoints return 200 with those update IDs and installed-runtime compatibility.
+
+
+### Codex persistent phone practice fixtures — 18 October 2026
+
+Kriss authorized a test home, test person and shifts for the ten newly created staff accounts.
+Created in Milestone: TEST — Phone Practice Home (306fb50f-3195-4920-a776-48f1643155a5) and
+TEST Practice Person (8e019c2e-2a6c-4efb-bd5a-55206d6204b0). Records prominently identify fictional
+training use. No DOB, real contacts, diagnoses or medication orders invented. Person admitted on
+17 October so recent shift note membership resolves correctly. Home capacity 1, no fixed GPS point,
+no recurring staffed kinds/patterns, manager is manager@test.vcom. All ten test staff home assignments
+now point there; only those explicitly identified test staff were changed.
+
+Created 27 scheduled shifts with TEST PHONE ACCEPTANCE notes. All ten have 17 October 16:00–17:00
+America/Chicago for note practice and 19 October 09:00–11:00 for upcoming scheduling. Seven nurse/DSP
+staff also have 18 October 02:07–08:12 current clock practice. Current window was derived from the
+server clock; it will expire and is not a permanent all-day shift. Three approved office accounts
+have no current care shift, so office tests remain available. Shift kind derived from local start:
+recent evening, current overnight, upcoming day. Conflict checks passed per staff. Changes were
+transactional and audited. Initial unused SQL placeholder error rolled back fully before successful
+setup; no partial/duplicate fixtures remain. Fixture IDs/times saved in ignored
+output/phone-practice-setup.private.json. Do not rerun creation blindly; script refuses duplicates.
+
+Live HTTP verification passed for all ten accounts: sign-in, Notes showing their recent shift and
+this person, own-shift note form, next-week schedule, clock home availability, expected current care
+shift for seven staff, office availability for three managers, and People directory. Verification
+sessions signed out. Results: output/phone-practice-api-verification.json. No note, attendance punch,
+leave request, synthetic worked hours or payroll signing was performed. These are live-agency test
+records and must be excluded from real payroll/EVV/billing exports; normal agency rules and office
+geofence remain unchanged. Physical-device work now uses these named fictional records.
+
+Updated docs/testing/notes-time-phone-checklist.md with exact records, dates and limitations.
+This is a data setup/documentation change: no source/native change, no new build, OTA or backend
+redeployment needed. Phone users should refresh Notes and My schedule and time, selecting Later
+week to see Monday 19 October. For ended-period timesheet tests no historical hours were fabricated;
+record real phone practice punches first or inspect an empty earlier period explicitly as a test.
