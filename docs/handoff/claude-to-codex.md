@@ -656,3 +656,33 @@ This is a data setup/documentation change: no source/native change, no new build
 redeployment needed. Phone users should refresh Notes and My schedule and time, selecting Later
 week to see Monday 19 October. For ended-period timesheet tests no historical hours were fabricated;
 record real phone practice punches first or inspect an empty earlier period explicitly as a test.
+
+
+### Codex home editing discoverability — 18 October 2026
+
+Kriss could not find Edit home on the home hub. Earlier instructions incorrectly implied a button
+already existed. Existing editing was under the manager-only Details tab. Inspected the signed-in
+Milestone admin tab for TEST — Phone Practice Home, opened Details, and submitted existing field
+values unchanged. The website displayed Saved successfully. No home values intentionally changed;
+normal update auditing applies. Screenshot output/home-edit-save-verified.png shows the save result.
+
+Root 1fd0368 adds an explicit manager-only Edit home header link to ?tab=details, renames the tab
+Edit details and the main panel Edit home details. Link is outside the active-home condition so a
+closed home can still be managed/reopened. Existing requireManager save guards and capacity/tenant
+rules are unchanged. No added fields or access expansion.
+
+Production build exposed TS2339 get/entries errors in three upload routes. Root tests importing the
+pure mobile incident upload store pulled DraftPhoto from native draft-photos.ts, bringing React
+Native global FormData declarations into the web type program. Moved the structural DraftPhoto
+metadata to a native-free draft-photo-types.ts; native photo code reexports it, queue imports that
+pure module. No runtime behavior or mobile dependency/config change; no OTA/native build needed.
+Root production build now passes. Changed web/native-file lint, mobile TypeScript and all three
+incident queue tests pass. Root main and mobile main (2685877) pushed. Vercel deployment successful;
+Render auto-deployment dep-dba75aavcj2c739u7pu0 targets 1fd0368. Live shortcut verification follows.
+
+
+Render dep-dba75aavcj2c739u7pu0 completed Live in 3m58s for 1fd0368. Public /api/health
+and Render /health returned 200. Verified new Edit home header link on the public home hub, clicked
+it, and reached Edit home details with populated fields and Save home. Editor tab 13 remains open
+and marked deliverable. Screenshot output/home-edit-live.png. Temporary Render tab closed. No
+native build or OTA published; only a type-only mobile metadata refactor accompanied this web fix.
