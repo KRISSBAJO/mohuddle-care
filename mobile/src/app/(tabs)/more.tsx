@@ -13,6 +13,7 @@ import { PUSH_OFF_KEY } from "@/components/PushListener";
 import { AppUpdates } from "@/components/AppUpdates";
 import { useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
+import { websiteAdminLinks } from "@/lib/website-admin";
 
 const ROLES: Record<string, string> = { admin: "Administrator", coordinator: "Coordinator", nurse: "Nurse", dsp: "Direct support professional" };
 
@@ -25,6 +26,13 @@ export default function MoreScreen() {
   // Doses saved with no signal are sent with this login; signing out first would strand them.
   const [unsent, setUnsent] = useState(0);
   const [sure, setSure] = useState(false);
+  const [administrationOpen, setAdministrationOpen] = useState(false);
+  const administration = websiteAdminLinks(me?.user.role ?? "");
+  async function openWebsite(path: string) {
+    setError("");
+    try { await Linking.openURL(`${API_URL}${path}`); }
+    catch { setError("Could not open the browser. Visit mohuddle.com and sign in to your agency."); }
+  }
   useFocusEffect(
     useCallback(() => {
       queuedDoses(`${me?.user.email}|${me?.agency?.id}`).then(list => setUnsent(list.length));
@@ -146,6 +154,11 @@ export default function MoreScreen() {
             <Icon name="chevron-right" size={18} color={colors.dim} />
           </Card>
         </Pressable>
+        {administration.length ? <Card style={{ gap: 12 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Website administration" accessibilityState={{ expanded: administrationOpen }} onPress={() => setAdministrationOpen(!administrationOpen)} style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 12 }}><View style={styles.linkIcon}><Icon name="settings" color={colors.sage} /></View><View style={{ flex: 1 }}><T weight="semibold">Website administration</T><T size={12} color={colors.mute}>Homes, staff, office setup and more</T></View><Icon name={administrationOpen ? "chevron-up" : "chevron-down"} color={colors.mute} /></Pressable>
+          {administrationOpen ? <><T size={13} color={colors.mute}>Opens the website in your browser. You may need to sign in. Check that the selected agency is {me?.agency?.name}.</T>{administration.map(link => <Button key={link.path} label={link.label} icon="external-link" tone="ghost" onPress={() => void openWebsite(link.path)} />)}</> : null}
+        </Card> : null}
+        <ErrorText>{error}</ErrorText>
         {push ? (
           <Card style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

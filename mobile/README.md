@@ -151,3 +151,14 @@ access. The server checks all rules. Office time is labelled separately, exclude
 exports, and must be reviewed after clock-out by another manager before payroll approval/locking.
 The office location recorded at start is retained for clock-out even if office settings change.
 Configuration remains off and the approved-staff list empty until the agency sets them on the website.
+
+Home selection for an unscheduled clock-in is one compact control. It opens a searchable sheet with
+a virtualized list, so 50 or more homes do not expand the clock form. Scheduled shifts continue to
+use their assigned home. Required confirmations appear after a home is selected and reset when it
+changes. Longer single-choice lists also use searchable sheets; short radio/chip lists remain inline.
+
+More > Website administration is available to administrators and coordinators. It opens homes/add
+home, staff/logins/credentials, people, agency rules, shift patterns, document setup, payroll,
+attendance exports and the full dashboard in the browser. Office-policy setup is administrator-only.
+Browser sign-in is separate; check the selected agency. Links never include the phone's session token,
+and website permissions still apply to every action.

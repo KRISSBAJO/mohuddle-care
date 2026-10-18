@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { forwardRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type PressableProps, type StyleProp, type TextInputProps, type TextProps, type TextStyle, type ViewStyle } from "react-native";
 import { colors, fonts, shadow } from "@/lib/theme";
+import { SearchPicker } from "./SearchPicker";
 
 type Weight = keyof typeof fonts;
 
@@ -83,6 +84,7 @@ export function Check({ checked, onToggle, children }: { checked: boolean; onTog
 
 /* One of a few choices, as cards. */
 export function Choice<V extends string>({ value, options, onChange }: { value: V; options: [V, string][]; onChange: (next: V) => void }) {
+  if (options.length > 8) return <SearchPicker label="Choose an option" options={options} value={value} onChange={next => onChange(next as V)} />;
   return (
     <View style={{ gap: 8 }}>
       {options.map(([key, words]) => {
@@ -102,6 +104,7 @@ export function Choice<V extends string>({ value, options, onChange }: { value: 
 
 /* Pick one (or, with multi, any) from short options, as chips that wrap. Tapping the chosen one clears it. */
 export function Chips({ options, value, onChange, multi }: { options: (string | readonly [string, string])[]; value: string | string[]; onChange: (next: string | string[]) => void; multi?: boolean }) {
+  if (!multi && options.length > 16) return <SearchPicker label="Choose an option" options={options} value={typeof value === "string" ? value : value[0] ?? ""} onChange={onChange} clearable />;
   const chosen = Array.isArray(value) ? value : value ? [value] : [];
   return (
     <View style={styles.chips}>

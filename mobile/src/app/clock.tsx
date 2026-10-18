@@ -1,7 +1,7 @@
 import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Check, Choice, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
 import { API_URL, ApiError, type ClockScreen } from "@/lib/api";
@@ -11,6 +11,7 @@ import { distanceWords, locationVerdict, readPosition, type Reading } from "@/li
 import { goBack } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
+import { SearchPicker } from "@/components/SearchPicker";
 
 type Off = Extract<ClockScreen, { state: "off" }>;
 type On = Extract<ClockScreen, { state: "on" }>;
@@ -25,12 +26,14 @@ export default function ClockScreenPage() {
 
   const load = useCallback(
     () =>
-      call<ClockScreen>("/clock").then(setData, problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.")),
+      call<ClockScreen>("/clock").then(result => { setData(result); setError(""); }, problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.")),
     [call],
   );
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void load();
-  }, [load]);
+    const subscription = AppState.addEventListener("change", state => { if (state === "active") void load(); });
+    return () => subscription.remove();
+  }, [load]));
 
   const title = data?.state === "on" ? "Clock out" : "Clock in";
   return (
@@ -150,7 +153,7 @@ function ClockIn({ data }: { data: Off }) {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         {data.office?.available ? <Section title="Office / admin work" hint="For approved office duties. Location is checked and another manager reviews your hours."><Button label="Start office work" icon="briefcase" onPress={() => router.push("/office-clock")} /></Section> : null}
-        {!data.office?.available && me?.user.canManage && !data.shift ? <Button label="Configure office work on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/settings#office`).catch(() => setError("Open Settings, Office / admin work on the website."))} /> : null}
+        {!data.office?.available && me?.user.role === "admin" && !data.shift ? <Button label="Configure office work on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/settings#office`).catch(() => setError("Open Settings, Office / admin work on the website."))} /> : null}
         {data.shift ? (
           <View style={[styles.hero, shadow.soft]}>
             <T weight="semibold" size={12} color={colors.mute} style={{ letterSpacing: 1 }}>
@@ -172,8 +175,7 @@ function ClockIn({ data }: { data: Off }) {
                   <ErrorText>Your agency has no active care homes to choose from. Care work requires a home. Approved office staff can use Office / admin work.</ErrorText>
                   {me?.user.canManage ? <Button label="Set up a home on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/homes/new`).catch(() => setError("Open Homes on mohuddle.com to finish setup."))} /> : <T size={13}>Ask your office to add or activate your home.</T>}
                 </> : <T weight="semibold">Which home are you working at?</T>}
-                <Choice value={homeId} options={data.homes.map(item => [item.id, item.name])} onChange={setHomeId} />
-                <Field label="Why you are working without a scheduled shift" value={reason} onChangeText={setReason} placeholder="Covering for Devon, agreed with the manager" maxLength={500} />
+                {data.homes.length ? <><SearchPicker label="Choose a home" placeholder="Search and choose a home" value={homeId} options={data.homes.map(item => [item.id, item.name] as const)} onChange={next => { setHomeId(next); setRead([]); setStatements([]); setRemark(""); setError(""); }} /><Field label="Why you are working without a scheduled shift" value={reason} onChangeText={setReason} placeholder="Covering for Devon, agreed with the manager" maxLength={500} /></> : null}
               </>
             ) : (
               <Button label="Work without a shift" tone="ghost" icon="plus" onPress={() => setWorking(true)} />
@@ -238,7 +240,7 @@ function ClockIn({ data }: { data: Off }) {
           </Section>
         ) : null}
 
-        {working && needs.includes("statements") && data.rules.statements.length ? (
+        {working && home && needs.includes("statements") && data.rules.statements.length ? (
           <Section title="Before you start" tone={data.rules.statements.every(statement => statements.includes(statement)) ? "good" : "must"}>
             {data.rules.statements.map(statement => (
               <Check key={statement} checked={statements.includes(statement)} onToggle={() => setStatements(statements.includes(statement) ? statements.filter(item => item !== statement) : [...statements, statement])}>
@@ -248,7 +250,7 @@ function ClockIn({ data }: { data: Off }) {
           </Section>
         ) : null}
 
-        {working ? (
+        {working && home ? (
           <>
             <ErrorText>{error}</ErrorText>
             <Button label="Clock in" icon="log-in" busy={busy} disabled={!data.shift && (!homeId || !data.homes.length)} onPress={submit} style={styles.go} />
