@@ -328,7 +328,7 @@ attachment delivery, offline-resync and the two-phone conversation acceptance ch
 Settings, payroll configuration/export, bulk administration and owner console are intentionally web
 scope under the existing mobile README; they should not automatically be labeled implementation bugs.
 
-### Codex notes and recovery release � 18 October 2026
+### Codex notes and recovery release — 18 October 2026
 
 Kriss authorized fixing the audited gaps in order, starting with draft recovery and the full notes
 workflow. `01c62d9` is pushed to root main and Live on the existing Render service. Mobile main is
@@ -364,3 +364,74 @@ Work continues locally on the next stage: shared own-time services/API plus nati
 time (weekly schedule, punch correction, leave and own timesheet). Those working-tree changes are
 not included in this notes OTA or deployed yet. Appointments/nursing and manager scheduling/tasks
 remain afterward. Native builds stay on hold. Do not run seed or reset staff passwords.
+
+### Codex follow-up: visible drafts, writing controls and controlled office work — 18 October 2026
+
+Kriss clarified that a community draft recovered inside the writing form but was absent from the
+Notes list; a separate refresh showed a generic error. Both real-account read queries succeeded
+when checked. Do not claim the transient server failure was reproduced or its cause established.
+Notes now loads the local draft catalogue independently, isolates failures from the two server
+queries, provides a Retry action, guards late refreshes and supports explicit draft discard.
+Earlier community/known-shift drafts migrate into the list. Dates use a calendar, times an AM/PM
+selector with minute adjustments; narrative fields use expandable plain-text editors with bullets,
+paragraphs, undo/redo and counts. Community Participation is grouped into clearer sections.
+
+Root code commits: `9a1746b` (extended workflows and note UX) and `0bca353` (office controls).
+Mobile main: `dd8195c`. Both implementation repositories are pushed. No dependencies, app identity,
+native configuration, permissions, signing setup, schema migration or native build was added.
+
+The ordered workflows now include staff weekly schedules/punch correction/leave/timesheet signing;
+appointment booking/editing/documentation/follow-up; searchable people and health/weight/care-team
+screens; manager schedule/coverage and task creation/assignment. Shared server services preserve
+web permissions and add concurrency/ownership checks. PDF placed-field signing has a secure website
+handoff. Phone speech availability checks real engines; speech hosting remains held with no spend.
+
+Kriss approved the recommended office policy. It is separate from care homes, default OFF with an
+empty named-staff allowlist, and requires a configured address/map position. An administrator must
+configure it under Settings > Office / admin work; another administrator must grant their own staff
+access. No role automatically grants it. Starts require accurate GPS inside the office radius, a
+work description, fresh statements and no due care shift. Original office coordinates are recorded
+with the punch for clock-out. Office punches use nullable home/shift IDs plus an immutable office
+flag and audit snapshot, label correctly in time/payroll and remain outside existing EVV care exports.
+Completed office punches require a different manager and a review note. Self-approval settings and
+payroll Lock anyway do not bypass this. Corrections reset review; office time changes cannot be made
+by the same manager. GPS is evidence, not spoof-proof identity or attendance verification.
+
+Office address and actual approved staff were NOT supplied or configured. Keep it off until the
+agency completes these settings. No production staff or demo passwords were changed; never run seed.
+
+Validation: production build passes without the dynamic speech-path tracing warning; root suite
+167 pass / 14 optional skips; mobile typecheck and targeted lint pass. Opt-in disposable-agency DB
+checks pass notes/reviews/retries, self-service ownership/locks, appointment concurrency/follow-ups,
+clinical rights, scheduling collisions, tasks, office access/care priority, no early/self review,
+payroll office gating and punches spanning a period boundary. The JSONB driver returns numeric-looking
+coordinate strings as numbers, so the settings schemas normalize both to canonical text.
+Live HTTP checks on the deployed earlier workflow commit passed sign-in/tenant/role boundaries,
+notes lifecycle, community retry, self-service, directory/clinical reads, booking and task assignment;
+all allocated TEST fixtures were removed. Final office live checks and OTA IDs follow below.
+
+Remaining scope: staff credential management, home issues/expenses, payroll setup/export and bulk
+administration remain web workflows. Physical-device keyboard/editor/calendar acceptance and two-phone
+chat/camera/notification tests are not completed by this release. Kriss confirmed a draft recovered
+but the latest screenshots exposed the list issue; do not call all Android/iPhone tests passed.
+Preview-server launch was previously auto-review blocked; no alternative server was launched.
+
+Final release verification: Render `0bca353` is live (deploy `dep-dba65tivcj2c739tekd0`).
+Live HTTP office tests passed default-off/named-staff checks, due-care-shift refusal, office start
+and finish, no open-punch pre-review or own review even with self-approval enabled, independent
+manager review and office labels in self-service. Existing notes/care/time/operations smoke tests
+also passed and all allocated TEST fixtures were removed. Actual-account notes queries passed
+again after deployment. A brief non-JSON gateway response immediately after restart resolved; both
+public health endpoints and authenticated API checks then passed. No ongoing failure reproduced.
+
+Both exported bundles match all 30 changed runtime-source/recovery files and contain the production
+API domain. `lib/care.ts` is type-only and is erased from runtime bundles. Both native runtimes
+match the installed builds. All four public manifests deliver their published update IDs:
+- preview ios: 01a14da6-f5f4-7d0a-b37f-4b21306c0b64; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- preview android: 01a14da6-f5f4-7966-93ae-5053b6a9e398; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+- production ios: 01a14da7-a6c1-7a07-abae-baaa7d196ba7; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- production android: 01a14da7-a6c1-7c84-b94e-eab8994cbb68; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+
+No new Android/iOS build was started. Kriss should apply More > Check for updates and verify the
+Drafts list, existing community draft, date/time selectors, expanded editor and keyboard on both
+phones. Office work stays off until the agency configures the location and approved staff.
