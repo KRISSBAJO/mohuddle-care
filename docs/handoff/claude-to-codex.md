@@ -435,3 +435,47 @@ match the installed builds. All four public manifests deliver their published up
 No new Android/iOS build was started. Kriss should apply More > Check for updates and verify the
 Drafts list, existing community draft, date/time selectors, expanded editor and keyboard on both
 phones. Office work stays off until the agency configures the location and approved staff.
+
+### Codex office setup and scalable selectors — 18 October 2026
+
+Kriss asked to set the office location from the saved agency address, show office staff approvals,
+and avoid displaying 50 homes as clock-in radio cards. They also requested manager shortcuts for
+website setup and administration.
+
+Using the signed-in Milestone administrator session, saved the office address through the website:
+2131 Murfreesboro Pike, Suite 202A, Nashville, TN 37217. Read that address from the agency record;
+no agency contact fields were changed. Initial point comes from the official US Census address
+geocoder (36.093224663948, -86.652554878428), a street-address estimate rather than on-site GPS.
+The 100 m radius stays as configured. Office starts remain OFF and no staff approvals changed.
+The website confirmed Saved. Its Office / admin work section is open in a deliverable browser tab,
+with Approved office staff checkboxes visible. The current staff record cannot self-grant access;
+another administrator must grant it, per the approved policy. The original staff-edit tab was not
+navigated or submitted. Screenshot: output/office-settings-saved.png (ignored QA artifact).
+
+Implementation root commit `5257858`, mobile main `3f20c2b`, both pushed. Unscheduled care clock-in
+now has one compact searchable home control, opening a bounded virtualized FlatList sheet. Scheduled
+shifts retain their assigned home. Long radio and single-choice lists also collapse into a picker;
+short time-picker chips stay inline. No home means no reason field, pre-start checks or disabled
+Clock in button. Choosing a different home resets handover acknowledgements/statements/remarks.
+Clock refreshes on focus and return from the browser so newly configured homes/office access appear.
+
+More > Website administration is collapsed initially, visible only to administrators/coordinators.
+Links cover homes/add home, staff/logins/credentials, people, office setup (administrators only),
+agency settings, shift patterns, documents, timesheets, attendance exports and the full dashboard.
+The browser may require separate sign-in; check the agency there. No phone tokens are placed in URLs
+and website permissions still apply. Office configure shortcut now follows the admin-only policy.
+
+Checks: mobile TypeScript and changed-file lint pass; selection tests cover a 50-home multiword search
+and stable IDs plus role-specific website links. Draft/date regression tests also pass (9 total).
+Both exported native bundle source maps match all six changed runtime files. Native dependencies,
+permissions, config, identity and runtime are unchanged. No new native build or backend redeployment
+was needed; code/documentation commits use [skip render] to avoid restarting the disk-backed service.
+Physical-phone picker, keyboard, foreground refresh and external-browser acceptance remain with Kriss.
+OTA verification IDs follow below.
+
+- preview ios: 01a14dbb-1071-7d5c-b75d-debd037433d9; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- preview android: 01a14dbb-1071-7a4d-aecb-ddffef8d998d; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+- production ios: 01a14dbb-bc21-7bab-81b5-0cdbf5aac318; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- production android: 01a14dbb-bc21-7c7c-bbe6-d0591444f615; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+
+All four public OTA manifests deliver the new IDs with installed-runtime compatibility.
