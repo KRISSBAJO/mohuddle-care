@@ -265,7 +265,10 @@ rewrite medication orders or the MAR. Clinical medication-record changes still r
 Native PDF placed-field signing has not been added; the working website handoff is intentional.
 
 Next priorities: physical-phone acceptance for stages 1 and 2 and interrupted incident-photo recovery;
-then complete appointment/nursing and manager-operation acceptance. Keep this checklist
+then complete appointment/nursing and manager-operation acceptance.
+
+The [notes and staff-time phone checklist](docs/testing/notes-time-phone-checklist.md) records the
+test-account roles, approved office accounts, and paired Android/iPhone acceptance steps. Keep this checklist
 updated instead of treating the original audit text as the current implementation state.
 
 Setup snapshot: Milestone has **1 active home and 0 upcoming, unfinished shifts** at this check.

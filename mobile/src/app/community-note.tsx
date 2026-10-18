@@ -1,6 +1,6 @@
 import { randomUUID } from "expo-crypto";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Check, Chips, ErrorText, Section, T } from "@/components/ui";
@@ -17,11 +17,22 @@ import { useDraft } from "@/lib/use-draft";
 export default function CommunityNoteScreen() {
   const { call, me } = useSession();
   const draft = useDraft<Record<string, string>>(me?.agency ? draftKey(me.user.id, me.agency.id, "community", "new") : null);
-  const [form, setForm] = useState<NoteInbox | null>(null);
+  const scope = `${me?.agency?.id}.${me?.user.id}`;
+  const loadSequence = useRef(0);
+  const [loaded, setLoaded] = useState<{ scope: string; form: NoteInbox } | null>(null);
+  const form = loaded?.scope === scope ? loaded.form : null;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [attest, setAttest] = useState(false);
-  useEffect(() => { void call<NoteInbox>("/notes/workflow").then(setForm, problem => setError(problem instanceof ApiError ? problem.message : "Could not load the form.")); }, [call]);
+  const [attestedScope, setAttestedScope] = useState<string | null>(null);
+  const attest = attestedScope === scope;
+  const currentScope = useRef(scope);
+  const load = useCallback(async () => {
+    if (currentScope.current !== scope) return;
+    const sequence = ++loadSequence.current;
+    try { const form = await call<NoteInbox>("/notes/workflow"); if (sequence === loadSequence.current) { setLoaded({ scope, form }); setError(""); } }
+    catch (problem) { if (sequence === loadSequence.current) setError(problem instanceof ApiError ? problem.message : "Could not load the form."); }
+  }, [call, scope]);
+  useFocusEffect(useCallback(() => { currentScope.current = scope; void load(); return () => { currentScope.current = ""; loadSequence.current++; }; }, [load, scope]));
   const fields = { noteDate: form?.community.today ?? "", ...draft.value } as Record<string, string>;
   const change = (key: string, value: string | string[]) => draft.save({ ...fields, _requestId: fields._requestId || randomUUID(), [key]: String(value) });
   const start = parseClock(fields.startTime ?? ""), finish = parseClock(fields.endTime ?? "");
@@ -38,6 +49,7 @@ export default function CommunityNoteScreen() {
   }
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}><ScrollView pointerEvents={busy ? "none" : "auto"} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
     <Button label="Back to notes" tone="ghost" onPress={() => goBack()} /><T weight="bold" size={24}>Community Participation</T><ErrorText>{error}</ErrorText><T size={13}>{draft.message}</T>
+    {!form ? <Button label="Retry opening form" tone="ghost" onPress={() => void load()} /> : null}
     {form && draft.ready ? <>
       <Section title="Person supported"><Chips options={form.people.map(person => [person.id, person.name] as const)} value={fields.individualId ?? ""} onChange={next => change("individualId", next)} /></Section>
       <Section title="Activity details">
@@ -59,7 +71,7 @@ export default function CommunityNoteScreen() {
       <Section title="Cost center (optional)"><Chips options={form.community.costCenters} value={fields.costCenter ?? ""} onChange={next => change("costCenter", next)} /></Section>
       <Section title="Other staff present (optional)"><Chips options={form.staff.map(person => [person.id, person.name] as const)} value={fields.withStaffId ?? ""} onChange={next => change("withStaffId", next)} /></Section>
       <T size={13}>Write at least {form.community.minimum} characters about how it went. Times use your agency’s time zone.</T>
-      <Check checked={attest} onToggle={() => setAttest(!attest)}>This note is accurate and complete. I am signing as {me?.user.name}.</Check>
+      <Check checked={attest} onToggle={() => setAttestedScope(attest ? null : scope)}>This note is accurate and complete. I am signing as {me?.user.name}.</Check>
       <Button label="Sign and save" busy={busy} disabled={!attest} onPress={() => void save()} />
     </> : null}
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;

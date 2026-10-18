@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { ScreenBar } from "@/components/ScreenBar";
 import { Button, Check, ErrorText, Icon, T } from "@/components/ui";
@@ -17,42 +17,41 @@ type Call = <R>(path: string, body?: unknown) => Promise<R>;
 export default function ApprovalsScreen() {
   const { call, me } = useSession();
   const zone = me?.agency?.zone;
-  const [data, setData] = useState<Approvals | null>(null);
+  const scope = `${me?.agency?.id}.${me?.user.id}`;
+  const loadSequence = useRef(0);
+  const currentScope = useRef(scope);
+  const [loaded, setLoaded] = useState<{ scope: string; data: Approvals } | null>(null);
+  const data = loaded?.scope === scope ? loaded.data : null;
   const [error, setError] = useState("");
-  const [done, setDone] = useState<Record<string, string>>({});
+  const [decisions, setDecisions] = useState<{ scope: string; items: Record<string, string> } | null>(null);
+  const done = decisions?.scope === scope ? decisions.items : {};
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(
-    () =>
-      call<Approvals>("/team/approvals").then(
-        result => {
-          setData(result);
-          setDone({});
-          setError("");
-        },
-        problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
-      ),
-    [call],
-  );
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
+  const load = useCallback(async () => {
+    if (currentScope.current !== scope) return;
+    const sequence = ++loadSequence.current;
+    try {
+      const result = await call<Approvals>("/team/approvals");
+      if (sequence !== loadSequence.current) return;
+      setLoaded({ scope, data: result }); setDecisions(null); setError("");
+    } catch (problem) { if (sequence === loadSequence.current) setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."); }
+  }, [call, scope]);
+  useFocusEffect(useCallback(() => { currentScope.current = scope; setError(""); void load(); return () => { currentScope.current = ""; loadSequence.current++; }; }, [load, scope]));
   async function pullToRefresh() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
   }
-  const finish = (key: string, words: string) => setDone(current => ({ ...current, [key]: words }));
+  const finish = (key: string, words: string) => { if (currentScope.current === scope) setDecisions(current => ({ scope, items: { ...(current?.scope === scope ? current.items : {}), [key]: words } })); };
 
   const empty = data && !data.timeOff.length && !data.corrections.length && !data.timesheets.length && !data.punches.length;
   return (
     <View style={styles.page}>
       <ScreenBar title="Waiting for you" />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={colors.brand} />}>
+        <ScrollView key={scope} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={colors.brand} />}>
           <ErrorText>{error}</ErrorText>
+          {error ? <Button label="Retry approvals" tone="ghost" onPress={() => void load()} /> : null}
           {!data && !error ? <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} /> : null}
           {empty ? (
             <View style={[styles.card, { alignItems: "center", gap: 8 }, shadow.soft]}>

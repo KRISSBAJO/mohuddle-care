@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Chips, ErrorText, Section, T } from "@/components/ui";
@@ -25,18 +25,26 @@ export default function NoteRecordScreen() {
   const { id = "", kind = "daily", edit } = useLocalSearchParams<{ id: string; kind: string; edit?: string }>();
   const { call, me } = useSession();
   const scope = `${me?.agency?.id}.${me?.user.id}.${kind}.${id}`;
+  const loadSequence = useRef(0);
   const [loaded, setLoaded] = useState<{ scope: string; data: NoteRecord } | null>(null);
   const data = loaded?.scope === scope ? loaded.data : null;
-  const [editing, setEditing] = useState(edit === "1");
-  const [reason, setReason] = useState("");
+  const [editState, setEditState] = useState<{ scope: string; value: boolean } | null>(null);
+  const editing = editState?.scope === scope ? editState.value : edit === "1";
+  const setEditing = (value: boolean) => setEditState({ scope, value });
+  const [reasonState, setReasonState] = useState<{ scope: string; value: string } | null>(null);
+  const reason = reasonState?.scope === scope ? reasonState.value : "";
+  const setReason = (value: string) => setReasonState({ scope, value });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const draft = useDraft<{ version: string; fields: Record<string, string> }>(me?.agency ? draftKey(me.user.id, me.agency.id, "amend", `${kind}.${id}`) : null);
-  const load = useCallback(() => call<NoteRecord>(`/notes/record?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`).then(
-    result => { setLoaded({ scope, data: result }); setError(""); },
-    problem => setError(problem instanceof ApiError ? problem.message : "Could not open this note. Try again."),
-  ), [call, id, kind, scope]);
-  useEffect(() => { void load(); }, [load]);
+  const currentScope = useRef(scope);
+  const load = useCallback(async () => {
+    if (currentScope.current !== scope) return;
+    const sequence = ++loadSequence.current;
+    try { const result = await call<NoteRecord>(`/notes/record?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`); if (sequence === loadSequence.current) { setLoaded({ scope, data: result }); setError(""); } }
+    catch (problem) { if (sequence === loadSequence.current) setError(problem instanceof ApiError ? problem.message : "Could not open this note. Try again."); }
+  }, [call, id, kind, scope]);
+  useFocusEffect(useCallback(() => { currentScope.current = scope; void load(); return () => { currentScope.current = ""; loadSequence.current++; }; }, [load, scope]));
   const stale = Boolean(data && draft.value && data.version !== draft.value.version);
   const fields = draft.value?.fields ?? data?.fields ?? {};
   function change(key: string, value: string) { if (data) draft.save({ version: data.version, fields: { ...fields, [key]: value } }); }
@@ -63,7 +71,7 @@ export default function NoteRecordScreen() {
           {data.note.returnReason ? <Section title="What to correct" tone="warn"><T>{data.note.returnReason}</T></Section> : null}
           {editing && data.rights.edit ? <>
             <T size={13} accessibilityLiveRegion="polite">{draft.message}</T>
-            {stale ? <Section title="This note changed" tone="warn"><T>Your saved correction belongs to an earlier version. Copy anything you need before discarding it and starting from the current note.</T><Button label="Discard earlier correction" tone="ghost" onPress={() => void draft.clear()} /></Section> : null}
+            {stale ? <Section title="This note changed" tone="warn"><T>Your saved correction belongs to an earlier version. Copy anything you need before discarding it and starting from the current note.</T><Button label="Discard earlier correction" tone="ghost" onPress={() => void draft.clear().catch(() => setError("Could not clear this draft. Try again."))} /></Section> : null}
             {!stale && draft.ready ? <>
               {Object.entries(data.labels).map(([key, label]) => <Section key={key} title={label}>
                 {key === "location" && kind === "daily" ? <Chips options={[...new Set([...data.locations, fields[key]].filter(Boolean))]} value={fields[key] ?? ""} onChange={next => change(key, String(next))} />

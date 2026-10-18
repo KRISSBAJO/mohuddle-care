@@ -1,7 +1,7 @@
 import { randomUUID } from "expo-crypto";
-import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DateTimeField } from "@/components/DateTimeField";
@@ -57,6 +57,8 @@ export default function NoteScreen() {
   const { call, me } = useSession();
   const zone = me?.agency?.zone;
   const scope = `${me?.agency?.id}.${me?.user.id}.${params.person}.${params.shift ?? "unscheduled"}`;
+  const loadSequence = useRef(0);
+  const currentScope = useRef(scope);
   const [loaded, setLoaded] = useState<{ scope: string; form: NoteForm } | null>(null);
   const storedDraft = useDraft<{ fields: Fields; form: NoteForm }>(me?.agency ? draftKey(me.user.id, me.agency.id, "note", `${params.person}.${params.shift ?? "unscheduled"}`) : null);
   const form = loaded?.scope === scope ? loaded.form : storedDraft.value?.form ?? null;
@@ -68,17 +70,17 @@ export default function NoteScreen() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
+    if (currentScope.current !== scope) return Promise.resolve();
+    const sequence = ++loadSequence.current;
     const query = `person=${encodeURIComponent(params.person ?? "")}${params.shift ? `&shift=${encodeURIComponent(params.shift)}` : ""}`;
     return call<NoteForm>(`/notes/form?${query}`).then(
       data => {
-        setLoaded({ scope, form: data });
+        if (sequence === loadSequence.current) { setLoaded({ scope, form: data }); setError(""); }
       },
-      problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
+      problem => { if (sequence === loadSequence.current) setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."); },
     );
   }, [call, params.person, params.shift, scope]);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(useCallback(() => { currentScope.current = scope; void load(); return () => { currentScope.current = ""; loadSequence.current++; }; }, [load, scope]));
 
   const value = (name: string) => {
     const current = fields[name];
@@ -118,6 +120,7 @@ export default function NoteScreen() {
   );
 
   async function save() {
+    if (busy) return;
     setError("");
     setBusy(true);
     try {
@@ -135,7 +138,7 @@ export default function NoteScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.ground }}>
         <Bar />
-        <View style={{ padding: 20 }}>{error || storedDraft.message ? <ErrorText>{error || storedDraft.message}</ErrorText> : <ActivityIndicator color={colors.brand} />}</View>
+        <View style={{ padding: 20, gap: 12 }}>{error || storedDraft.message ? <ErrorText>{error || storedDraft.message}</ErrorText> : <ActivityIndicator color={colors.brand} />}{error ? <Button label="Retry opening note" tone="ghost" onPress={() => void load()} /> : null}</View>
       </View>
     );
 
