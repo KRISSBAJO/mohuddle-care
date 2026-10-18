@@ -9,7 +9,7 @@ import { canManage } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/guard";
 import { notify } from "@/server/notify";
-import { ensurePeriod, isDay, openPunchesIn, sheetFor, type PeriodRow } from "@/server/queries/payroll";
+import { ensurePeriod, isDay, officePunchesIn, openPunchesIn, sheetFor, type PeriodRow } from "@/server/queries/payroll";
 import { accrual } from "@/lib/pay";
 import { leaveBalances } from "@/server/queries/pay";
 import { getSettings } from "@/server/settings";
@@ -165,6 +165,7 @@ export async function lockPeriod(periodId: string, _previous: FormState, formDat
   const range = { start: period.startDate, end: period.endDate };
   const open = await openPunchesIn(range);
   if (open) return { error: `${open} ${open === 1 ? "punch is" : "punches are"} still open in this period. Close them first.` };
+  if ((await officePunchesIn(range)).some(punch => !punch.reviewedAt)) return { error: "Review all office punches before locking payroll. Lock anyway cannot skip office review." };
   const settings = await getSettings();
   const { periodOverview } = await import("@/server/queries/payroll");
   const overview = await periodOverview(range, settings);

@@ -6,7 +6,7 @@ import { canManage, type SessionUser } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { notify } from "@/server/notify";
 import { leaveBalance } from "@/server/queries/pay";
-import { lockedOn, openPunchesIn, sheetFor } from "@/server/queries/payroll";
+import { lockedOn, officePunchesIn, openPunchesIn, sheetFor } from "@/server/queries/payroll";
 import { isUuid } from "@/server/queries/timeclock";
 import { getSettings } from "@/server/settings";
 
@@ -56,8 +56,13 @@ async function periodById(id: string) {
 export async function reviewEntryFor(user: SessionUser, entryId: string, rawNote: string): Promise<Result & { entryId?: string }> {
   if (!canManage(user)) return { error: "Only coordinators and administrators review punches." };
   if (!isUuid(entryId)) return { error: "That punch no longer exists." };
-  const [entry] = await db.select({ id: schema.timeEntries.id, staffId: schema.timeEntries.staffId }).from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
+  const [entry] = await db.select().from(schema.timeEntries).where(eq(schema.timeEntries.id, entryId)).limit(1);
   if (!entry) return { error: "That punch no longer exists." };
+  if (entry.flags.includes("office_work")) {
+    if (user.staffId === entry.staffId) return { error: "Another manager must review your office hours." };
+    if (!entry.clockOutAt) return { error: "Review office work after the staff member clocks out." };
+    if (rawNote.trim().length < 10) return { error: "Record what you checked before reviewing these office hours." };
+  }
   if (await ownTimeRefused(user, entry.staffId)) return { error: OWN_TIME };
   const note = rawNote.trim().slice(0, 1000);
   await db.transaction(async tx => {
@@ -76,6 +81,10 @@ export async function decideCorrectionFor(user: SessionUser, correctionId: strin
   const [request] = await db.select().from(schema.timeCorrections).where(eq(schema.timeCorrections.id, correctionId)).limit(1);
   if (!request || request.status !== "pending") return { error: "This request has already been decided." };
   if (await ownTimeRefused(user, request.staffId)) return { error: OWN_TIME };
+  if (approve && request.entryId && user.staffId === request.staffId) {
+    const [entry] = await db.select({ flags: schema.timeEntries.flags }).from(schema.timeEntries).where(eq(schema.timeEntries.id, request.entryId)).limit(1);
+    if (entry?.flags.includes("office_work")) return { error: "Another manager must decide corrections to your office hours." };
+  }
   const note = rawNote.trim().slice(0, 1000);
   if (!approve && note.length < 5) return { error: "Say why it is declined. The staff member sees this." };
   if (approve && request.clockInAt && (await lockedOn(dateKey(request.clockInAt)))) return { error: `${LOCKED} Then decline this request with a note saying so.` };
@@ -94,7 +103,7 @@ export async function decideCorrectionFor(user: SessionUser, correctionId: strin
           if (entry) {
             await tx
               .update(schema.timeEntries)
-              .set({ clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: entry.closedBy ?? "manager", flags: [...new Set([...entry.flags, "corrected"])] })
+              .set({ clockInAt: request.clockInAt, clockOutAt: request.clockOutAt, closedBy: entry.closedBy ?? "manager", flags: [...new Set([...entry.flags, "corrected"])], ...(entry.flags.includes("office_work") ? { reviewedAt: null, reviewedBy: null } : {}) })
               .where(eq(schema.timeEntries.id, entry.id));
             await tx.update(schema.timeBreaks).set({ endAt: request.clockOutAt }).where(and(eq(schema.timeBreaks.entryId, entry.id), isNull(schema.timeBreaks.endAt)));
             await tx.insert(schema.timeEntryChanges).values({
@@ -208,6 +217,9 @@ export async function approveTimesheetFor(user: SessionUser, periodId: string, s
   if (await openPunchesIn(range, staffId)) return { error: "A punch in this period is still open. Close it first." };
   const settings = await getSettings();
   const sheet = await sheetFor(staffId, range, settings);
+  const office = await officePunchesIn(range, staffId);
+  if (office.some(punch => !punch.reviewedAt)) return { error: "A manager must review all office punches before approving this timesheet." };
+  if (office.length && user.staffId === staffId) return { error: "Another manager must approve a timesheet containing your office hours." };
   const note = rawNote.trim().slice(0, 1000);
   if (sheet.sheet?.status !== "signed" && note.length < 5) return { error: "They have not signed it. Add a note saying why you are approving it anyway." };
   await upsertSheet(period.id, staffId, { status: "approved", approvedBy: user.id, approvedAt: new Date(), approvalNote: note, approvedTotals: snapshot(sheet.totals), returnNote: "" });

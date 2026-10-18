@@ -27,6 +27,7 @@ export default async function ClockInPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> My time clock
       </Link>
       <PageHeader eyebrow="Time clock" title="Clock in" description="Your time starts when you press Clock in." />
+      {!context.office.error ? <Link href="/app/clock/office" className="btn-ghost mb-4">Office / admin work</Link> : null}
       <ClockInForm
         action={clockIn}
         shift={asShift(context.shift)}

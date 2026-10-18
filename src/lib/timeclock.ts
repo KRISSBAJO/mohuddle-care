@@ -120,6 +120,7 @@ export function nameMatches(typed: string, first: string, last: string): boolean
 
 /* Plain words for the flags a manager sees on a punch. */
 const flagWords: Record<string, string> = {
+  office_work: "Office work · review required",
   late: "Late",
   unscheduled: "No shift",
   away_in: "Away at clock in",

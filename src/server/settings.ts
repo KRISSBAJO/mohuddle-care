@@ -9,6 +9,12 @@ import { db, schema } from "./db";
  * This file only names them, gives a safe default, and checks what comes back.
  */
 export const settingDefs = {
+  office_work_enabled: { label: "Office / admin work", kind: "text", schema: z.enum(["on", "off"]), fallback: "off" },
+  office_work_staff: { label: "Staff approved for office work", kind: "list", schema: z.array(z.uuid()).max(500), fallback: [] },
+  office_work_address: { label: "Office address", kind: "text", schema: z.string().trim().max(300), fallback: "" },
+  office_work_latitude: { label: "Office latitude", kind: "text", schema: z.union([z.string(), z.number()]).transform(value => String(value).trim()).refine(value => value === "" || (Number.isFinite(Number(value)) && Math.abs(Number(value)) <= 90), "Enter latitude from -90 to 90."), fallback: "" },
+  office_work_longitude: { label: "Office longitude", kind: "text", schema: z.union([z.string(), z.number()]).transform(value => String(value).trim()).refine(value => value === "" || (Number.isFinite(Number(value)) && Math.abs(Number(value)) <= 180), "Enter longitude from -180 to 180."), fallback: "" },
+  office_work_radius: { label: "Office location radius in meters", kind: "number", schema: z.coerce.number().int().min(25).max(500), fallback: 100 },
   credential_warning_days: {
     label: "Warn about expiring credentials this many days ahead",
     kind: "number",

@@ -12,6 +12,7 @@ import { requestTime } from "@/server/clock";
 import { requireUser } from "@/server/guard";
 import { clockOutContext, openEntry } from "@/server/queries/timeclock";
 import { getSettings } from "@/server/settings";
+import { officeSnapshot } from "@/server/office-work";
 
 export const metadata = { title: "Clock out" };
 
@@ -42,6 +43,7 @@ export default async function ClockOutPage() {
     </section>
   );
 
+  const office = open.entry.flags.includes("office_work") ? await officeSnapshot(open.entry.id) : null;
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/app/clock" className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-mute hover:text-ink">
@@ -54,14 +56,15 @@ export default async function ClockOutPage() {
         home={open.home ?? "the home"}
         homePoint={{ latitude: open.homeLatitude, longitude: open.homeLongitude }}
         hasHome={Boolean(open.entry.homeId)}
+        office={Boolean(office)}
         people={context.people.map(person => ({ ...person, dosesDue: person.dosesDue.map(dose => ({ id: dose.id, medication: dose.medication, scheduledFor: dose.scheduledFor.toISOString() })) }))}
         checklist={context.checklist}
         blocking={settings.clock_out_blocking}
         minChars={settings.handover_min_chars}
         overstay={context.overstay}
         leftEarly={context.leftEarly}
-        needLocation={settings.clock_in_requirements.includes("location")}
-        radius={settings.clock_geofence_meters}
+        needLocation={Boolean(office) || settings.clock_in_requirements.includes("location")}
+        radius={office?.radius ?? settings.clock_geofence_meters}
         fullName={member ? `${member.first} ${member.last}` : ""}
         summary={summary}
       />

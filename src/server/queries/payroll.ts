@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { addDays, dateKey, zonedTime } from "@/lib/format";
 import { parseHolidays, periodFor, timesheet, workweekStart, type Period, type PeriodType, type Punch, type SheetRules } from "@/lib/payroll";
 import { db, schema } from "@/server/db";
@@ -45,6 +45,13 @@ export async function lockedOn(day: string) {
   return row ?? null;
 }
 
+export async function officePunchesIn(period: Period, staffId?: string) {
+  return db.select({ id: schema.timeEntries.id, staffId: schema.timeEntries.staffId, reviewedAt: schema.timeEntries.reviewedAt }).from(schema.timeEntries).where(and(
+    sql`${schema.timeEntries.flags} @> '["office_work"]'::jsonb`,
+    or(gte(schema.timeEntries.clockOutAt, zonedTime(period.start, "00:00")), isNull(schema.timeEntries.clockOutAt)), lt(schema.timeEntries.clockInAt, zonedTime(addDays(period.end, 1), "00:00")), staffId ? eq(schema.timeEntries.staffId, staffId) : undefined,
+  ));
+}
+
 /* Every punch in the workweeks that touch a period, so overtime is counted right at both ends. */
 async function punchesAround(period: Period, weekStartsOn: number, staffIds?: string[]) {
   const from = zonedTime(workweekStart(period.start, weekStartsOn), "00:00");
@@ -56,7 +63,7 @@ async function punchesAround(period: Period, weekStartsOn: number, staffIds?: st
       clockInAt: schema.timeEntries.clockInAt,
       clockOutAt: schema.timeEntries.clockOutAt,
       homeId: schema.timeEntries.homeId,
-      home: schema.homes.name,
+      home: sql<string | null>`case when ${schema.timeEntries.flags} @> '["office_work"]'::jsonb then 'Office / admin work' else ${schema.homes.name} end`,
       shiftStart: schema.shifts.startsAt,
       flags: schema.timeEntries.flags,
       reviewedAt: schema.timeEntries.reviewedAt,

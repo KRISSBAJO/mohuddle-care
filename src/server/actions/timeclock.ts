@@ -119,9 +119,11 @@ export async function fixEntryTimes(entryId: string, _previous: FormState, formD
   const user = await requireManager();
   const entry = await managerEntry(entryId);
   if (!entry) return { error: "That punch no longer exists." };
+  if (entry.flags.includes("office_work") && user.staffId === entry.staffId) return { error: "Another manager must change your office hours." };
   const parsed = managerTimes.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the times." };
   const { inDay, inTime, outDay, outTime, reason } = parsed.data;
+  if (entry.flags.includes("office_work") && reason.trim().length < 10) return { error: "Record what you checked before changing or closing these office hours." };
   const clockInAt = inDay && inTime ? zonedTime(inDay, inTime) : entry.clockInAt;
   const clockOutAt = zonedTime(outDay, outTime);
   if (clockOutAt <= clockInAt) return { error: "The clock-out must be after the clock-in." };

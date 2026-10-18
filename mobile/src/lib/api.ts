@@ -68,6 +68,7 @@ export type ClockScreen =
       shift: { id: string; startsAt: string; endsAt: string; homeId: string; home: string; pattern: string | null } | null;
       next: { startsAt: string; home: string } | null;
       homes: ({ id: string; name: string } & Point)[];
+      office?: { available: boolean; error: string | null; address: string; point: Point | null; radius: number };
       handovers: {
         id: string;
         homeId: string;
@@ -82,7 +83,7 @@ export type ClockScreen =
     }
   | {
       state: "on";
-      entry: { clockInAt: string; home: string | null; hasHome: boolean; shiftEndsAt: string | null; onBreak: "meal" | "rest" | null };
+      entry: { clockInAt: string; home: string | null; hasHome: boolean; office?: boolean; shiftEndsAt: string | null; onBreak: "meal" | "rest" | null };
       homePoint: Point;
       people: { id: string; name: string; noteWritten: boolean; dosesDue: { medication: string; scheduledFor: string }[] }[];
       notesMissing: number;

@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -148,6 +149,8 @@ function ClockIn({ data }: { data: Off }) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        {data.office?.available ? <Section title="Office / admin work" hint="For approved office duties. Location is checked and another manager reviews your hours."><Button label="Start office work" icon="briefcase" onPress={() => router.push("/office-clock")} /></Section> : null}
+        {!data.office?.available && me?.user.canManage && !data.shift ? <Button label="Configure office work on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/settings#office`).catch(() => setError("Open Settings, Office / admin work on the website."))} /> : null}
         {data.shift ? (
           <View style={[styles.hero, shadow.soft]}>
             <T weight="semibold" size={12} color={colors.mute} style={{ letterSpacing: 1 }}>
@@ -166,7 +169,7 @@ function ClockIn({ data }: { data: Off }) {
             {working ? (
               <>
                 {!data.homes.length ? <>
-                  <ErrorText>Your agency has no active homes to choose from. A home must be set up before you can clock in.</ErrorText>
+                  <ErrorText>Your agency has no active care homes to choose from. Care work requires a home. Approved office staff can use Office / admin work.</ErrorText>
                   {me?.user.canManage ? <Button label="Set up a home on the website" tone="ghost" icon="external-link" onPress={() => void Linking.openURL(`${API_URL}/app/homes/new`).catch(() => setError("Open Homes on mohuddle.com to finish setup."))} /> : <T size={13}>Ask your office to add or activate your home.</T>}
                 </> : <T weight="semibold">Which home are you working at?</T>}
                 <Choice value={homeId} options={data.homes.map(item => [item.id, item.name])} onChange={setHomeId} />
@@ -408,7 +411,7 @@ function ClockOut({ data }: { data: On }) {
           </Section>
         ) : null}
 
-        {data.rules.location && data.entry.hasHome ? <LocationBlock reading={reading} retry={read} home={data.homePoint} homeName={data.entry.home ?? "the home"} radius={data.rules.geofence} reason={reason} setReason={setReason} verb="clocking out" /> : null}
+        {data.rules.location && (data.entry.hasHome || data.entry.office) ? <LocationBlock reading={reading} retry={read} home={data.homePoint} homeName={data.entry.home ?? "the workplace"} radius={data.rules.geofence} reason={reason} setReason={setReason} verb="clocking out" /> : null}
 
         <Section title="Sign off" hint="My times are accurate, I took the breaks I recorded, and the handover is true.">
           {warnings > 0 && !blocked ? (

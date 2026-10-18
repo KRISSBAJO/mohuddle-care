@@ -4,8 +4,11 @@ import { addDays, dateKey, weekStart, zonedTime } from "@/lib/format";
 import { clockableShift, handoverChecklist, nextShift, overstayMinutes, workedMinutes } from "@/lib/timeclock";
 import { db, schema } from "@/server/db";
 import type { Settings } from "@/server/settings";
+import { officeAccess, officePoint } from "@/lib/office-work";
+import { officeSnapshot } from "@/server/office-work";
 
 const staffName = sql<string>`${schema.staff.firstName} || ' ' || ${schema.staff.lastName}`;
+const workPlace = sql<string | null>`case when ${schema.timeEntries.flags} @> '["office_work"]'::jsonb then 'Office / admin work' else ${schema.homes.name} end`;
 export const isUuid = (value: string | undefined | null): value is string => Boolean(value && /^[0-9a-f-]{36}$/.test(value));
 
 /* ---------- The staff member's own clock ---------- */
@@ -15,7 +18,7 @@ export async function openEntry(staffId: string) {
   const [row] = await db
     .select({
       entry: schema.timeEntries,
-      home: schema.homes.name,
+      home: workPlace,
       homeLatitude: schema.homes.latitude,
       homeLongitude: schema.homes.longitude,
       homeChecks: schema.homes.handoverChecks,
@@ -31,6 +34,10 @@ export async function openEntry(staffId: string) {
     .orderBy(desc(schema.timeEntries.clockInAt))
     .limit(1);
   if (!row) return null;
+  if (row.entry.flags.includes("office_work")) {
+    const office = await officeSnapshot(row.entry.id);
+    row.homeLatitude = office?.latitude ?? null; row.homeLongitude = office?.longitude ?? null;
+  }
   const breaks = await db.select().from(schema.timeBreaks).where(eq(schema.timeBreaks.entryId, row.entry.id)).orderBy(asc(schema.timeBreaks.startAt));
   return { ...row, breaks, openBreak: breaks.find(item => !item.endAt) ?? null };
 }
@@ -105,7 +112,9 @@ export async function clockInContext(staffId: string, now: number, settings: Set
         .where(and(eq(schema.shifts.staffId, staffId), ne(schema.shifts.status, "missed"), gte(schema.shifts.startsAt, new Date(now))))
         .orderBy(asc(schema.shifts.startsAt))
         .limit(1);
-  return { shift, upcoming, later: later ?? null, homes, handovers };
+  const [member] = await db.select({ active: schema.staff.active }).from(schema.staff).where(eq(schema.staff.id, staffId)).limit(1);
+  const office = { error: officeAccess(settings, staffId, Boolean(member?.active), Boolean(shift)), address: settings.office_work_address, point: officePoint(settings), radius: settings.office_work_radius };
+  return { shift, upcoming, later: later ?? null, homes, handovers, office };
 }
 
 /* What is still undone for the people at this home since clock in: notes and doses. */
@@ -166,7 +175,7 @@ function entryRows(where: ReturnType<typeof and>, limit: number, offset = 0) {
       staffId: schema.timeEntries.staffId,
       staff: staffName,
       homeId: schema.timeEntries.homeId,
-      home: schema.homes.name,
+      home: workPlace,
       clockInAt: schema.timeEntries.clockInAt,
       clockOutAt: schema.timeEntries.clockOutAt,
       closedBy: schema.timeEntries.closedBy,
@@ -292,7 +301,7 @@ export async function entryDetail(id: string) {
       entry: schema.timeEntries,
       staff: staffName,
       staffFirst: schema.staff.firstName,
-      home: schema.homes.name,
+      home: workPlace,
       homeLatitude: schema.homes.latitude,
       homeLongitude: schema.homes.longitude,
       shiftStart: schema.shifts.startsAt,

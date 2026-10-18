@@ -35,6 +35,7 @@ export function ClockOutForm({
   home,
   homePoint,
   hasHome,
+  office = false,
   people,
   checklist,
   blocking,
@@ -51,6 +52,7 @@ export function ClockOutForm({
   home: string;
   homePoint: { latitude: number | null; longitude: number | null };
   hasHome: boolean;
+  office?: boolean;
   people: Person[];
   checklist: string[];
   blocking: string[];
@@ -73,10 +75,10 @@ export function ClockOutForm({
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [signed, setSigned] = useState("");
-  const location = usePosition(needLocation && hasHome);
-  const verdict = locationVerdict(homePoint, location.position, radius, needLocation && hasHome);
-  const away = needLocation && hasHome && location.status !== "asking" && verdict.state === "outside";
-  const unknown = needLocation && hasHome && location.status !== "asking" && verdict.state === "unavailable";
+  const location = usePosition(needLocation && (hasHome || office));
+  const verdict = locationVerdict(homePoint, location.position, radius, needLocation && (hasHome || office));
+  const away = needLocation && (hasHome || office) && location.status !== "asking" && verdict.state === "outside";
+  const unknown = needLocation && (hasHome || office) && location.status !== "asking" && verdict.state === "unavailable";
 
   const notesMissing = people.filter(person => !person.noteWritten);
   const dosesMissing = people.flatMap(person => person.dosesDue.map(dose => ({ ...dose, person })));
@@ -93,7 +95,7 @@ export function ClockOutForm({
     (away && reason.trim().length < 5) ||
     (warnings > 0 && !confirm) ||
     signed.trim().length < 3 ||
-    (needLocation && hasHome && location.status === "asking");
+    (needLocation && (hasHome || office) && location.status === "asking");
 
   return (
     <form
@@ -227,7 +229,7 @@ export function ClockOutForm({
         </Section>
       )}
 
-      {needLocation && hasHome && (
+      {needLocation && (hasHome || office) && (
         <Section title="Where you are" tone={away ? "must" : undefined}>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {location.status === "asking" ? (

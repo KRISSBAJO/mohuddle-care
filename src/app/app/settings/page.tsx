@@ -12,6 +12,8 @@ import { currentBilling, planAllows } from "@/server/billing";
 import { BillingBadge } from "@/components/owner/BillingBadge";
 import { PLAN_FEATURES } from "@/lib/billing";
 import { zoneLabel } from "@/lib/format";
+import { listStaff } from "@/server/queries/hub";
+import { saveOfficePolicy } from "@/server/actions/office-work";
 
 export const metadata = { title: "Settings" };
 
@@ -20,6 +22,18 @@ type Group = { id: string; title: string; icon: LucideIcon; intro: string; link?
 
 /* How the business rules are grouped and explained on screen. The rules themselves live in settings. */
 const GROUPS: Group[] = [
+  {
+    id: "office", title: "Office / admin work", icon: Timer,
+    intro: "Administrators approve named staff. Accurate location at the configured office and a work description are required. A due care shift takes priority. Another manager reviews each completed office punch before payroll approval. Nobody grants their own access or reviews their own office hours.",
+    items: [
+      { key: "office_work_enabled", title: "Office starts", help: "Off until your office and staff access are configured.", options: [["off", "Off"], ["on", "On"]] },
+      { key: "office_work_address", title: "Office address", help: "Where office staff work. This is separate from care homes." },
+      { key: "office_work_latitude", title: "Office latitude", help: "Use the exact office map location, from -90 to 90." },
+      { key: "office_work_longitude", title: "Office longitude", help: "Use the exact office map location, from -180 to 180." },
+      { key: "office_work_radius", title: "Office location radius", help: "An office start outside this area is refused. Location accuracy must also be within 100 meters or this radius, whichever is smaller.", min: 25, max: 500, unit: "meters" },
+      { key: "office_work_staff", title: "Approved office staff", help: "Approval is per person, regardless of job title. Another administrator must add your own staff account.", choices: [] },
+    ],
+  },
   {
     id: "notes",
     title: "Daily notes",
@@ -265,7 +279,7 @@ const GROUPS: Group[] = [
 export default async function SettingsPage() {
   await requireManager();
   const settings = await storedSettings();
-  const [billing, library] = await Promise.all([currentBilling(), handoverLibrary()]);
+  const [billing, library, staff] = await Promise.all([currentBilling(), handoverLibrary(), listStaff()]);
   // Features the plan leaves out stay off, whatever is chosen here.
   const offByPlan: Partial<Record<SettingKey, boolean>> = { scribe_enabled: !(await planAllows("scribe")), assistant_enabled: !(await planAllows("assistant")) };
   const grouped = new Set(GROUPS.flatMap(group => group.items.map(item => item.key)));
@@ -318,7 +332,7 @@ export default async function SettingsPage() {
                   </Link>
                 )}
               </header>
-              <SettingsGroupForm action={saveSettings} submitLabel={`Save ${group.title.toLowerCase()}`}>
+              <SettingsGroupForm action={group.id === "office" ? saveOfficePolicy : saveSettings} submitLabel={`Save ${group.title.toLowerCase()}`}>
                 {group.items.map(item => {
                   const def = settingDefs[item.key] as { kind: "number" | "list" | "text" };
                   const value = settings[item.key];
@@ -330,7 +344,7 @@ export default async function SettingsPage() {
                         {offByPlan[item.key] && <p className="mt-1 text-xs font-semibold text-[#8a5a10]">Not in your Mohuddle plan, so it stays off.</p>}
                       </div>
                       {item.choices ? (
-                        <ChoicePicker name={item.key} initial={value as string[]} choices={item.choices} />
+                        <ChoicePicker name={item.key} initial={value as string[]} choices={item.key === "office_work_staff" ? staff.map(person => [person.id, `${person.firstName} ${person.lastName}`]) : item.choices} />
                       ) : item.library ? (
                         <LibraryPicker name={item.key} initial={value as string[]} library={library} />
                       ) : item.roles ? (

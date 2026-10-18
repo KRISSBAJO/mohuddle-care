@@ -9,6 +9,7 @@ import { db, schema } from "@/server/db";
 import { homeManagerOf, notify, recipients, type Role } from "@/server/notify";
 import { clockInContext, clockOutContext, isUuid, openEntry, unreadHandovers } from "@/server/queries/timeclock";
 import { getSettings } from "@/server/settings";
+import { clockInOfficeFor, officeSnapshot } from "@/server/office-work";
 
 /*
  * Clocking in, breaks and clocking out, with every rule the agency set. The website's actions and
@@ -43,6 +44,7 @@ async function handoverWriters(ids: string[]) {
 /* ---------- Clock in ---------- */
 
 const clockInInput = z.object({
+  workType: z.enum(["care", "office"]).default("care"),
   shiftId: z.string().nullable().default(null),
   homeId: z.string().nullable().default(null),
   position,
@@ -73,6 +75,10 @@ export async function clockInFor(user: SessionUser, payload: unknown): Promise<P
   if (await openEntry(staffId)) return { error: "You are already clocked in." };
 
   const context = await clockInContext(staffId, now, settings);
+  if (input.workType === "office") {
+    try { return await clockInOfficeFor(user, input, context, settings, now, client); }
+    catch (error) { if (breaks(error, "time_entries_one_open")) return { error: "You are already clocked in." }; throw error; }
+  }
   const flags: string[] = [];
   let homeId: string;
   let shiftId: string | null = null;
@@ -242,7 +248,9 @@ export async function clockOutFor(user: SessionUser, payload: unknown): Promise<
   if (!member || !nameMatches(input.attestedName, member.first, member.last)) return { error: `Type your full name, ${member?.first ?? ""} ${member?.last ?? ""}, to sign.` };
 
   const needs = settings.clock_in_requirements;
-  const verdict = locationVerdict({ latitude: open.homeLatitude, longitude: open.homeLongitude }, input.position, settings.clock_geofence_meters, needs.includes("location") && Boolean(open.entry.homeId));
+  const isOffice = open.entry.flags.includes("office_work");
+  const office = isOffice ? await officeSnapshot(open.entry.id) : null;
+  const verdict = locationVerdict({ latitude: open.homeLatitude, longitude: open.homeLongitude }, input.position, office?.radius ?? settings.clock_geofence_meters, isOffice || (needs.includes("location") && Boolean(open.entry.homeId)));
   if (verdict.state === "outside" && input.reason.length < 5) return { error: `You are about ${verdict.distance} meters from the home. Say why, or move closer and try again.` };
 
   const flags = [...open.entry.flags];
@@ -276,6 +284,7 @@ export async function clockOutFor(user: SessionUser, payload: unknown): Promise<
         overstayReason: input.overstayReason,
         attestedName: input.attestedName,
         warnings,
+        ...(isOffice ? { reviewedAt: null, reviewedBy: null } : {}),
         flags: [...new Set(flags)],
         userAgent: open.entry.userAgent || userAgent,
       })

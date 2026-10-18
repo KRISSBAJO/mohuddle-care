@@ -142,4 +142,12 @@ staff scheduling collisions and task ownership using disposable TEST agencies.
 Phone acceptance still needs the Drafts list, date/time selectors, keyboard and expanded editor on
 both platforms, plus staff/manager/nurse workflows. A local exported bundle is not a device test.
 Payroll configuration/exports, staff credential management and home issues/expenses remain on the
-website. Clock-in cannot proceed without an active home; managers receive a link to finish setup.
+website. Care clock-in cannot proceed without an active home; managers receive a link to finish setup.
+
+Approved office staff can instead start Office / admin work from Clock in. This requires the agency's
+configured office GPS area, a work description and fresh statements. A due care shift blocks office
+starts. No manager role automatically grants access, and an administrator cannot grant themselves
+access. The server checks all rules. Office time is labelled separately, excluded from care EVV
+exports, and must be reviewed after clock-out by another manager before payroll approval/locking.
+The office location recorded at start is retained for clock-out even if office settings change.
+Configuration remains off and the approved-staff list empty until the agency sets them on the website.

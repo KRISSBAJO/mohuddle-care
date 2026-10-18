@@ -232,6 +232,7 @@ export async function markEnquiryHandled(id: string, handled: boolean) {
 
 export async function saveSettings(_p: FormState, formData: FormData): Promise<FormState> {
   const user = await requireManager();
+  if ([...formData.keys()].some(key => key.startsWith("office_work_"))) return { error: "Use the Office / admin work settings group to configure office access." };
   try {
     for (const key of Object.keys(settingDefs) as SettingKey[]) {
       const raw = formData.get(key);

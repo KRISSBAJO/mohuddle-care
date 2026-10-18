@@ -228,7 +228,7 @@ Deploy the backend before publishing the matching OTA update. No native build is
 these screens. See [mobile/README.md](mobile/README.md) for checks and physical-phone acceptance
 steps. Notes also show unsigned drafts on their own list, independently of server refreshes.
 Calendar/time selectors and expandable plain-text editors support writing without entering raw
-date formats. A home must exist before an unscheduled clock-in can be submitted.
+date formats. A home must exist before an unscheduled care clock-in can be submitted.
 
 The phone app includes personal weekly schedules, punch corrections, leave requests and timesheet
 review/signing; a searchable people directory; appointment booking, documentation and follow-up;
@@ -237,6 +237,17 @@ coverage checks and task assignment. These use the same domain rules as the webs
 setup, payroll exports, home issues/expenses and staff credential management remain website workflows.
 Speech still requires the separately configured engines; the previously deferred speech hosting has
 not been enabled by these changes.
+
+Office/admin work is a separate, non-care clock-in option. It is off until an administrator sets
+the office address/map position and names the approved staff under Settings → Office / admin work.
+Job title alone grants no access. Another administrator must grant the administrator's own staff
+access. Starts require accurate GPS inside the office radius, a work description, and no due care
+shift. Office punches have no care-home/person assignment, so they do not enter EVV care-visit
+exports. They count as worked time in payroll, with a separate label and mandatory review by
+another manager after clock-out. Self-approval and "Lock anyway" cannot bypass office review.
+Missing GPS at clock-out is retained as an exception; it does not erase worked hours. Permissions,
+location policy changes, clock events and review reasons are audited. GPS is evidence, not proof
+against spoofing; manager review and separation of duties remain necessary.
 
 ## Original-site content audit — 12 October 2026
 
