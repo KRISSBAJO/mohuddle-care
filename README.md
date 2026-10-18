@@ -238,6 +238,38 @@ setup, payroll exports, home issues/expenses and staff credential management rem
 Speech still requires the separately configured engines; the previously deferred speech hosting has
 not been enabled by these changes.
 
+### Mobile workflow delivery tracker — 18 October 2026
+
+This replaces the earlier audit's implementation status. **Released** means implemented, checked in
+source/automated tests and published over compatible preview/production OTA channels. It does not
+mean the whole workflow has passed acceptance on physical Android and iPhone devices.
+
+| Recommended stage | Delivery state | Acceptance still needed |
+| --- | --- | --- |
+| 1. Durable drafts and notes lifecycle | Released: visible local drafts, improved date/time/editor controls, reading/amending signed notes, returned corrections/resubmission and eligible reviews | Existing drafts in Notes; force-close/offline recovery; writer-to-reviewer return/resubmit/approve on phones |
+| 2. Staff time self-service | Released: own schedule/punches, correction requests, leave requests/cancellation and timesheet review/signing; connects to existing manager approvals | Staff submits, different manager decides, staff sees result; approved/locked-sheet behavior on phones |
+| 3. Appointments, people and nursing | Core flow released: searchable People, booking/details/escort changes, visit documentation, follow-up booking, health/weight history and care-team tools | Booking through completed visit/follow-up on phones, nurse permissions, and clinical medication-change follow-through |
+| 4. Manager scheduling and task actions | Released: coverage checks, shift creation/editing/assignment and task creation/reassignment; searchable home picker and website administration shortcuts | Coverage assignment, resulting staff schedule/task and browser-return refresh on phones |
+| Website handoffs | PDF placed-field signing now opens the secure website flow; common notification/assistant links map to native screens | Browser authentication/agency selection and less common notification/assistant destinations |
+| Speech | On hold: hosting not activated; phone speech visibility now checks actual engine readiness | Requires a separately agreed deployment; no new speech hosting charge approved |
+
+Open recovery limitation: an incident with pending photos keeps the Report screen on its upload
+retry flow; a separate queue allowing a new incident while older photos wait has not been added.
+Do not mark incident recovery completely accepted until interrupted-upload/device checks pass.
+Appointment medication changes are documented as visit instructions; they do not automatically
+rewrite medication orders or the MAR. Clinical medication-record changes still require the website.
+Native PDF placed-field signing has not been added; the working website handoff is intentional.
+
+Next priorities: physical-phone acceptance for stages 1 and 2; remove the incident upload queue
+limitation; then complete appointment/nursing and manager-operation acceptance. Keep this checklist
+updated instead of treating the original audit text as the current implementation state.
+
+Setup snapshot: Milestone has **1 active home and 0 upcoming, unfinished shifts** at this check.
+The original audit's statement that it had no homes is now outdated. Empty schedules still need
+real agency setup; test fixtures were removed and should not be mistaken for configured records.
+Payroll configuration/export, bulk setup, business settings and the owner console remain website
+scope. The latest manager menu links to those website workflows without passing phone tokens.
+
 Office/admin work is a separate, non-care clock-in option. It is off until an administrator sets
 the office address/map position and names the approved staff under Settings → Office / admin work.
 Job title alone grants no access. Another administrator must grant the administrator's own staff
