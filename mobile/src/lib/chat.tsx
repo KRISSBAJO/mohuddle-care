@@ -102,7 +102,7 @@ export function ChatLiveProvider({ children }: { children: React.ReactNode }) {
           } catch {
             return;
           }
-          if (event.t === "message" || event.t === "hello" || event.t === "chats" || event.t === "members") refreshUnread();
+          if (["message", "hello", "chats", "members", "receipt"].includes(event.t)) refreshUnread();
           handlers.current.forEach(handler => handler(event));
         };
         ws.onclose = () => {
@@ -140,6 +140,13 @@ export function ChatLiveProvider({ children }: { children: React.ReactNode }) {
       socket.current = null;
     };
   }, [enabled, call, refreshUnread]);
+
+  // Keep the tab badge current even while the gateway is unavailable or a chat is read elsewhere.
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = setInterval(() => { if (AppState.currentState === "active") refreshUnread(); }, live ? 60_000 : 6000);
+    return () => clearInterval(timer);
+  }, [enabled, live, refreshUnread]);
 
   const subscribe = useCallback((handler: (event: LiveEvent) => void) => {
     handlers.current.add(handler);

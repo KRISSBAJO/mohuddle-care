@@ -4,7 +4,8 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, ErrorText, Icon, T, type IconName } from "@/components/ui";
-import { ApiError, type Today } from "@/lib/api";
+import { ManagerOverview } from "@/components/ManagerOverview";
+import { ApiError, type TeamNow, type Today } from "@/lib/api";
 import { duration, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
@@ -32,6 +33,11 @@ export default function TodayScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const zone = me?.agency?.zone;
+  const canManage = Boolean(me?.user.canManage);
+  const showPersonal = !canManage || Boolean(me?.user.isStaff);
+  const agencyId = me?.agency?.id ?? "";
+  const [team, setTeam] = useState<{ agencyId: string; data: TeamNow } | null>(null);
+  const [teamError, setTeamError] = useState("");
 
   const [unread, setUnread] = useState(0);
   const load = useCallback(() => {
@@ -39,14 +45,19 @@ export default function TodayScreen() {
       data => setUnread(data.unread),
       () => undefined,
     );
-    return call<Today>("/today").then(
+    const personal = showPersonal ? call<Today>("/today").then(
       data => {
         setToday(data);
         setError("");
       },
       problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
-    );
-  }, [call]);
+    ) : Promise.resolve();
+    const overview = canManage ? call<TeamNow>("/team").then(
+      data => { setTeam({ agencyId, data }); setTeamError(""); },
+      problem => setTeamError(problem instanceof ApiError ? problem.message : "Could not load the team overview. Try again."),
+    ) : Promise.resolve();
+    return Promise.all([personal, overview]);
+  }, [call, showPersonal, canManage, agencyId]);
 
   useEffect(() => {
     // The first load happens when the screen comes into focus, below. The time on shift counts up; the list refreshes every few minutes.
@@ -157,7 +168,8 @@ export default function TodayScreen() {
     { label: today?.notes?.missing === 1 ? "note" : "notes", value: today?.notes?.missing ?? 0, alert: Boolean(today?.notes?.overdue) },
     { label: today?.tasks.length === 1 ? "task" : "tasks", value: today?.tasks.length ?? 0, alert: (today?.tasks ?? []).some(task => task.dueAt && new Date(task.dueAt).getTime() < now) },
   ];
-  const summary = (
+  const hasCounts = counts.some(count => count.value > 0);
+  const summary = hasCounts ? (
     <View style={styles.summary}>
       {counts.map((count, index) => (
         <Fragment key={count.label}>
@@ -173,7 +185,7 @@ export default function TodayScreen() {
         </Fragment>
       ))}
     </View>
-  );
+  ) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
@@ -223,17 +235,19 @@ export default function TodayScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel="Report an incident" onPress={() => router.push("/report")} style={({ pressed }) => [styles.report, pressed && { opacity: 0.7 }]}>
               <Icon name="alert-triangle" size={14} color={colors.flag} />
               <T weight="semibold" size={13} color={colors.flag}>
-                Report
+                Report incident
               </T>
             </Pressable>
           </View>
         </SafeAreaView>
 
-        {me?.user.isStaff && clock ? (
+        {canManage ? <ManagerOverview team={team?.agencyId === agencyId ? team.data : null} error={teamError} onRetry={() => void load()} /> : null}
+
+        {showPersonal && me?.user.isStaff && clock ? (
           <View style={[styles.shift, shadow.soft]}>
             <View style={styles.shiftTop}>
               <T weight="semibold" size={12} color={colors.mute} style={{ letterSpacing: 1 }}>
-                {clock.state === "on" ? "ON THE CLOCK" : clock.shift ? "TODAY'S SHIFT" : "NEXT SHIFT"}
+                {clock.state === "on" ? "ON THE CLOCK" : "YOUR SHIFT"}
               </T>
               <View style={[styles.chip, { backgroundColor: status.bg }]}>
                 <View style={[styles.chipDot, { backgroundColor: status.fg }]} />
@@ -247,11 +261,10 @@ export default function TodayScreen() {
                 ? `On for ${duration(clock.since, now)}`
                 : clock.shift
                   ? `${fmt.time(clock.shift.startsAt, zone)} – ${fmt.time(clock.shift.endsAt, zone)}`
-                  : clock.next
-                    ? `${fmt.dayShort(clock.next.startsAt, zone)}, ${fmt.time(clock.next.startsAt, zone)}`
-                    : "Nothing scheduled"}
+                  : "No shift scheduled today"}
             </T>
-            {where ? (
+            {clock.state === "off" && !clock.shift && clock.next ? <T size={13} color={colors.mute} style={{ marginTop: 4 }}>Next: {fmt.dayShort(clock.next.startsAt, zone)}, {fmt.time(clock.next.startsAt, zone)} · {clock.next.home}</T> : null}
+            {where && (clock.state === "on" || clock.shift) ? (
               <View style={styles.place}>
                 <Icon name="map-pin" size={13} color={colors.sage} />
                 <T size={13} color={colors.mute}>
@@ -295,11 +308,11 @@ export default function TodayScreen() {
                 <Button label="Rest break" tone="ghost" onPress={() => takeBreak({ action: "start", kind: "rest" })} style={{ flex: 1 }} />
               </View>
             ) : null}
-            {today ? <View style={styles.summaryInCard}>{summary}</View> : null}
+            {today && hasCounts ? <View style={styles.summaryInCard}>{summary}</View> : null}
           </View>
         ) : null}
 
-        {!(me?.user.isStaff && clock) && today ? <View style={[styles.summaryCard, shadow.soft]}>{summary}</View> : null}
+        {showPersonal && !(me?.user.isStaff && clock) && today && hasCounts ? <View style={[styles.summaryCard, shadow.soft]}>{summary}</View> : null}
 
         {me?.readOnly ? (
           <View style={styles.notice}>
@@ -312,6 +325,8 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
+        {showPersonal && !today && !error ? <T color={colors.mute} style={styles.notice}>Loading your day…</T> : null}
+        {showPersonal && today && (!canManage || rows.length > 0) ? <>
         <View style={styles.sectionHead}>
           <T weight="bold" size={20} style={{ letterSpacing: -0.6 }}>
             Due now
@@ -329,12 +344,14 @@ export default function TodayScreen() {
             <View style={[styles.rowIcon, { backgroundColor: colors.sageSoft }]}>
               <Icon name="check" size={18} color={colors.sage} />
             </View>
-            <T weight="semibold" style={{ marginTop: 10 }}>
+            <View style={{ flex: 1, gap: 2 }}>
+            <T weight="semibold">
               All caught up
             </T>
-            <T size={13} color={colors.mute} style={{ textAlign: "center" }}>
-              Medicines, notes and tasks show here when they are due.
+            <T size={13} color={colors.mute}>
+              Nothing due right now.
             </T>
+            </View>
           </View>
         ) : (
           <View style={[styles.group, shadow.soft]}>
@@ -372,8 +389,9 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
+        </> : null}
 
-        {today?.people.length ? (
+        {showPersonal && today?.people.length ? (
           <>
             <View style={styles.sectionHead}>
               <T weight="bold" size={20} style={{ letterSpacing: -0.6 }}>
@@ -428,8 +446,8 @@ const styles = StyleSheet.create({
   agency: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 13 },
   agencyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.sage },
   ask: { flexDirection: "row", alignItems: "center", gap: 6, height: 42, borderRadius: 21, paddingHorizontal: 14, backgroundColor: colors.card },
-  greetRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  report: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.flagSoft, borderRadius: 999, paddingHorizontal: 12, height: 34 },
+  greetRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
+  report: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.flagSoft, borderRadius: 999, paddingHorizontal: 12, minHeight: 44 },
   bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
   bellBadge: { position: "absolute", top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.flag, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.ground },
   me: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
@@ -452,7 +470,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 22, marginTop: 28, marginBottom: 12 },
   latePill: { backgroundColor: colors.flagSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   group: { marginHorizontal: 20, backgroundColor: colors.card, borderRadius: 24, overflow: "hidden" },
-  empty: { alignItems: "center", paddingVertical: 26, paddingHorizontal: 24 },
+  empty: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 16, paddingHorizontal: 20 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.line, marginLeft: 68 },
   rowIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
