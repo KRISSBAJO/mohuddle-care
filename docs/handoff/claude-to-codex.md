@@ -479,3 +479,19 @@ OTA verification IDs follow below.
 - production android: 01a14dbb-bc21-7c7c-bbe6-d0591444f615; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
 
 All four public OTA manifests deliver the new IDs with installed-runtime compatibility.
+
+### Codex delivery tracking clarification — 18 October 2026
+
+Kriss pasted the original audit and asked whether work was still at stage 2. Updated the root README
+with a dated Mobile workflow delivery tracker: stages 1–4 have released implementations, while
+physical-device acceptance remains separate. Core appointment work records medication changes as
+instructions; it does not automatically rewrite medication orders/MAR, whose edits remain on web.
+Explicitly retained the open incident limitation: pending photos hold the Report screen's retry
+flow and there is not yet a separate multi-report upload queue. PDF placed-field signing uses the
+working browser handoff rather than native placement. Speech hosting stays on hold.
+
+A read-only production count for Milestone found 1 active home and 0 upcoming unfinished shifts,
+so the old audit's no-homes statement is outdated. No care records, credentials or settings changed
+in this tracking turn. No new deployment, native build or OTA is needed for documentation updates.
+Next acceptance priority is notes/time flows on real phones, plus the incident queue limitation;
+then appointment/nursing and manager-operation acceptance. Keep README and handoff status aligned.
