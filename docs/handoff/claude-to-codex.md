@@ -258,3 +258,29 @@ for the installed iOS/Android runtimes; no native build was started.
 - Local preview-server launch was rejected by automatic approval review ("blocked by policy").
   No visual browser or physical-keyboard verification is claimed. Kriss still needs to check
   the installed phone screen/keyboard and complete the earlier two-phone chat flow.
+
+### Codex manager Today OTA — 18 October 2026
+
+Kriss requested Today refinements and a manager home, OTA only. Commit `968562a` adds
+`ManagerOverview` on Today when the server's `me.user.canManage` is true. The existing manager-only
+`/team` response supplies staffing, breaks, coverage, approvals, staffing alerts and new incidents,
+with Team/Approvals links. Managers with a staff record retain personal shift controls below it;
+other managers do not see empty personal-care panels. Care staff retain their own day view.
+Manager results are scoped to the current agency; loading/errors never count as an all-clear.
+
+Also: clearer shift wording with a separate next-shift line, hide all-zero personal counts,
+compact caught-up row, "Report incident", darker inactive tabs and an accessible red Chat badge.
+The badge refreshes on receipts and polls while disconnected, only while active and signed in.
+No native settings, dependencies or permissions changed.
+
+TypeScript, targeted lint and diff checks pass. Production API tests with disposable TEST accounts
+verified admin/coordinator `canManage=true` and `/team=200`, while care staff have `canManage=false`
+and `/team=403`. Those fixtures were removed; existing phone-chat fixtures remain untouched.
+Both exported source maps match all four changed files. Preview/production manifests serve the
+new update IDs for both installed native runtimes. Physical-device UI and two-phone chat tests
+still await Kriss; no native build was started.
+
+- Preview iOS `01a14d6a-f693-7b27-b9ca-1252fc23fda1`; Android `01a14d6a-f693-7dda-b2d9-0be61f3f6d7e`.
+- Production iOS `01a14d6b-8f39-790a-a191-db9a101c7d17`; Android `01a14d6b-8f39-7de7-bbd8-cb11d59fe8e0`.
+- Mobile repository main pushed to `aa11299`. Root implementation commit remains local for this
+  OTA-only change; no backend deployment was needed.
