@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { dateKey, zonedTime } from "@/lib/format";
 import { dosesByHour, parseLogNote, shiftMinutes, withDoses } from "@/lib/log-note";
@@ -32,6 +32,15 @@ export function noteSource(fields: Record<string, string | string[]>): NoteSourc
  * per shift they worked. A scheduled shift must be the writer's own; its date and type come from it.
  */
 export async function saveDailyNote(user: SessionUser, formData: NoteSource): Promise<{ id: string; individualId: string; error?: undefined } | { error: string; id?: undefined; individualId?: undefined }> {
+  const requestId = String(formData.get("_requestId") ?? "");
+  if (requestId && !z.uuid().safeParse(requestId).success) return { error: "Unknown note request." };
+  if (requestId) {
+    const [event] = await db.select({ id: schema.auditLog.entityId }).from(schema.auditLog).where(and(eq(schema.auditLog.entityId, requestId), eq(schema.auditLog.entity, "daily_log"), eq(schema.auditLog.action, "create"), eq(schema.auditLog.userId, user.id))).limit(1);
+    if (event) {
+      const [saved] = await db.select({ individualId: schema.dailyLogs.individualId }).from(schema.dailyLogs).where(eq(schema.dailyLogs.id, requestId)).limit(1);
+      if (saved) return { id: requestId, individualId: saved.individualId };
+    }
+  }
   const individualId = String(formData.get("individualId") ?? "");
   if (!z.uuid().safeParse(individualId).success) return { error: "Choose the person this log is about." };
   const [person] = await db.select().from(schema.individuals).where(eq(schema.individuals.id, individualId)).limit(1);
@@ -104,9 +113,14 @@ export async function saveDailyNote(user: SessionUser, formData: NoteSource): Pr
   if (existing) return { error: `You already wrote a note for ${person.firstName} on this shift. Open it from their Daily logs tab.` };
 
   const id = await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.agencyId + ":" + user.id + ":" + individualId}))`);
+    if (requestId) {
+      const [event] = await tx.select({ id: schema.auditLog.entityId }).from(schema.auditLog).where(and(eq(schema.auditLog.entityId, requestId), eq(schema.auditLog.entity, "daily_log"), eq(schema.auditLog.action, "create"), eq(schema.auditLog.userId, user.id))).limit(1);
+      if (event) return event.id!;
+    }
     const [row] = await tx
       .insert(schema.dailyLogs)
-      .values({ ...note, individualId, staffId: user.staffId, shiftId: shift?.id ?? null, shiftName, signedName: user.name, signedAt: new Date() })
+      .values({ ...(requestId ? { id: requestId } : {}), ...note, individualId, staffId: user.staffId, shiftId: shift?.id ?? null, shiftName, signedName: user.name, signedAt: new Date() })
       .returning({ id: schema.dailyLogs.id });
     if (goalData.length) await tx.insert(schema.dailyLogGoals).values(goalData.map(goal => ({ ...goal, logId: row.id })));
     await tx.insert(schema.auditLog).values({ userId: user.id, action: "create", entity: "daily_log", entityId: row.id });

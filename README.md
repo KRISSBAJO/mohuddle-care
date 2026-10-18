@@ -216,6 +216,19 @@ The seed data is fictional. Passing unit/integration checks does not establish p
 load capacity or a full security/compliance assessment. Run the production build and smoke checks,
 then validate the target deployment and device workflows.
 
+## Mobile notes and draft recovery
+
+The phone app now supports reading signed notes, auditable amendments, returned-note correction
+and resubmission, eligible reviewer queues, and Community Participation notes. Review actions reuse
+the website's validation and permissions; concurrent changes are checked before saving. Notes and
+incident drafts are stored on the phone by account and agency. Incident photos are encrypted until
+upload, and failed uploads can be retried without filing a second report.
+
+Deploy the backend before publishing the matching OTA update. No native build is required for
+these screens. See [mobile/README.md](mobile/README.md) for checks and physical-phone acceptance
+steps. Staff time self-service, appointment/nursing tools and manager scheduling/task actions are
+the subsequent implementation stages.
+
 ## Original-site content audit — 12 October 2026
 
 Compared the public pages and linked application documents on milestonehhs.com with this implementation.

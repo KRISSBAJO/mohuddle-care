@@ -1,3 +1,4 @@
+import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -6,6 +7,9 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Check, Chips, ErrorText, Field, Icon, Section, styles as ui, T } from "@/components/ui";
 import { API_URL, ApiError } from "@/lib/api";
+import { draftKey } from "@/lib/drafts";
+import { keepDraftPhoto, photoForUpload, forgetDraftPhoto, type DraftPhoto } from "@/lib/draft-photos";
+import { useDraft } from "@/lib/use-draft";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
@@ -14,7 +18,11 @@ type FormData = {
   people: { id: string; name: string; homeId: string | null; home: string | null }[];
   groups: { key: string; title: string; deadline: string; events: { key: string; label: string; detail?: string }[] }[];
 };
-type Photo = { uri: string; type: string };
+type ReportDraft = {
+  person: string; now: boolean; date: string; time: string; events: string[]; other: string; witness: string;
+  description: string; injury: string; injuryDetails: string; actions: string; photos: DraftPhoto[];
+  requestId?: string; filedId?: string; tier?: string;
+};
 
 const today = (zone?: string) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const clock = (zone?: string) => new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
@@ -28,31 +36,28 @@ export default function ReportScreen() {
   const { call, me, token } = useSession();
   const zone = me?.agency?.zone;
   const [form, setForm] = useState<FormData | null>(null);
-  const [person, setPerson] = useState("");
-  const [showEveryone, setShowEveryone] = useState(false);
-  // A link from Ask Mohuddle can name the person; the form starts with them chosen.
+  const draft = useDraft<ReportDraft>(me?.agency ? draftKey(me.user.id, me.agency.id, "report", "new") : null);
   const params = useLocalSearchParams<{ person?: string }>();
-  const [linked, setLinked] = useState<string | undefined>(undefined);
-  if (params.person && params.person !== linked) {
-    setLinked(params.person);
-    setPerson(params.person);
-    setShowEveryone(true);
-  }
-  const [now, setNow] = useState(true);
-  const [date, setDate] = useState(() => today(zone));
-  const [time, setTime] = useState(() => clock(zone));
-  const [events, setEvents] = useState<string[]>([]);
+  const [showEveryone, setShowEveryone] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const [other, setOther] = useState("");
-  const [witness, setWitness] = useState("");
-  const [description, setDescription] = useState("");
-  const [injury, setInjury] = useState("");
-  const [injuryDetails, setInjuryDetails] = useState("");
-  const [actions, setActions] = useState("");
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const data: ReportDraft = draft.value ?? { person: params.person ?? "", now: true, date: today(zone), time: clock(zone), events: [], other: "", witness: "", description: "", injury: "", injuryDetails: "", actions: "", photos: [] };
+  const { person, now, date, time, events, other, witness, description, injury, injuryDetails, actions, photos } = data;
+  const change = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => draft.save({ ...data, [key]: value });
+  const setPerson = (v: string) => change("person", v);
+  const setNow = (v: boolean) => change("now", v);
+  const setDate = (v: string) => change("date", v);
+  const setTime = (v: string) => change("time", v);
+  const setEvents = (v: string[]) => change("events", v);
+  const setOther = (v: string) => change("other", v);
+  const setWitness = (v: string) => change("witness", v);
+  const setDescription = (v: string) => change("description", v);
+  const setInjury = (v: string) => change("injury", v);
+  const setInjuryDetails = (v: string) => change("injuryDetails", v);
+  const setActions = (v: string) => change("actions", v);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [done, setDone] = useState<{ tier: string; photosFailed: number } | null>(null);
+  const [completed, setCompleted] = useState<{ tier: string } | null>(null);
+  const done = data.filedId ? { tier: data.tier ?? "", photosFailed: photos.length } : completed ? { tier: completed.tier, photosFailed: 0 } : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -72,60 +77,63 @@ export default function ReportScreen() {
     const options = { mediaTypes: ["images" as const], quality: 0.7, allowsMultipleSelection: !fromCamera, selectionLimit: 6 };
     const result = fromCamera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     if (result.canceled) return;
-    setPhotos(previous => [...previous, ...result.assets.map(asset => ({ uri: asset.uri, type: asset.mimeType ?? "image/jpeg" }))].slice(0, 12));
+    try {
+      const added: DraftPhoto[] = [];
+      for (const asset of result.assets.slice(0, 12 - photos.length)) {
+        added.push(await keepDraftPhoto(asset.uri, asset.mimeType ?? "image/jpeg"));
+        change("photos", [...photos, ...added]);
+        await draft.flush();
+      }
+    } catch { setError("The photo could not be kept safely on this phone. Try again."); }
   }
 
   async function submit() {
+    if (busy) return;
     setError("");
     setBusy("Sending the reportâ€¦");
-    let id: string;
+    let current = { ...data, requestId: data.requestId ?? randomUUID(), now: false, date: now ? today(zone) : date, time: now ? clock(zone) : time };
     try {
-      const result = await call<{ id: string }>("/incidents", {
-        individualId: person,
-        occurredDate: now ? today(zone) : date,
-        occurredTime: now ? clock(zone) : time,
-        witnessType: witness,
-        eventTypes: events,
-        otherEventText: other,
-        description,
-        injury,
-        injuryDetails,
-        actionsTaken: actions,
-      });
-      id = result.id;
+      draft.save(current);
+      await draft.flush();
+      if (!current.filedId) {
+        const result = await call<{ id: string }>("/incidents", {
+          requestId: current.requestId, individualId: person, occurredDate: current.date, occurredTime: current.time,
+          witnessType: witness, eventTypes: events, otherEventText: other, description, injury, injuryDetails, actionsTaken: actions,
+        });
+        current = { ...current, filedId: result.id, tier: urgent?.deadline ?? "" };
+        draft.save(current); await draft.flush();
+      }
     } catch (problem) {
       setBusy("");
       return setError(problem instanceof ApiError ? (problem.code === "offline" ? "No signal. Incident reports need a signal. Everything you typed is still here; try again when you have one." : problem.message) : "Something went wrong. Try again.");
     }
-    // The report is filed; now the photos, one at a time.
-    let failed = 0;
-    for (const [index, photo] of photos.entries()) {
-      setBusy(`Adding photo ${index + 1} of ${photos.length}â€¦`);
+    // Keep the report ID and each outstanding encrypted photo durably. Retries reuse their IDs.
+    const remaining = [...current.photos];
+    for (const [index, photo] of current.photos.entries()) {
+      setBusy(`Adding photo ${index + 1} of ${current.photos.length}…`);
+      let temp: Awaited<ReturnType<typeof photoForUpload>> | null = null;
       try {
-        const blob = await (await fetch(photo.uri)).blob();
-        const response = await fetch(`${API_URL}/api/v1/incidents/${id}/photos`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": photo.type || blob.type || "image/jpeg" }, body: blob });
-        if (!response.ok) failed += 1;
-      } catch {
-        failed += 1;
-      }
+        temp = await photoForUpload(photo);
+        const blob = await (await fetch(temp.uri)).blob();
+        const response = await fetch(`${API_URL}/api/v1/incidents/${current.filedId}/photos`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": photo.type, "x-upload-id": photo.id }, body: blob });
+        if (!response.ok) continue;
+        remaining.splice(remaining.findIndex(item => item.id === photo.id), 1);
+        draft.save({ ...current, photos: [...remaining] });
+        await draft.flush();
+        await forgetDraftPhoto(photo);
+      } catch { /* Keep the photo for retry, including when its response was lost. */ }
+      finally { if (temp?.exists) temp.delete(); }
     }
     setBusy("");
-    setDone({ tier: urgent?.deadline ?? "", photosFailed: failed });
+    if (!remaining.length) { setCompleted({ tier: current.tier ?? "" }); try { await draft.clear(); } catch { setError("Report saved. The local copy could not be cleared yet."); } }
   }
 
-  function reset() {
-    setPerson("");
-    setEvents([]);
-    setOther("");
-    setWitness("");
-    setDescription("");
-    setInjury("");
-    setInjuryDetails("");
-    setActions("");
-    setPhotos([]);
-    setNow(true);
-    setDone(null);
+  async function reset() {
+    if (photos.length) return;
+    try { await draft.clear(); setCompleted(null); } catch { setError("Could not clear the local copy. Try again."); }
   }
+
+  if (!draft.ready) return <SafeAreaView style={[styles.page, { padding: 24 }]}><T>{draft.message || "Opening your saved report…"}</T></SafeAreaView>;
 
   if (done)
     return (
@@ -148,8 +156,9 @@ export default function ReportScreen() {
               </T>
             </View>
           ) : null}
-          {done.photosFailed ? <ErrorText>{done.photosFailed === 1 ? "One photo" : `${done.photosFailed} photos`} could not be added. Add them on the website.</ErrorText> : null}
-          <Button label="Report another" tone="ghost" onPress={reset} />
+          {done.photosFailed ? <ErrorText>{done.photosFailed === 1 ? "One photo" : `${done.photosFailed} photos`} are saved on this phone and waiting to upload. Retry when you have a connection.</ErrorText> : null}
+          <ErrorText>{error}</ErrorText>
+          {done.photosFailed ? <Button label={busy || "Retry photo uploads"} busy={Boolean(busy)} onPress={submit} /> : <Button label="Report another" tone="ghost" onPress={() => void reset()} />}
         </View>
       </SafeAreaView>
     );
@@ -158,7 +167,7 @@ export default function ReportScreen() {
     <View style={styles.page}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView pointerEvents={busy ? "none" : "auto"} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <SafeAreaView edges={["top"]} style={{ paddingTop: 16, paddingBottom: 6 }}>
             <T weight="bold" size={24} style={{ letterSpacing: -0.6 }}>
               Report an incident
@@ -168,6 +177,7 @@ export default function ReportScreen() {
             </T>
           </SafeAreaView>
 
+          <T size={13} accessibilityLiveRegion="polite">{draft.message}</T>
           <Section title="Who was involved">
             <Chips options={listed.map(item => [item.id, item.name] as const)} value={person} onChange={next => setPerson(typeof next === "string" ? next : "")} />
             {nearby.length && !showEveryone ? (
@@ -281,7 +291,7 @@ export default function ReportScreen() {
                 {photos.map((photo, index) => (
                   <View key={photo.uri} style={styles.photo}>
                     <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-                    <Pressable accessibilityRole="button" accessibilityLabel="Remove photo" onPress={() => setPhotos(photos.filter((_, i) => i !== index))} style={styles.remove}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Remove photo" onPress={() => { change("photos", photos.filter((_, i) => i !== index)); void draft.flush().then(() => forgetDraftPhoto(photo)).catch(() => setError("Could not remove this photo. Try again.")); }} style={styles.remove}>
                       <Icon name="x" size={14} color="#ffffff" />
                     </Pressable>
                   </View>

@@ -18,6 +18,8 @@ export function phoneScreenFor(href: string, manager: boolean): string | null {
       return "/clock";
     case "/app/daily-logs/new":
       return person ? `/note?person=${person}` : "/notes";
+    case "/app/community-notes/new":
+      return "/community-note";
     case "/app/daily-logs":
       return "/notes";
     case "/app/incidents/new":
@@ -35,6 +37,9 @@ export function phoneScreenFor(href: string, manager: boolean): string | null {
       return chat && /^[0-9a-f-]{36}$/.test(chat) ? `/conversation?id=${chat}` : "/chat";
     }
   }
+  if (parts[1] === "daily-logs" && id) return `/note-record?kind=daily&id=${id}`;
+  if (parts[1] === "community-notes" && id) return `/note-record?kind=community&id=${id}`;
+  if (parts[1] === "individuals" && id) return `/person?id=${id}`;
   if (parts[1] === "tasks" && id) return `/task?id=${id}`;
   if (parts[1] === "incidents" && id) return manager ? `/incident?id=${id}` : null;
   return null;

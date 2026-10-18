@@ -21,6 +21,11 @@ test("website links open the matching phone screen", () => {
   assert.equal(phoneScreenFor("/app/tasks/0b9c2f4e-1111-4222-8333-944455556666", false), "/task?id=0b9c2f4e-1111-4222-8333-944455556666");
   assert.equal(phoneScreenFor("/app/clock/timesheets/2026-10-01", false), null);
   assert.equal(phoneScreenFor("", false), null);
+  const id = "0b9c2f4e-1111-4222-8333-944455556666";
+  assert.equal(phoneScreenFor(`/app/daily-logs/${id}`, false), `/note-record?kind=daily&id=${id}`);
+  assert.equal(phoneScreenFor(`/app/community-notes/${id}`, false), `/note-record?kind=community&id=${id}`);
+  assert.equal(phoneScreenFor("/app/community-notes/new", false), "/community-note");
+  assert.equal(phoneScreenFor(`/app/individuals/${id}`, false), `/person?id=${id}`);
 });
 
 test("team and incident screens open only for managers", () => {

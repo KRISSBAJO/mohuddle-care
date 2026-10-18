@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { zonedTime } from "@/lib/format";
 import { INJURED_PARTIES, INVOLVEMENT_QUESTIONS, categoryFor, eventLabel, eventTier, isEventKey, isInterventionKey } from "@/lib/reportable-events";
@@ -59,7 +59,7 @@ const refInput = z.object({
  * record, so nothing is typed twice. The tier sets how fast it must reach the state, and the team
  * is told at once.
  */
-export async function fileIncident(user: SessionUser, raw: unknown): Promise<{ id: string; error?: undefined } | { error: string; id?: undefined }> {
+export async function fileIncident(user: SessionUser, raw: unknown, requestId?: string): Promise<{ id: string; error?: undefined } | { error: string; id?: undefined }> {
   const parsed = refInput.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
   const input = parsed.data;
@@ -106,9 +106,11 @@ export async function fileIncident(user: SessionUser, raw: unknown): Promise<{ i
   const category = categoryFor(eventTypes);
   const severity = tier === "tier1" ? "critical" : tier === "tier2" && input.severity === "low" ? "moderate" : input.severity;
 
-  const [row] = await db
+  const saved = await db.transaction(async tx => {
+  const [row] = await tx
     .insert(schema.incidents)
     .values({
+      ...(requestId ? { id: requestId } : {}),
       individualId: input.individualId || null,
       homeId,
       reportedBy: user.staffId,
@@ -145,8 +147,19 @@ export async function fileIncident(user: SessionUser, raw: unknown): Promise<{ i
       notifications,
       tier,
     })
+    .onConflictDoNothing()
     .returning({ id: schema.incidents.id });
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "create", entity: "incident", entityId: row.id });
+  if (!row) {
+    const [event] = requestId ? await tx.select({ id: schema.auditLog.entityId }).from(schema.auditLog).where(and(eq(schema.auditLog.entityId, requestId), eq(schema.auditLog.entity, "incident"), eq(schema.auditLog.action, "create"), eq(schema.auditLog.userId, user.id))).limit(1) : [];
+    return event ? { id: event.id!, repeat: true } : null;
+  }
+  await tx.insert(schema.auditLog).values({ userId: user.id, action: "create", entity: "incident", entityId: row.id });
+
+    return { id: row.id, repeat: false };
+  });
+  if (!saved) return { error: "The report could not be saved. Try again." };
+  const row = saved;
+  if (saved.repeat) return { id: row.id };
 
   const to = await recipients({ roles: settings.notify_roles_incidents, staffIds: [await homeManagerOf(homeId)], except: user.id });
   const who = person ? ` for ${person.first} ${person.last}` : "";

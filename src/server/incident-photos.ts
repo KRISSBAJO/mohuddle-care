@@ -15,22 +15,28 @@ export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const MAX_PHOTOS = 12;
 
 /* The reporter can add photos to their own report; managers to any. */
-export async function addIncidentPhoto(user: SessionUser, incidentId: string, body: Buffer, contentType: string, caption = ""): Promise<{ id: string; error?: undefined } | { error: string; id?: undefined }> {
+export async function addIncidentPhoto(user: SessionUser, incidentId: string, body: Buffer, contentType: string, caption = "", requestId?: string): Promise<{ id: string; error?: undefined } | { error: string; id?: undefined }> {
   const type = contentType.split(";")[0].trim().toLowerCase();
   const ext = PHOTO_TYPES[type];
   if (!ext) return { error: "Send a photo: JPEG, PNG, WebP or HEIC." };
   if (!body.length || body.length > MAX_PHOTO_BYTES) return { error: "Photos can be up to 10 MB." };
-  const [incident] = await db.select({ id: schema.incidents.id, reportedBy: schema.incidents.reportedBy }).from(schema.incidents).where(eq(schema.incidents.id, incidentId)).limit(1);
+  return db.transaction(async tx => {
+  const [incident] = await tx.select({ id: schema.incidents.id, reportedBy: schema.incidents.reportedBy }).from(schema.incidents).where(eq(schema.incidents.id, incidentId)).limit(1).for("update");
   if (!incident) return { error: "That incident is not on record." };
   if (!canManage(user) && (!user.staffId || incident.reportedBy !== user.staffId)) return { error: "Only the person who reported it, or a manager, can add photos." };
-  const existing = await db.select({ id: schema.incidentPhotos.id }).from(schema.incidentPhotos).where(eq(schema.incidentPhotos.incidentId, incidentId));
+  if (requestId) {
+    const [saved] = await tx.select().from(schema.incidentPhotos).where(eq(schema.incidentPhotos.id, requestId)).limit(1);
+    if (saved) return saved.incidentId === incidentId && saved.takenBy === user.id ? { id: saved.id } : { error: "Unknown photo request." };
+  }
+  const existing = await tx.select({ id: schema.incidentPhotos.id }).from(schema.incidentPhotos).where(eq(schema.incidentPhotos.incidentId, incidentId));
   if (existing.length >= MAX_PHOTOS) return { error: `An incident can have up to ${MAX_PHOTOS} photos.` };
 
   const key = await agencyKey(`incidents/${incidentId}/${randomUUID()}.${ext}`);
   await storage().put(key, body, type);
-  const [row] = await db.insert(schema.incidentPhotos).values({ incidentId, storageKey: key, contentType: type, size: body.length, caption: caption.slice(0, 300), takenBy: user.id }).returning({ id: schema.incidentPhotos.id });
-  await db.insert(schema.auditLog).values({ userId: user.id, action: "incident:photo", entity: "incident", entityId: incidentId });
+  const [row] = await tx.insert(schema.incidentPhotos).values({ ...(requestId ? { id: requestId } : {}), incidentId, storageKey: key, contentType: type, size: body.length, caption: caption.slice(0, 300), takenBy: user.id }).returning({ id: schema.incidentPhotos.id });
+  await tx.insert(schema.auditLog).values({ userId: user.id, action: "incident:photo", entity: "incident", entityId: incidentId });
   return { id: row.id };
+  });
 }
 
 export function photosFor(incidentId: string) {

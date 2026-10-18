@@ -1,3 +1,4 @@
+import { randomUUID } from "expo-crypto";
 import { useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +9,8 @@ import { Button, Check, Chips, ErrorText, Field, Icon, Section, styles as ui, T 
 import { ApiError, type NoteForm, type SectionKey } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { goBack } from "@/lib/nav";
+import { draftKey } from "@/lib/drafts";
+import { useDraft } from "@/lib/use-draft";
 import { useSession } from "@/lib/session";
 import { colors, shadow } from "@/lib/theme";
 
@@ -65,8 +68,14 @@ export default function NoteScreen() {
   const params = useLocalSearchParams<{ person: string; shift?: string }>();
   const { call, me } = useSession();
   const zone = me?.agency?.zone;
-  const [form, setForm] = useState<NoteForm | null>(null);
-  const [fields, setFields] = useState<Fields>({});
+  const scope = `${me?.agency?.id}.${me?.user.id}.${params.person}.${params.shift ?? "unscheduled"}`;
+  const [loaded, setLoaded] = useState<{ scope: string; form: NoteForm } | null>(null);
+  const storedDraft = useDraft<{ fields: Fields; form: NoteForm }>(me?.agency ? draftKey(me.user.id, me.agency.id, "note", `${params.person}.${params.shift ?? "unscheduled"}`) : null);
+  const form = loaded?.scope === scope ? loaded.form : storedDraft.value?.form ?? null;
+  const defaults: Fields = form ? { individualId: form.person.id, ...(form.shift ? { shiftId: form.shift.id } : {}), logDate: form.defaults.logDate, shift: form.defaults.shift, timeIn: form.defaults.timeIn, timeOut: form.defaults.timeOut } : {};
+  const [signed, setSigned] = useState<{ scope: string; value: string } | null>(null);
+  const attest = signed?.scope === scope ? signed.value : "";
+  const fields: Fields = { ...defaults, ...storedDraft.value?.fields, attest };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -74,12 +83,11 @@ export default function NoteScreen() {
     const query = `person=${encodeURIComponent(params.person ?? "")}${params.shift ? `&shift=${encodeURIComponent(params.shift)}` : ""}`;
     return call<NoteForm>(`/notes/form?${query}`).then(
       data => {
-        setForm(data);
-        setFields({ individualId: data.person.id, ...(data.shift ? { shiftId: data.shift.id } : {}), logDate: data.defaults.logDate, shift: data.defaults.shift, timeIn: data.defaults.timeIn, timeOut: data.defaults.timeOut });
+        setLoaded({ scope, form: data });
       },
       problem => setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again."),
     );
-  }, [call, params.person, params.shift]);
+  }, [call, params.person, params.shift, scope]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -92,7 +100,10 @@ export default function NoteScreen() {
     const current = fields[name];
     return Array.isArray(current) ? current : [];
   };
-  const set = (name: string) => (next: string | string[]) => setFields(previous => ({ ...previous, [name]: next }));
+  const set = (name: string) => (next: string | string[]) => {
+    if (name === "attest") setSigned({ scope, value: String(next) });
+    else if (form) storedDraft.save({ form, fields: { ...fields, _requestId: value("_requestId") || randomUUID(), attest: "", [name]: next } });
+  };
   const on = (key: SectionKey) => form?.sections.find(section => section.key === key)?.on ?? false;
   const required = (key: SectionKey) => form?.sections.find(section => section.key === key)?.required ?? false;
   const title = (key: SectionKey) => form?.sections.find(section => section.key === key)?.title ?? key;
@@ -111,18 +122,20 @@ export default function NoteScreen() {
         next[name] = text;
         if (key !== "behaviourOccurred" || raw) filled += 1;
       }
-      setFields(previous => ({ ...previous, ...next }));
+      if (form) storedDraft.save({ form, fields: { ...fields, ...next, _requestId: value("_requestId") || randomUUID(), attest: "" } });
       return filled;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reads the latest fields through value()
-    [fields, form],
+    [fields, form, storedDraft],
   );
 
   async function save() {
     setError("");
     setBusy(true);
     try {
+      await storedDraft.flush();
       await call("/notes", { fields });
+      try { await storedDraft.clear(); } catch { /* The server saved it. Never ask the writer to submit twice. */ }
       goBack();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : "Something went wrong. Try again.");
@@ -130,11 +143,11 @@ export default function NoteScreen() {
     }
   }
 
-  if (!form)
+  if (!form || !storedDraft.ready)
     return (
       <View style={{ flex: 1, backgroundColor: colors.ground }}>
         <Bar />
-        <View style={{ padding: 20 }}>{error ? <ErrorText>{error}</ErrorText> : <ActivityIndicator color={colors.brand} />}</View>
+        <View style={{ padding: 20 }}>{error || storedDraft.message ? <ErrorText>{error || storedDraft.message}</ErrorText> : <ActivityIndicator color={colors.brand} />}</View>
       </View>
     );
 
@@ -145,7 +158,8 @@ export default function NoteScreen() {
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
       <Bar />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <ScrollView pointerEvents={busy ? "none" : "auto"} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          {storedDraft.message ? <T size={13} color={colors.mute} accessibilityLiveRegion="polite">{storedDraft.message}</T> : null}
           <View style={[styles.person, shadow.soft]}>
             <T weight="bold" size={20} style={{ letterSpacing: -0.4 }}>
               {form.person.name}
