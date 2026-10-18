@@ -284,3 +284,46 @@ still await Kriss; no native build was started.
 - Production iOS `01a14d6b-8f39-790a-a191-db9a101c7d17`; Android `01a14d6b-8f39-7de7-bbd8-cb11d59fe8e0`.
 - Mobile repository main pushed to `aa11299`. Root implementation commit remains local for this
   OTA-only change; no backend deployment was needed.
+
+### Codex web/mobile feature audit — 18 October 2026
+
+At Kriss's request, reviewed the signed-in production web app in the browser: dashboard, staff and
+person detail, schedule, time clock/attendance, appointments/booking, notes/community-note form,
+medications, incidents, documents, tasks, homes, account, settings, health/care-team/plan tabs.
+Compared mobile routes, screen actions, API handlers and role checks. This was read-only feature
+inspection, not submitted production forms or a physical-device acceptance test. Some populated
+flows could only be checked in source because the current agency has no homes/shifts configured.
+
+Main gaps to discuss before implementation:
+
+1. Staff self-service: no native weekly schedule, personal punch history/correction request,
+   leave balance/request, or own timesheet review/signing. Manager approvals exist, but the staff
+   initiation side is web-only. Payroll setup/export can intentionally stay on the website.
+2. Notes lifecycle: mobile Notes disables rows with `person.logId`; no reading/amending a written
+   note, returned-note correction/resubmission, review queue or Community Participation screen.
+   Web note permissions support configured review roles and home leads, beyond just canManage.
+3. Appointments: mobile person facts show only three upcoming visits, without visit detail,
+   booking/editing, escort workflow, documentation or follow-up booking.
+4. Nursing: mobile mostly shares the staff interface. Cross-home medication rounds DO exist;
+   missing are clinical overview/history, weight recording/charts and care-team/appointment tools
+   that nurses can use on web. Preserve existing clinical permissions rather than making nurses admins.
+5. Manager operations: Today/Team and time approvals exist, but no scheduling/coverage assignment,
+   agency-wide note-review/medication/visit queues, or task creation/assignment. `/api/v1/tasks`
+   is GET-only and mobile is a personal task list with completion/comments.
+6. People/Homes/Staff discovery: person facts screen exists but no native searchable people
+   directory; Today people depend on the current shift/home. No native staff/credential directory
+   or home issues/expenses workflows. Distinguish read-only operational access from admin setup.
+7. Recovery: note and incident fields are component state, not durable drafts. Lock preserves
+   mounted forms, but app termination does not. Failed report-photo uploads explicitly require
+   the website; no in-app retry. Only regular medication doses have a persistent offline outbox;
+   PRN/controlled medications intentionally require a connection.
+8. Document handoff: ordinary native signing/uploads exist; PDF placed-field signing tells staff
+   to use the website but offers only Back. Web notification/assistant routes often fall back to
+   the browser, including person records despite an existing native person facts screen.
+9. Speech: prior hosting hold remains a deployment dependency. `/me.features.scribe` combines
+   plan/settings, not actual engine readiness; do not count the visible microphone as working service.
+
+Chat is comparatively complete in source and live server checks; physical-phone push, recording,
+attachment delivery, offline-resync and the two-phone conversation acceptance checks remain pending.
+Settings, payroll configuration/export, bulk administration and owner console are intentionally web
+scope under the existing mobile README; they should not automatically be labeled implementation bugs.
