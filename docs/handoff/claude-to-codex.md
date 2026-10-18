@@ -238,3 +238,23 @@ changed Expo's raw fingerprint; restored its original bytes, with no native rebu
 format. App Store ID is documented in the phone README instead. Preview updates now match both
 installed runtimes. Physical download/apply/restart and the two-phone UI flow are still pending;
 server-side tests are not a claim that physical devices passed. Speech hosting remains on hold.
+
+### Codex sign-in OTA follow-up
+
+At Kriss's request, simplified `mobile/src/components/SignIn.tsx`: smaller header/logo,
+"Welcome back" / "Sign in to Mohuddle", tighter spacing, a 44-point password-reset link to
+the configured API site's `/forgot-password`, and a scrollable header/form inside keyboard
+avoidance. The top safe area stays green when scrolling; the form has a maximum width and bottom
+safe-area padding. Password visibility and agency selection remain intact.
+
+TypeScript and targeted lint pass. The reset destination returns 200. Both exported source maps
+match the final source. Preview and production OTA manifests return 200 and the new update IDs
+for the installed iOS/Android runtimes; no native build was started.
+
+- Production iOS update `01a14d65-d7ec-7552-b10d-d80b4bda31d8`; Android `01a14d65-d7ec-7fd2-81ba-6b377e088958`.
+- Preview iOS update `01a14d66-58c5-7fef-9e4d-4622f80fc5c9`; Android `01a14d66-58c5-70bc-a96d-baab8c284718`.
+- Root implementation commits `aee20c6`, `6785222`; mobile repository main pushed to `5edf2f1`.
+  Root commits are local for this OTA-only change; no backend deployment was needed.
+- Local preview-server launch was rejected by automatic approval review ("blocked by policy").
+  No visual browser or physical-keyboard verification is claimed. Kriss still needs to check
+  the installed phone screen/keyboard and complete the earlier two-phone chat flow.
