@@ -565,3 +565,59 @@ screenshot/device pass is claimed by the automated checks. OTA IDs and manifest 
 - production android: 01a14dca-6536-7241-9724-cae7eb1c9c72; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
 
 All four public OTA endpoints return 200 with those update IDs and installed-runtime compatibility.
+
+
+### Codex notes / staff-time acceptance and ten test staff — 18 October 2026
+
+Kriss requested notes/time workflow testing and fixes, OTA only, plus ten role-based test staff
+using the explicitly requested shared password. Created ten active staff + linked login/user records
+in Milestone after checking there were no existing @test.vcom identities. Emails: admin, manager,
+coordinator, nurse, nurse2, dsp, dsp2, dsp3, dsp4, dsp5 @test.vcom. Manager's staff role is
+residential_manager with coordinator login permissions; coordinator is coordinator; nurses nurse;
+care staff dsp. Display names begin Test. All ten successful live sign-ins /me verified agency,
+staff link and role, then verification sessions were signed out. Existing staff/owner passwords
+were not reset. No invitation/reset email sent. Roster IDs are in ignored output/test-staff-accounts.private.json.
+The shared password is intentionally not committed to documentation.
+
+Kriss explicitly approved office access for only the three new admin/manager/coordinator accounts.
+Enabled office_work_enabled and granted only those three staff IDs in one audited transaction,
+using the existing Milestone admin actor, retaining office address/point/100m radius. Actor did
+not self-grant. Recorded office_access:grant events and office_policy:update with before/after.
+Live GET /clock verified those three available, nurse/dsp unavailable. No live clock-in was created
+and Kriss's existing staff record did not gain office access. Location remains the saved Census
+street-address estimate; on-site GPS boundary acceptance is pending.
+
+Mobile fixes: MyTime, Approvals, shift-note form, community form and signed-note record now guard
+against delayed/obsolete load responses, cancel updates on blur, and refresh on focus. Approvals
+and Community form data are scoped to agency/user; Approvals decision row state remounts per scope.
+Older account lists cannot stay visible while the next context loads. Retry buttons added for note
+form / approvals failures, community signature confirmation is scoped, and stale correction discard
+handles storage rejection. MyTime refresh spinner is separate from submission busy state, correction
+editing can be cancelled without clearing leave draft fields, and locked/open-punch/unfinished
+period explanations are distinct. No backend/native dependency/config/permission change.
+
+Checks: mobile TypeScript and changed-file ESLint pass; 41 focused notes/time/office/draft unit tests
+pass. Expanded opt-in note-workflow DB integration passes with separate disposable agencies, now
+asserting a different manager's correction approval and resulting punch time, leave approval/result,
+request cancellation ownership, timesheet return/re-sign/approval and approved-sheet rejection.
+Live phone API acceptance independently passed notes return/correct/resubmit/approve+lock, community
+retry, cross-agency/role denial, correction approval/result, leave approval/ownership/cancellation,
+timesheet signature/return/re-sign/approval/payroll lock, plus office constraints. Allocated test
+agencies removed on completion; no live care notes/payroll punches used for automation.
+Ignored logs: notes-time-integration.log and notes-time-api-acceptance.log. Integration's expected
+follow-up warnings arise outside Next request context; live HTTP path passed separately.
+
+Implementation root 779131b pushed. Both exported native source maps match all five changed app files.
+No new native build or backend deployment. docs/testing/notes-time-phone-checklist.md and README now
+track paired Android/iPhone steps and role/account roster. Physical phone keyboard/picker/force-close,
+review UI, request UI and GPS acceptance still belong to Kriss; no physical-device pass is claimed.
+Use clearly labelled test care records for signed notes/punches, not fabricated entries for actual
+people. No persistent test person/shift/pay period was added by the disposable automation.
+OTA IDs and public compatibility checks follow below.
+
+- preview ios: 01a14dd6-05a3-717c-805a-5041247848a7; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- preview android: 01a14dd6-05a3-7672-a2c4-b7a205106f2e; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+- production ios: 01a14dd6-8849-758d-8bdb-8c1c5d5a1b9e; runtime 4d3d04e83766b9ab0fa099d3a24ad4079884936b.
+- production android: 01a14dd6-8849-749e-b7f6-78ea111e263d; runtime 94af2e014853e598fa4230ed396d803329b5c45a.
+
+All four public OTA endpoints return 200 with those update IDs and installed-runtime compatibility.
