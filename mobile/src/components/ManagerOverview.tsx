@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { TeamNow } from "@/lib/api";
 import { colors, shadow } from "@/lib/theme";
+import { NavigationGroup, NavigationRow } from "./NavigationGroup";
 import { Button, ErrorText, Icon, T } from "./ui";
 
 /* Uses the manager-only /team response; a missing response is never shown as an all-clear. */
@@ -10,8 +11,6 @@ export function ManagerOverview({ team, error, onRetry }: { team: TeamNow | null
   const short = team?.homes.filter(home => home.on.length < home.expected) ?? [];
   return (
     <View style={styles.wrap}>
-      <Button label="Schedule and arrange cover" icon="calendar" tone="ghost" onPress={() => router.push("/manager-schedule")} />
-      <Button label="Create and assign tasks" icon="check-square" tone="ghost" onPress={() => router.push("/manage-tasks")} />
       <View style={styles.heading}>
         <T weight="bold" size={20}>Team overview</T>
         <Pressable accessibilityRole="link" onPress={() => router.push("/team")} style={styles.link}>
@@ -39,26 +38,16 @@ export function ManagerOverview({ team, error, onRetry }: { team: TeamNow | null
               <Icon name="chevron-right" size={17} color={colors.mute} />
             </View>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/approvals")} style={[styles.row, shadow.soft]}>
-            <View style={styles.icon}><Icon name="inbox" color={colors.brand} /></View>
-            <View style={{ flex: 1 }}>
-              <T weight="bold" size={16}>{waiting ? `${waiting} awaiting approval` : "No approvals waiting"}</T>
-              <T size={13} color={colors.mute}>Time off, punch fixes and timesheets</T>
-            </View>
-            <Icon name="chevron-right" color={colors.mute} />
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/team")} style={[styles.row, shadow.soft]}>
-            <View style={[styles.icon, (team.needs.length > 0 || team.incidents.length > 0) && { backgroundColor: colors.flagSoft }]}>
-              <Icon name={team.needs.length || team.incidents.length ? "alert-triangle" : "check-circle"} color={team.needs.length || team.incidents.length ? colors.flag : colors.sage} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T weight="bold" size={16}>Needs attention</T>
-              <T size={13} color={colors.mute}>{team.needs.length} staffing {team.needs.length === 1 ? "alert" : "alerts"} · {team.incidents.length} new {team.incidents.length === 1 ? "incident" : "incidents"}</T>
-            </View>
-            <Icon name="chevron-right" color={colors.mute} />
-          </Pressable>
+          <NavigationGroup>
+            <NavigationRow label={waiting ? `${waiting} awaiting approval` : "No approvals waiting"} detail="Time off, punch fixes and timesheets" icon="inbox" onPress={() => router.push("/approvals")} />
+            <NavigationRow label="Needs attention" detail={`${team.needs.length} staffing ${team.needs.length === 1 ? "alert" : "alerts"} · ${team.incidents.length} new ${team.incidents.length === 1 ? "incident" : "incidents"}`} icon={team.needs.length || team.incidents.length ? "alert-triangle" : "check-circle"} danger={Boolean(team.needs.length || team.incidents.length)} onPress={() => router.push("/team")} />
+          </NavigationGroup>
         </>
       )}
+      <View style={{ marginTop: 8 }}><NavigationGroup title="Manage your team">
+        <NavigationRow label="Schedule and coverage" icon="calendar" onPress={() => router.push("/manager-schedule")} />
+        <NavigationRow label="Create and assign tasks" icon="check-square" onPress={() => router.push("/manage-tasks")} />
+      </NavigationGroup></View>
     </View>
   );
 }
@@ -70,6 +59,5 @@ const styles = StyleSheet.create({
   coverage: { backgroundColor: colors.card, borderRadius: 24, overflow: "hidden" },
   coverageTop: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20 },
   coverageFoot: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, backgroundColor: colors.card, borderRadius: 20 },
   icon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.wash },
 });

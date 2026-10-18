@@ -258,6 +258,8 @@ start another report while earlier photos wait, and retry from Report or More. T
 prevent stale filed drafts from reviving already uploaded photos. Interrupted-upload/device checks
 remain required before marking incident recovery accepted. Today keeps personal clock-in, break and
 clock-out controls first beneath the greeting, ahead of manager tools, including loading/error states.
+Today groups schedule/task links below the team overview. More uses consistent navigation rows grouped
+under My work, Care tools, Management and Account; website administration stays collapsed and role-gated.
 Appointment medication changes are documented as visit instructions; they do not automatically
 rewrite medication orders or the MAR. Clinical medication-record changes still require the website.
 Native PDF placed-field signing has not been added; the working website handoff is intentional.
